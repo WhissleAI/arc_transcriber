@@ -1,0 +1,31 @@
+{
+ "model": "hexgrad/Kokoro-82M (Apache-2.0)",
+ "sample_rate": 16000,
+ "lines": [
+  {
+   "voice": "am_michael",
+   "text": "Welcome back, folks. Marcus Delaney brings the ball up the floor, fourth quarter, three minutes left.",
+   "secs": 7.25
+  },
+  {
+   "voice": "am_michael",
+   "text": "Delaney to Theo Brandt. Brandt drives, he scores! What a move by Theo Brandt.",
+   "secs": 6.05
+  },
+  {
+   "voice": "af_heart",
+   "text": "That puts the Harbor City Hawks ahead, one hundred and two to ninety eight.",
+   "secs": 4.7
+  },
+  {
+   "voice": "af_heart",
+   "text": "Brandt has twenty six points tonight, and the crowd is on its feet.",
+   "secs": 4.22
+  },
+  {
+   "voice": "am_michael",
+   "text": "Timeout called on the floor. We will be right back after this.",
+   "secs": 4.28
+  }
+ ]
+}

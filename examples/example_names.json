@@ -1,0 +1,7 @@
+[
+ {"name": "Marcus Delaney", "kind": "person", "group": "Harbor City Hawks"},
+ {"name": "Theo Brandt", "kind": "person", "group": "Harbor City Hawks", "aliases": ["Brandt"]},
+ {"name": "Owen Castellano", "kind": "person", "group": "Riverside Comets"},
+ {"name": "Harbor City Hawks", "kind": "team", "group": "Harbor City Hawks", "aliases": ["Hawks"]},
+ {"name": "Riverside Comets", "kind": "team", "group": "Riverside Comets", "aliases": ["Comets"]}
+]

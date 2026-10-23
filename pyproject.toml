@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "arc-transcriber"
+version = "1.0.1"
+description = "Arc v1 transcriber: streaming transcript with names linked to your list, numbers with values, speakers and tags"
+readme = "README.md"
+license = {text = "CC-BY-NC-4.0"}
+requires-python = ">=3.10"
+# tested: torch 2.11, transformers 5.19 (Moonshine Streaming support)
+dependencies = ["torch>=2.1", "transformers>=5.19", "safetensors", "numpy", "soundfile", "huggingface_hub", "rapidfuzz", "jellyfish"]
+
+[project.optional-dependencies]
+live = ["websockets>=12", "sounddevice"]    # --asr deepgram/verbit --live, --mic
+resample = ["scipy"]
+test = ["pytest>=8"]
+
+[project.scripts]
+arc-transcribe = "arc_transcriber.cli:main"
+
+[tool.setuptools]
+packages = ["arc_audio", "arc_audio.seq", "arc_transcriber"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

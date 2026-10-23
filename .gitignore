@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+.venv/
+*.safetensors
+*.wav
+!examples/example_synth.wav
+out*/

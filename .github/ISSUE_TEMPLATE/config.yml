@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Model weights and model card
+    url: https://huggingface.co/WhissleAI/arc-v1
+    about: Weights, evaluation results and the full model card live on Hugging Face.
