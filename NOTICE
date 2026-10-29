@@ -5,10 +5,10 @@ International License (CC BY-NC 4.0, see LICENSE); commercial use requires a sep
 This repository holds code only. The model weights are downloaded at run time from https://huggingface.co/WhissleAI/arc-v1.1:
 Arc weights under CC BY-NC 4.0, and modified versions of the Moonshine Streaming tiny speech model by Useful Sensors, Inc.
 (dba Moonshine AI) (https://huggingface.co/moonshine-ai/moonshine-streaming-tiny, https://github.com/moonshine-ai/moonshine)
-under the MIT License (licence and copyright notice retained in the model repository's edge/moonshine-streaming-tiny/LICENSE and
-server/decoder/LICENSE).
+under the MIT License (licence and copyright notice retained in the model repository's mini/moonshine-streaming-tiny/LICENSE and
+full/decoder/LICENSE).
 
-The parakeet (server) backbone downloads NVIDIA Parakeet-TDT 0.6B v2 (https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2,
+Arc Transcriber (the full backbone) downloads NVIDIA Parakeet-TDT 0.6B v2 (https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2,
 CC-BY-4.0, Copyright (c) NVIDIA Corporation) at run time and uses its encoder unmodified; arc_audio/server.py loads the encoder
 weights into the transformers ParakeetEncoder and re-implements its log-mel front end. The weights are not included here.
 The optional transcript="parakeet" finals tier downloads the same model through NeMo at run time.

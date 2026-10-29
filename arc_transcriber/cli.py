@@ -1,8 +1,8 @@
 """arc-transcribe: transcribe a file (or live audio) with Arc v1.1: transcript with inline name / number tags, names linked to your
 list, numbers with values, speakers, tags, sound events and device-directed speech, from one streaming model.
 
-    arc-transcribe clip.wav --domain nba --names roster.txt                       # edge backbone (default), offline
-    arc-transcribe clip.wav --backbone parakeet --device cuda                     # server backbone (larger, more accurate)
+    arc-transcribe clip.wav --domain nba --names roster.txt                       # Arc Mini (default), offline
+    arc-transcribe clip.wav --backbone full --device cuda                         # Arc Transcriber (full, more accurate)
     arc-transcribe clip.wav --context terms.txt --topic meeting                   # context: names / terms / topic for the decoder
     arc-transcribe clip.wav --asr deepgram --format srt -o clip.srt               # Deepgram words (DEEPGRAM_API_KEY)
     arc-transcribe clip.wav --asr verbit --live                                   # Verbit live order (VERBIT_WS_URL, VERBIT_API_KEY)
@@ -10,7 +10,7 @@ list, numbers with values, speakers, tags, sound events and device-directed spee
     arc-transcribe --mic --domain talk                                            # microphone (pip install sounddevice)
     arc-transcribe clip.wav --asr deepgram --demo                                 # no key: simulated Deepgram messages
 
-The model (WhissleAI/arc-v1.1, pinned revision) is downloaded from Hugging Face on first use; the parakeet backbone also downloads
+The model (WhissleAI/arc-v1.1, pinned revision) is downloaded from Hugging Face on first use; the full backbone also downloads
 nvidia/parakeet-tdt-0.6b-v2 (CC-BY-4.0, about 2.5 GB) on first use.
 """
 import argparse, asyncio, json, os, sys, time
@@ -129,6 +129,18 @@ async def mic_chunks(stop, duration):
                 continue
 
 
+def need_live_deps(a):
+    """--live / --mic with a real external ASR needs websockets; --mic needs sounddevice"""
+    import importlib.util
+    miss = []
+    if a.asr != "builtin" and not a.demo and importlib.util.find_spec("websockets") is None:
+        miss.append("websockets")
+    if a.mic and importlib.util.find_spec("sounddevice") is None:
+        miss.append("sounddevice")
+    if miss:
+        raise SystemExit(f"arc-transcribe: live mode needs {' and '.join(miss)}: pip install 'arc-transcriber[live]'")
+
+
 async def run_live(arc, a, wav, names):
     from . import asr as X
     ext_mode = a.asr != "builtin"
@@ -182,9 +194,12 @@ async def run_live(arc, a, wav, names):
     final = s.flush(); add(final)
     out = dict(acc, speakers=final.get("speakers"), item=final.get("item"), domain=a.domain,
                name_source="word" if ext_mode else s.nsrc, latency=s.latency_report())
-    if ext_mode:
+    if ext_mode and not acc["transcript"]:
         with s.words.lock:
             out["transcript"] = [dict(start=w["start"], end=w["end"], text=w["w"]) for w in s.words.finals]
+    elif ext_mode:
+        out["transcript"] = [dict(start=u["start"], end=u["end"], text=u["text"], words=u.get("words", []), source=u.get("source"),
+                                  **({"device_directed": u["device_directed"]} if u.get("device_directed") else {})) for u in acc["transcript"]]
     else:
         out["transcript"] = [dict(start=u["start"], end=u["end"], text=u["text"], words=u.get("words", [])) for u in acc["transcript"]]
     return out
@@ -197,8 +212,9 @@ def main(argv=None):
     ap.add_argument("--domain", default="unknown", help="nba nhl nfl cricket soccer esports news talk stream_chat meeting court_appellate "
                                                          "court_trial assistant assistant_noisy short_clips unknown (default)")
     ap.add_argument("--names", help="your name list: .txt (one per line, optional TAB kind) or .json")
-    ap.add_argument("--backbone", choices=["edge", "parakeet"], default="edge",
-                    help="edge (default: small, on-device, CPU real time) or parakeet (server: larger encoder, more accurate, GPU recommended)")
+    ap.add_argument("--backbone", choices=["mini", "full", "edge", "parakeet", "server"], default="mini",
+                    help="mini (default: Arc Mini, small, on-device) or full (Arc Transcriber: Parakeet encoder, most accurate, GPU "
+                         "recommended); edge = mini and parakeet / server = full are kept as aliases")
     ap.add_argument("--context", help="names / terms / phrases the decoder should expect: .txt (one per line), .json list, or 'a,b,c'")
     ap.add_argument("--topic", help="short topic / domain hint for the decoder context (e.g. 'meeting', 'nba', 'customer support')")
     ap.add_argument("--auto-context", action="store_true", help="feed the text of earlier utterances back as decoder context (memory)")
@@ -231,6 +247,8 @@ def main(argv=None):
         if not torch.cuda.is_available():
             ap.error("--device cuda: no CUDA device visible")
     names = load_names(a.names)
+    if a.mic or a.live or (a.asr == "verbit" and not a.demo):
+        need_live_deps(a)
     arc = load_arc(a)
     from arc_audio import load_audio
     wav = load_audio(a.audio) if a.audio else None

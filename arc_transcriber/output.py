@@ -52,6 +52,11 @@ def lines_of(out, gap_s=0.8, max_s=12.0):
     return lines
 
 
+def _bare(t):
+    import re
+    return re.sub(r"^[^\w$%]+|[^\w%']+$", "", str(t)).lower()
+
+
 def _inside(w, r):
     m = (w["start"] + w["end"]) / 2
     return r["start"] - 0.05 <= m <= r["end"] + 0.05
@@ -66,6 +71,8 @@ def tagged_text(line, names, numbers):
         if n.get("words"):                       # the record's own words (exact placement)
             own = {(round(float(x["start"]), 2), x["w"]) for x in n["words"]}
             idx = [k for k, w in enumerate(ws) if (round(float(w["start"]), 2), w["text"]) in own]
+            if not idx:                              # words from another transcript path: place by time
+                idx = [k for k, w in enumerate(ws) if _inside(w, n)]
         else:
             idx = [k for k, w in enumerate(ws) if _inside(w, n)]
         if idx:
@@ -76,6 +83,11 @@ def tagged_text(line, names, numbers):
         if val is None:
             continue
         idx = [k for k, w in enumerate(ws) if _inside(w, n)]
+        heard = {_bare(x) for x in str(n.get("heard") or "").split()}
+        while len(idx) > 1 and heard and _bare(ws[idx[-1]]["text"]) not in heard:
+            idx = idx[:-1]
+        while len(idx) > 1 and heard and _bare(ws[idx[0]]["text"]) not in heard:
+            idx = idx[1:]
         if idx:
             marks.setdefault(idx[0], []).append((idx[-1], f"{n.get('kind') or 'number'}: {val}"))
     out, k = [], 0

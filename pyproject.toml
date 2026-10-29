@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "arc-transcriber"
-version = "1.1.0"
-description = "Arc v1.1: one streaming model for transcript, inline name / number tags, speakers, tags, events and device-directed speech (edge or Parakeet backbone)"
+version = "1.1.1"
+description = "Arc v1.1: one streaming model for transcript, inline name / number tags, speakers, tags, events and device-directed speech (Arc Mini or Arc Transcriber)"
 readme = "README.md"
 license = {text = "CC-BY-NC-4.0"}
 requires-python = ">=3.10"

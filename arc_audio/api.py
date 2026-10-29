@@ -217,23 +217,27 @@ class Arc:
     def _moon_rel(self):
         return self._moons.get('release')
     HF_REPO = 'WhissleAI/arc-v1.1'
-    BACKBONES = {'edge': 'edge', 'server': 'server', 'parakeet': 'server'}
+    BACKBONES = {'mini': 'mini', 'edge': 'mini', 'full': 'full', 'parakeet': 'full', 'server': 'full'}
+    LEGACY = {'mini': 'edge', 'full': 'server'}
     MODEL_FILES = ['config.json', 'tags.json', '*.safetensors', '*/*', 'LICENSE', 'NOTICE']
 
     @classmethod
-    def from_pretrained(cls, repo_or_dir='WhissleAI/arc-v1.1', backbone='edge', device=None, revision=None, threads=None, **kw):
+    def from_pretrained(cls, repo_or_dir='WhissleAI/arc-v1.1', backbone='mini', device=None, revision=None, threads=None, **kw):
         if backbone not in cls.BACKBONES:
-            raise ValueError('backbone must be edge | parakeet (or server)')
+            raise ValueError('backbone must be mini | full (aliases: edge = mini, parakeet / server = full)')
         sub = cls.BACKBONES[backbone]
+        subs = [sub, cls.LEGACY[sub]]
         path = repo_or_dir
         if not os.path.isdir(path):
             from huggingface_hub import snapshot_download
             if revision is None and repo_or_dir == cls.HF_REPO:
                 from . import __version__
                 revision = f'v{__version__}'
-            path = snapshot_download(repo_or_dir, revision=revision, allow_patterns=[f'{sub}/{p}' for p in cls.MODEL_FILES] + ['LICENSE', 'NOTICE'])
-        if os.path.isdir(os.path.join(path, sub)) and os.path.exists(os.path.join(path, sub, 'config.json')):
-            path = os.path.join(path, sub)
+            path = snapshot_download(repo_or_dir, revision=revision, allow_patterns=[f'{d}/{p}' for d in subs for p in cls.MODEL_FILES] + ['LICENSE', 'NOTICE'])
+        for d in subs:
+            if os.path.exists(os.path.join(path, d, 'config.json')):
+                path = os.path.join(path, d)
+                break
         return cls(path, device=device, threads=threads, **kw)
 
     def delay_frames(self, delay_s):
@@ -387,6 +391,13 @@ class Arc:
                 r['id'] = eng._new_id('name')
             out['names'] = sorted(out['names'] + add, key=lambda r: (r['start'], r['end']))
             out['fallback'] = 'builtin'
+        if transcript == 'external' and not utts:
+            from .tidy import group_words, utterance_spans
+            out['transcript'] = group_words([dict(w) for w in ws.finals], utterance_spans(wav, self.cfg.get('transcription')))
+            if self.dd_head is not None:
+                for u in out['transcript']:
+                    u['device_directed'] = self.directed(xe[int(u['start'] * 10):int(u['end'] * 10) + 1])
+        tidy_out(out, [w for u in out['transcript'] for w in u.get('words') or []])
         out['timing'] = dict(audio_s=round(len(wav) / SR, 2), wall_s=round(time.time() - t_start, 2))
         return out
 
@@ -450,6 +461,36 @@ class Arc:
             t = tab.get(kind) or {}
             out[kind] = t.get(domain, t.get('unknown'))
         return out if any((v is not None for v in out.values())) else None
+
+def extend_number(r, words):
+    from .tidy import _numeric, clean_word
+    from . import textlayer as TL
+    W = sorted(words, key=lambda w: w['start'])
+    if not W:
+        return r
+    txt = lambda w: str(w.get('text', w.get('w', '')))
+    idx = [k for k, w in enumerate(W) if (w['start'] + w['end']) / 2 >= r['start'] - 0.02 and (w['start'] + w['end']) / 2 <= r['end'] + 0.02]
+    if not idx:
+        return r
+    i, j = (idx[0], idx[-1])
+    grew = False
+    while i > 0 and _numeric(txt(W[i - 1])) and W[i]['start'] - W[i - 1]['end'] < 0.6 and clean_word(txt(W[i])).lower() in ('hundred', 'thousand', 'million', 'billion', 'and', 'point', 'to') + tuple((x for x in ('twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'))) and (not txt(W[i - 1]).rstrip().endswith(('.', ',', '?', '!'))):
+        i -= 1
+        grew = True
+    if grew:
+        ws = [txt(w) for w in W[i:j + 1]]
+        r['heard'] = ' '.join(ws)
+        r['start'] = round(min(r['start'], W[i]['start']), 3)
+        vt, _ = TL.text_value(r.get('kind'), ws)
+        if vt is not None and vt.get('v') is not None:
+            r.update(value=vt.get('v'), value2=vt.get('v2'), state='read_text')
+    return r
+
+def tidy_out(out, words):
+    from .tidy import tidy_name, tidy_number, keep_number, dedupe_names
+    out['names'] = dedupe_names([tidy_name(r) for r in out.get('names') or []])
+    out['numbers'] = [tidy_number(extend_number(r, words)) for r in out.get('numbers') or [] if keep_number(r)]
+    return out
 
 KB_KIND = {'person': 'person', 'team': 'team', 'organization': 'org', 'org': 'org', 'place': 'place', 'law': 'law', 'product': 'product'}
 
@@ -630,6 +671,14 @@ class Stream:
         self.dd_out = []
         self.ev_sent = 0
         self.dd_sent = 0
+        self.xseg = None
+        self.xspans = []
+        self.xfdb = 0
+        self.xused = set()
+        self.emitted = []
+        if transcript == 'external':
+            from .transcribe import UttSegmenter
+            self.xseg = UttSegmenter(arc.cfg.get('transcription'))
         self.kb = None
         if kb_snap and names:
             from .kbsnap import KB
@@ -767,6 +816,7 @@ class Stream:
         pcm = np.asarray(pcm, np.float32).reshape(-1)
         self.audio = np.concatenate([self.audio, pcm])
         self.total += len(pcm)
+        self._xseg_step(final=False)
         xs = self._features(pcm, final=False)
         self._advance(xs, final=False)
         if self.seg is not None:
@@ -791,6 +841,7 @@ class Stream:
 
     @torch.no_grad()
     def flush(self):
+        self._xseg_step(final=True)
         xs = self._features(None, final=True)
         self._advance(xs, final=True)
         if self.seg is not None:
@@ -802,6 +853,7 @@ class Stream:
             sys.setswitchinterval(self._swi)
             self._check_worker()
         self._join()
+        self._xgroup(final=True)
         self._dd_step(final=True)
         if self.pk is not None:
             self.utts += self.pk.drain(self.words)
@@ -843,6 +895,47 @@ class Stream:
             self.evt.push(list(xe), list(ts))
             self.evt.step(final=final)
         return xs
+
+    def _xseg_step(self, final):
+        if self.xseg is None:
+            return
+        nf = self.total // FR if not final else (self.total + FR - 1) // FR
+        while self.xfdb < nf:
+            f = self.xfdb
+            for f0, f1, _ in self.xseg.feed(f, frame_db(self._get_audio(f * FR, (f + 1) * FR))):
+                self.xspans.append((f0, f1))
+            self.xfdb += 1
+        if final:
+            self.xspans += [(f0, f1) for f0, f1, _ in self.xseg.flush()]
+
+    def _xgroup(self, final):
+        if self.xseg is None:
+            return
+        from .tidy import group_words
+        with self.words.lock:
+            fin = [w for w in self.words.finals if (w['start'], w['w']) not in self.xused]
+            cov = self.words.covered
+        keep = []
+        for f0, f1 in self.xspans:
+            s, e = (f0 / 10, (f1 + 1) / 10)
+            if not final and cov < e + 0.3:
+                keep.append((f0, f1))
+                continue
+            ws = [w for w in fin if s - 0.3 <= (w['start'] + w['end']) / 2 <= e + 0.3 and (w['start'], w['w']) not in self.xused]
+            for w in ws:
+                self.xused.add((w['start'], w['w']))
+            for u in group_words([dict(w) for w in ws], [(s, e)]):
+                u.update(f0=int(u['start'] * 10), f1=max(int(u['start'] * 10), int(u['end'] * 10) - 1))
+                self.utts.append(u)
+                if self.a.dd_head is not None:
+                    self.dd_wait.append(u)
+        self.xspans = keep
+        if final:
+            rest = [w for w in fin if (w['start'], w['w']) not in self.xused]
+            for u in group_words([dict(w) for w in rest], []):
+                u.update(f0=int(u['start'] * 10), f1=max(int(u['start'] * 10), int(u['end'] * 10) - 1))
+                self.utts.append(u)
+            self.utts.sort(key=lambda u: u['start'])
 
     def _dd_step(self, final=False):
         if self.a.dd_head is None:
@@ -1003,6 +1096,7 @@ class Stream:
                 with self.words.lock:
                     recent = [r for r in self.eng.out['names'][-300:] if r['end'] > u['start'] - 1]
                     self.eng.out['names'] += add_spans(u.get('words') or [], recent, self.kb, lambda: self.eng._new_id('name'))
+        self._xgroup(final=False)
         self._dd_step()
         po = self.partial_out
         self.partial = None if po is None else {k: v for k, v in po.items() if k != 'f0'}
@@ -1021,6 +1115,25 @@ class Stream:
                 r = x.get('record') if isinstance(x, dict) else None
                 if isinstance(r, dict) and 'heard' in r and str(r.get('tag', '')).startswith('entity.mention'):
                     link(r, self.kb)
+        from .tidy import tidy_name, tidy_number, keep_number, same_mention
+        with self.words.lock:
+            fw = list(self.words.finals[-400:])
+        nn = []
+        for r in out['names']:
+            tidy_name(r)
+            if any((same_mention(r, o) for o in self.emitted)):
+                continue
+            self.emitted = (self.emitted + [r])[-300:]
+            nn.append(r)
+        out['names'] = nn
+        out['numbers'] = [tidy_number(extend_number(r, fw)) for r in out['numbers'] if keep_number(r)]
+        for x in out['updates']:
+            r = x.get('record') if isinstance(x, dict) else None
+            if isinstance(r, dict) and 'heard' in r:
+                if x.get('type') == 'name':
+                    tidy_name(r)
+                elif x.get('type') == 'number':
+                    tidy_number(r)
         if self.evt is not None:
             out['audio_events'] = self.evt.out[self.ev_sent:]
             self.ev_sent = len(self.evt.out)

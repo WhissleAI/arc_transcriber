@@ -1,12 +1,12 @@
 # Arc v1.1 packed weight format (`*.q4.safetensors`)
 
-Files: `edge/model.q4.safetensors` (Arc), `edge/moonshine-streaming-tiny/model.q4.safetensors` (speech encoder + transcript decoder),
-`server/model.q4.safetensors` (Arc, same bytes as edge), `server/decoder/model.q4.safetensors` (transcript decoder only).
-Plain (unpacked) files: `edge/heads.safetensors`, `server/adapters.safetensors` (float32).
+Files: `mini/model.q4.safetensors` (Arc), `mini/moonshine-streaming-tiny/model.q4.safetensors` (speech encoder + transcript decoder),
+`full/model.q4.safetensors` (Arc, same bytes as mini), `full/decoder/model.q4.safetensors` (transcript decoder only).
+Plain (unpacked) files: `mini/heads.safetensors`, `full/adapters.safetensors` (float32).
 
 ## Container
 Standard safetensors (8-byte little-endian header length, JSON header, raw little-endian tensor data; each tensor's data is a
-contiguous byte range given by `data_offsets`, so a C reader can mmap the file). Header `__metadata__`:
+contiguous byte range given by `data_offsets`, so a reader can mmap the file). Header `__metadata__`:
 
 - `format`: `"pt"`
 - `group_size`: `"32"`

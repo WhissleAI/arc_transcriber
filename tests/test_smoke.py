@@ -1,8 +1,8 @@
-"""CPU smoke test: downloads WhissleAI/arc-v1.1 (pinned revision, edge backbone) from Hugging Face on first use; skipped when offline.
+"""CPU smoke test: downloads WhissleAI/arc-v1.1 (pinned revision, Arc Mini) from Hugging Face on first use; skipped when offline.
 
     pytest -q                                          # or: python -m pytest tests
     ARC_MODEL=/path/to/arc-v1.1 pytest -q              # a local copy of the model repository instead of the download
-    ARC_TEST_PARAKEET=1 pytest -q                      # also run the parakeet (server) backbone (downloads ~2.5 GB)
+    ARC_TEST_PARAKEET=1 pytest -q                      # also run Arc Transcriber (full, Parakeet encoder) (downloads ~2.5 GB)
 """
 import json, os, socket, subprocess, sys
 from pathlib import Path
@@ -118,11 +118,11 @@ def test_events_and_context(arc):
     assert sum(len(g["transcript"]) for g in got) > 0
 
 
-@pytest.mark.skipif(not os.environ.get("ARC_TEST_PARAKEET"), reason="ARC_TEST_PARAKEET=1 runs the server backbone")
-def test_parakeet_backbone():
+@pytest.mark.skipif(not os.environ.get("ARC_TEST_PARAKEET"), reason="ARC_TEST_PARAKEET=1 runs the full backbone")
+def test_full_backbone():
     from arc_audio import Arc, load_audio
     from arc_transcriber.cli import load_names
-    a = Arc.from_pretrained(MODEL or "WhissleAI/arc-v1.1", backbone="parakeet", revision=None if MODEL else "v1.1.0")
+    a = Arc.from_pretrained(MODEL or "WhissleAI/arc-v1.1", backbone="full", revision=None if MODEL else "v1.1.1")
     out = a.predict(load_audio(str(CLIP)), domain="nba", names=load_names(str(NAMES)))
     assert len(" ".join(u["text"] for u in out["transcript"]).split()) > 20
     assert any(n["state"] == "linked" for n in out["names"])
@@ -142,3 +142,11 @@ def test_cli_builtin_and_demo(arc, tmp_path):
     assert "-->" in o.read_text() and "(name: " in o.read_text()
     r = subprocess.run(base + ["--asr", "deepgram"], env=env, capture_output=True, text=True)
     assert r.returncode != 0 and "DEEPGRAM_API_KEY" in r.stderr
+
+
+def test_backbone_aliases(tmp_path):
+    from arc_audio import Arc
+    for name, folder in (("mini", "mini"), ("edge", "mini"), ("full", "full"), ("parakeet", "full"), ("server", "full")):
+        assert Arc.BACKBONES[name] == folder
+    with pytest.raises(ValueError):
+        Arc.from_pretrained(str(tmp_path), backbone="tiny")

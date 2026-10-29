@@ -1,0 +1,1249 @@
+{
+ "backbone": "full",
+ "input": "example_synth.wav",
+ "settings": {
+  "domain": "nba",
+  "events": "default",
+  "kb_snap": true,
+  "return_frames": true,
+  "names": "example_names.json"
+ },
+ "device": "cpu",
+ "output": {
+  "transcript": [
+   {
+    "start": 0.6,
+    "end": 2.0,
+    "text": "Welcome back, folks.",
+    "words": [
+     {
+      "text": "Welcome",
+      "start": 0.45,
+      "end": 1.09,
+      "is_final": true
+     },
+     {
+      "text": "back,",
+      "start": 1.01,
+      "end": 1.49,
+      "is_final": true
+     },
+     {
+      "text": "folks.",
+      "start": 1.41,
+      "end": 2.15,
+      "is_final": true
+     }
+    ],
+    "source": "builtin",
+    "tags": [],
+    "device_directed": {
+     "p": 0.0,
+     "directed": false
+    }
+   },
+   {
+    "start": 2.4,
+    "end": 7.0,
+    "text": "Marcus Delaney brings the ball up the floor, fourth quarter, three minutes left.",
+    "words": [
+     {
+      "text": "Marcus",
+      "start": 2.25,
+      "end": 2.73,
+      "is_final": true,
+      "tag": "ENTITY_PERSON",
+      "tag_begin": true
+     },
+     {
+      "text": "Delaney",
+      "start": 2.65,
+      "end": 3.45,
+      "is_final": true,
+      "tag": "ENTITY_PERSON",
+      "tag_begin": false
+     },
+     {
+      "text": "brings",
+      "start": 3.37,
+      "end": 3.61,
+      "is_final": true
+     },
+     {
+      "text": "the",
+      "start": 3.53,
+      "end": 3.85,
+      "is_final": true
+     },
+     {
+      "text": "ball",
+      "start": 3.77,
+      "end": 4.01,
+      "is_final": true
+     },
+     {
+      "text": "up",
+      "start": 3.93,
+      "end": 4.33,
+      "is_final": true
+     },
+     {
+      "text": "the",
+      "start": 4.25,
+      "end": 4.41,
+      "is_final": true
+     },
+     {
+      "text": "floor,",
+      "start": 4.33,
+      "end": 4.81,
+      "is_final": true
+     },
+     {
+      "text": "fourth",
+      "start": 4.73,
+      "end": 5.29,
+      "is_final": true,
+      "tag": "NUMBER_ORDINAL",
+      "tag_begin": true
+     },
+     {
+      "text": "quarter,",
+      "start": 5.21,
+      "end": 6.01,
+      "is_final": true
+     },
+     {
+      "text": "three",
+      "start": 5.93,
+      "end": 6.17,
+      "is_final": true,
+      "tag": "NUMBER_DURATION",
+      "tag_begin": true
+     },
+     {
+      "text": "minutes",
+      "start": 6.09,
+      "end": 6.49,
+      "is_final": true,
+      "tag": "NUMBER_DURATION",
+      "tag_begin": false
+     },
+     {
+      "text": "left.",
+      "start": 6.41,
+      "end": 7.15,
+      "is_final": true,
+      "tag": "NUMBER_DURATION",
+      "tag_begin": false
+     }
+    ],
+    "source": "builtin",
+    "tags": [
+     {
+      "tag": "ENTITY_PERSON",
+      "start": 2.25,
+      "end": 3.45,
+      "text": "Marcus Delaney"
+     },
+     {
+      "tag": "NUMBER_ORDINAL",
+      "start": 4.73,
+      "end": 5.29,
+      "text": "fourth"
+     },
+     {
+      "tag": "NUMBER_DURATION",
+      "start": 5.93,
+      "end": 7.15,
+      "text": "three minutes left."
+     }
+    ],
+    "device_directed": {
+     "p": 0.0,
+     "directed": false
+    }
+   },
+   {
+    "start": 8.7,
+    "end": 9.9,
+    "text": "Delaney Theo Brandt.",
+    "words": [
+     {
+      "text": "Delaney",
+      "start": 8.55,
+      "end": 9.19,
+      "is_final": true
+     },
+     {
+      "text": "Theo",
+      "start": 9.11,
+      "end": 9.67,
+      "is_final": true,
+      "tag": "ENTITY_PERSON",
+      "tag_begin": true
+     },
+     {
+      "text": "Brandt.",
+      "start": 9.59,
+      "end": 10.05,
+      "is_final": true,
+      "tag": "ENTITY_PERSON",
+      "tag_begin": false
+     }
+    ],
+    "source": "builtin",
+    "tags": [
+     {
+      "tag": "ENTITY_PERSON",
+      "start": 9.11,
+      "end": 10.05,
+      "text": "Theo Brandt."
+     }
+    ],
+    "device_directed": {
+     "p": 0.0,
+     "directed": false
+    }
+   },
+   {
+    "start": 10.3,
+    "end": 13.7,
+    "text": "Brandt drives, he scores. What a move by Theo Brandt.",
+    "words": [
+     {
+      "text": "Brandt",
+      "start": 10.15,
+      "end": 11.11,
+      "is_final": true,
+      "tag": "ENTITY_PERSON",
+      "tag_begin": true
+     },
+     {
+      "text": "drives,",
+      "start": 11.03,
+      "end": 11.27,
+      "is_final": true
+     },
+     {
+      "text": "he",
+      "start": 11.19,
+      "end": 11.35,
+      "is_final": true
+     },
+     {
+      "text": "scores.",
+      "start": 11.27,
+      "end": 11.91,
+      "is_final": true
+     },
+     {
+      "text": "What",
+      "start": 11.83,
+      "end": 12.31,
+      "is_final": true
+     },
+     {
+      "text": "a",
+      "start": 12.23,
+      "end": 12.47,
+      "is_final": true
+     },
+     {
+      "text": "move",
+      "start": 12.39,
+      "end": 12.63,
+      "is_final": true
+     },
+     {
+      "text": "by",
+      "start": 12.55,
+      "end": 12.95,
+      "is_final": true
+     },
+     {
+      "text": "Theo",
+      "start": 12.87,
+      "end": 13.35,
+      "is_final": true,
+      "tag": "ENTITY_PERSON",
+      "tag_begin": true
+     },
+     {
+      "text": "Brandt.",
+      "start": 13.27,
+      "end": 13.85,
+      "is_final": true,
+      "tag": "ENTITY_PERSON",
+      "tag_begin": false
+     }
+    ],
+    "source": "builtin",
+    "tags": [
+     {
+      "tag": "ENTITY_PERSON",
+      "start": 10.15,
+      "end": 11.11,
+      "text": "Brandt"
+     },
+     {
+      "tag": "ENTITY_PERSON",
+      "start": 12.87,
+      "end": 13.85,
+      "text": "Theo Brandt."
+     }
+    ],
+    "device_directed": {
+     "p": 0.0,
+     "directed": false
+    }
+   },
+   {
+    "start": 15.4,
+    "end": 19.4,
+    "text": "That puts the Harbor City Hawks ahead, one hundred two to ninety eight.",
+    "words": [
+     {
+      "text": "That",
+      "start": 15.25,
+      "end": 15.57,
+      "is_final": true
+     },
+     {
+      "text": "puts",
+      "start": 15.49,
+      "end": 15.81,
+      "is_final": true
+     },
+     {
+      "text": "the",
+      "start": 15.73,
+      "end": 16.05,
+      "is_final": true
+     },
+     {
+      "text": "Harbor",
+      "start": 15.97,
+      "end": 16.37,
+      "is_final": true,
+      "tag": "ENTITY_ORG",
+      "tag_begin": true
+     },
+     {
+      "text": "City",
+      "start": 16.29,
+      "end": 16.61,
+      "is_final": true,
+      "tag": "ENTITY_ORG",
+      "tag_begin": false
+     },
+     {
+      "text": "Hawks",
+      "start": 16.53,
+      "end": 17.09,
+      "is_final": true,
+      "tag": "ENTITY_ORG",
+      "tag_begin": false
+     },
+     {
+      "text": "ahead,",
+      "start": 17.01,
+      "end": 17.57,
+      "is_final": true
+     },
+     {
+      "text": "one",
+      "start": 17.49,
+      "end": 17.89,
+      "is_final": true,
+      "tag": "NUMBER_SCORE",
+      "tag_begin": true
+     },
+     {
+      "text": "hundred",
+      "start": 17.81,
+      "end": 18.29,
+      "is_final": true,
+      "tag": "NUMBER_SCORE",
+      "tag_begin": false
+     },
+     {
+      "text": "two",
+      "start": 18.21,
+      "end": 18.45,
+      "is_final": true,
+      "tag": "NUMBER_SCORE",
+      "tag_begin": false
+     },
+     {
+      "text": "to",
+      "start": 18.37,
+      "end": 18.69,
+      "is_final": true,
+      "tag": "NUMBER_SCORE",
+      "tag_begin": false
+     },
+     {
+      "text": "ninety",
+      "start": 18.61,
+      "end": 19.17,
+      "is_final": true,
+      "tag": "NUMBER_SCORE",
+      "tag_begin": false
+     },
+     {
+      "text": "eight.",
+      "start": 19.09,
+      "end": 19.55,
+      "is_final": true,
+      "tag": "NUMBER_SCORE",
+      "tag_begin": false
+     }
+    ],
+    "source": "builtin",
+    "tags": [
+     {
+      "tag": "ENTITY_ORG",
+      "start": 15.97,
+      "end": 17.09,
+      "text": "Harbor City Hawks"
+     },
+     {
+      "tag": "NUMBER_SCORE",
+      "start": 17.49,
+      "end": 19.55,
+      "text": "one hundred two to ninety eight."
+     }
+    ],
+    "device_directed": {
+     "p": 0.0,
+     "directed": false
+    }
+   },
+   {
+    "start": 20.9,
+    "end": 24.4,
+    "text": "Brandt has twenty six points tonight, and the crowd is on its feet.",
+    "words": [
+     {
+      "text": "Brandt",
+      "start": 20.75,
+      "end": 21.47,
+      "is_final": true,
+      "tag": "ENTITY_PERSON",
+      "tag_begin": true
+     },
+     {
+      "text": "has",
+      "start": 21.39,
+      "end": 21.55,
+      "is_final": true
+     },
+     {
+      "text": "twenty",
+      "start": 21.47,
+      "end": 21.87,
+      "is_final": true,
+      "tag": "NUMBER_STAT",
+      "tag_begin": true
+     },
+     {
+      "text": "six",
+      "start": 21.79,
+      "end": 22.03,
+      "is_final": true,
+      "tag": "NUMBER_STAT",
+      "tag_begin": false
+     },
+     {
+      "text": "points",
+      "start": 21.95,
+      "end": 22.43,
+      "is_final": true,
+      "tag": "NUMBER_STAT",
+      "tag_begin": false
+     },
+     {
+      "text": "tonight,",
+      "start": 22.35,
+      "end": 23.07,
+      "is_final": true
+     },
+     {
+      "text": "and",
+      "start": 22.99,
+      "end": 23.15,
+      "is_final": true
+     },
+     {
+      "text": "the",
+      "start": 23.07,
+      "end": 23.31,
+      "is_final": true
+     },
+     {
+      "text": "crowd",
+      "start": 23.23,
+      "end": 23.55,
+      "is_final": true
+     },
+     {
+      "text": "is",
+      "start": 23.47,
+      "end": 23.79,
+      "is_final": true
+     },
+     {
+      "text": "on",
+      "start": 23.71,
+      "end": 23.95,
+      "is_final": true
+     },
+     {
+      "text": "its",
+      "start": 23.87,
+      "end": 24.11,
+      "is_final": true
+     },
+     {
+      "text": "feet.",
+      "start": 24.03,
+      "end": 24.55,
+      "is_final": true
+     }
+    ],
+    "source": "builtin",
+    "tags": [
+     {
+      "tag": "ENTITY_PERSON",
+      "start": 20.75,
+      "end": 21.47,
+      "text": "Brandt"
+     },
+     {
+      "tag": "NUMBER_STAT",
+      "start": 21.47,
+      "end": 22.43,
+      "text": "twenty six points"
+     }
+    ],
+    "device_directed": {
+     "p": 0.0,
+     "directed": false
+    }
+   },
+   {
+    "start": 26.0,
+    "end": 29.5,
+    "text": "Time out called on the floor. We will be right back after this.",
+    "words": [
+     {
+      "text": "Time",
+      "start": 25.85,
+      "end": 26.17,
+      "is_final": true
+     },
+     {
+      "text": "out",
+      "start": 26.09,
+      "end": 26.57,
+      "is_final": true
+     },
+     {
+      "text": "called",
+      "start": 26.49,
+      "end": 26.81,
+      "is_final": true
+     },
+     {
+      "text": "on",
+      "start": 26.73,
+      "end": 27.05,
+      "is_final": true
+     },
+     {
+      "text": "the",
+      "start": 26.97,
+      "end": 27.21,
+      "is_final": true
+     },
+     {
+      "text": "floor.",
+      "start": 27.13,
+      "end": 27.61,
+      "is_final": true
+     },
+     {
+      "text": "We",
+      "start": 27.53,
+      "end": 27.93,
+      "is_final": true
+     },
+     {
+      "text": "will",
+      "start": 27.85,
+      "end": 28.17,
+      "is_final": true
+     },
+     {
+      "text": "be",
+      "start": 28.09,
+      "end": 28.33,
+      "is_final": true
+     },
+     {
+      "text": "right",
+      "start": 28.25,
+      "end": 28.49,
+      "is_final": true
+     },
+     {
+      "text": "back",
+      "start": 28.41,
+      "end": 28.81,
+      "is_final": true
+     },
+     {
+      "text": "after",
+      "start": 28.73,
+      "end": 29.05,
+      "is_final": true
+     },
+     {
+      "text": "this.",
+      "start": 28.97,
+      "end": 29.65,
+      "is_final": true
+     }
+    ],
+    "source": "builtin",
+    "tags": [],
+    "device_directed": {
+     "p": 0.0,
+     "directed": false
+    }
+   }
+  ],
+  "names": [
+   {
+    "start": 2.25,
+    "end": 3.45,
+    "tag": "entity.mention.person",
+    "heard": "Marcus Delaney",
+    "model": {
+     "entity": "Marcus Delaney",
+     "p": 0.9891
+    },
+    "src": "decoder",
+    "decoder_tag": "ENTITY_PERSON",
+    "entity": "Marcus Delaney",
+    "p": 1.0,
+    "state": "linked",
+    "kb_index": 0,
+    "words": [
+     {
+      "w": "Marcus",
+      "start": 2.25,
+      "end": 2.73
+     },
+     {
+      "w": "Delaney",
+      "start": 2.65,
+      "end": 3.45
+     }
+    ],
+    "span_p": 0.376,
+    "head_p": 0.376,
+    "show": true,
+    "id": "nm1"
+   },
+   {
+    "start": 9.11,
+    "end": 10.05,
+    "tag": "entity.mention.person",
+    "heard": "Theo Brandt",
+    "model": {
+     "entity": "Theo Brandt",
+     "p": 0.9723
+    },
+    "src": "decoder",
+    "decoder_tag": "ENTITY_PERSON",
+    "entity": "Theo Brandt",
+    "p": 1.0,
+    "state": "linked",
+    "kb_index": 1,
+    "words": [
+     {
+      "w": "Theo",
+      "start": 9.11,
+      "end": 9.67
+     },
+     {
+      "w": "Brandt.",
+      "start": 9.59,
+      "end": 10.05
+     }
+    ],
+    "span_p": 0.1351,
+    "head_p": 0.1351,
+    "show": true,
+    "id": "nm2"
+   },
+   {
+    "start": 10.15,
+    "end": 11.11,
+    "tag": "entity.mention.person",
+    "heard": "Brandt",
+    "model": {
+     "entity": null,
+     "p": 0.6076
+    },
+    "src": "decoder",
+    "decoder_tag": "ENTITY_PERSON",
+    "entity": "Theo Brandt",
+    "p": 0.9998,
+    "state": "linked",
+    "kb_index": 1,
+    "words": [
+     {
+      "w": "Brandt",
+      "start": 10.15,
+      "end": 11.11
+     }
+    ],
+    "span_p": 0.32,
+    "head_p": 0.32,
+    "show": true,
+    "id": "nm3"
+   },
+   {
+    "start": 12.87,
+    "end": 13.85,
+    "tag": "entity.mention.person",
+    "heard": "Theo Brandt",
+    "model": {
+     "entity": "Theo Brandt",
+     "p": 0.9964
+    },
+    "src": "decoder",
+    "decoder_tag": "ENTITY_PERSON",
+    "entity": "Theo Brandt",
+    "p": 1.0,
+    "state": "linked",
+    "kb_index": 1,
+    "words": [
+     {
+      "w": "Theo",
+      "start": 12.87,
+      "end": 13.35
+     },
+     {
+      "w": "Brandt.",
+      "start": 13.27,
+      "end": 13.85
+     }
+    ],
+    "span_p": 0.0744,
+    "head_p": 0.0744,
+    "show": true,
+    "id": "nm4"
+   },
+   {
+    "start": 15.97,
+    "end": 17.09,
+    "tag": "entity.mention.organization",
+    "heard": "Harbor City Hawks",
+    "model": {
+     "entity": "Harbor City Hawks",
+     "p": 0.9964
+    },
+    "src": "decoder",
+    "decoder_tag": "ENTITY_ORG",
+    "entity": "Harbor City Hawks",
+    "p": 1.0,
+    "state": "linked",
+    "kb_index": 3,
+    "words": [
+     {
+      "w": "Harbor",
+      "start": 15.97,
+      "end": 16.37
+     },
+     {
+      "w": "City",
+      "start": 16.29,
+      "end": 16.61
+     },
+     {
+      "w": "Hawks",
+      "start": 16.53,
+      "end": 17.09
+     }
+    ],
+    "span_p": 0.0286,
+    "head_p": 0.0286,
+    "show": true,
+    "id": "nm5"
+   },
+   {
+    "start": 20.75,
+    "end": 21.47,
+    "tag": "entity.mention.person",
+    "heard": "Brandt",
+    "model": {
+     "entity": null,
+     "p": 0.5278
+    },
+    "src": "decoder",
+    "decoder_tag": "ENTITY_PERSON",
+    "entity": "Theo Brandt",
+    "p": 0.9999,
+    "state": "linked",
+    "kb_index": 1,
+    "words": [
+     {
+      "w": "Brandt",
+      "start": 20.75,
+      "end": 21.47
+     }
+    ],
+    "span_p": 0.3895,
+    "head_p": 0.3895,
+    "show": true,
+    "id": "nm6"
+   }
+  ],
+  "numbers": [
+   {
+    "start": 4.73,
+    "end": 5.29,
+    "kind": "ordinal",
+    "unit": null,
+    "tokens": [
+     "four"
+    ],
+    "value": 4,
+    "value2": null,
+    "heard": "fourth",
+    "state": "read_text",
+    "value_from_text": 4,
+    "value2_from_text": null,
+    "value_model": 4,
+    "value2_model": null,
+    "src": "decoder",
+    "decoder_tag": "NUMBER_ORDINAL",
+    "kind_head": "ordinal",
+    "id": "nu1"
+   },
+   {
+    "start": 5.93,
+    "end": 7.15,
+    "kind": "duration",
+    "unit": "minute",
+    "tokens": [
+     "three"
+    ],
+    "value": 180,
+    "value2": null,
+    "heard": "three minutes",
+    "state": "read_text",
+    "value_from_text": 180,
+    "value2_from_text": null,
+    "value_model": null,
+    "value2_model": null,
+    "src": "decoder",
+    "decoder_tag": "NUMBER_DURATION",
+    "kind_head": "duration",
+    "id": "nu2"
+   },
+   {
+    "start": 17.49,
+    "end": 19.55,
+    "kind": "score",
+    "unit": null,
+    "tokens": [
+     "one",
+     "hundred",
+     "and",
+     "ninety",
+     "eight"
+    ],
+    "value": 102,
+    "value2": 98,
+    "heard": "one hundred two to ninety eight",
+    "state": "read_text",
+    "value_from_text": 102,
+    "value2_from_text": 98,
+    "value_model": 198,
+    "value2_model": null,
+    "src": "decoder",
+    "decoder_tag": "NUMBER_SCORE",
+    "kind_head": "score",
+    "id": "nu3"
+   },
+   {
+    "start": 21.47,
+    "end": 22.43,
+    "kind": "stat",
+    "unit": "points",
+    "tokens": [
+     "twenty",
+     "twenty"
+    ],
+    "value": 26,
+    "value2": null,
+    "heard": "twenty six points",
+    "state": "read_text",
+    "value_from_text": 26,
+    "value2_from_text": null,
+    "value_model": 2020,
+    "value2_model": null,
+    "src": "decoder",
+    "decoder_tag": "NUMBER_STAT",
+    "kind_head": "stat",
+    "id": "nu4"
+   }
+  ],
+  "audio_events": [
+   {
+    "label": "scene.silence",
+    "start": 0.0,
+    "end": 0.6,
+    "p": 0.9838,
+    "status": "beta"
+   },
+   {
+    "label": "scene.silence",
+    "start": 2.0,
+    "end": 2.1,
+    "p": 0.497,
+    "status": "beta"
+   },
+   {
+    "label": "scene.silence",
+    "start": 7.0,
+    "end": 8.6,
+    "p": 0.9995,
+    "status": "beta"
+   },
+   {
+    "label": "scene.silence",
+    "start": 10.0,
+    "end": 10.1,
+    "p": 0.6686,
+    "status": "beta"
+   },
+   {
+    "label": "scene.silence",
+    "start": 11.9,
+    "end": 12.0,
+    "p": 0.532,
+    "status": "beta"
+   },
+   {
+    "label": "meta.channel.telephone",
+    "start": 11.6,
+    "end": 12.1,
+    "p": 0.9282,
+    "status": "beta"
+   },
+   {
+    "label": "meta.channel.narrowband",
+    "start": 11.6,
+    "end": 12.2,
+    "p": 0.9232,
+    "status": "beta"
+   },
+   {
+    "label": "scene.silence",
+    "start": 13.8,
+    "end": 15.4,
+    "p": 0.9986,
+    "status": "beta"
+   },
+   {
+    "label": "scene.silence",
+    "start": 19.4,
+    "end": 20.9,
+    "p": 0.9985,
+    "status": "beta"
+   },
+   {
+    "label": "scene.silence",
+    "start": 24.5,
+    "end": 26.0,
+    "p": 0.9981,
+    "status": "beta"
+   },
+   {
+    "label": "scene.silence",
+    "start": 29.5,
+    "end": 30.8,
+    "p": 0.994,
+    "status": "beta"
+   }
+  ],
+  "speakers": {
+   "S1": {
+    "groups": {
+     "speaker.role": {
+      "label": "speaker.role.play_by_play",
+      "p": 0.8274
+     }
+    },
+    "tags": {},
+    "last_seen": 29.6
+   }
+  }
+ },
+ "stages": {
+  "features": {
+   "shape": [
+    310,
+    640
+   ],
+   "mean": 0.11598213762044907,
+   "std": 0.49265915155410767,
+   "head": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "sha256_fp16": "ab4480540ce1d442294af5c43989f56d8ffd2237731d3becd6541573a6607658"
+  },
+  "event_features": {
+   "shape": [
+    310,
+    640
+   ],
+   "mean": -0.10064417868852615,
+   "std": 13.539704322814941,
+   "head": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "sha256_fp16": "71a51a37be0a41954a3d606811bdfae564335b620500f1d11e82b795c4ff2b4c"
+  },
+  "frames": {
+   "frame": {
+    "shape": [
+     310,
+     1
+    ],
+    "mean": 0.7691301703453064,
+    "std": 0.35925528407096863,
+    "head": [
+     0.24247,
+     0.20054,
+     0.13966,
+     0.1407,
+     0.18364,
+     0.59159,
+     0.77869,
+     0.84965
+    ],
+    "sha256_fp16": "f7eac11c1e11992a5067e78d818320f919a142e6638d967d2b7f749bf37cf266"
+   },
+   "span_in": {
+    "shape": [
+     310,
+     19
+    ],
+    "mean": 0.06835633516311646,
+    "std": 0.1686074435710907,
+    "head": [
+     0.02487,
+     0.00422,
+     0.00107,
+     0.00083,
+     0.00018,
+     0.01545,
+     0.02353,
+     0.10598
+    ],
+    "sha256_fp16": "2d0502e117691ffe3ee271b2f84fdab83583dc26f3660611e487d9720a1924e3"
+   },
+   "span_end": {
+    "shape": [
+     310,
+     19
+    ],
+    "mean": 0.011411343701183796,
+    "std": 0.05346272885799408,
+    "head": [
+     0.0114,
+     0.0053,
+     0.00053,
+     0.00027,
+     7e-05,
+     0.00855,
+     0.00163,
+     0.00266
+    ],
+    "sha256_fp16": "9e2b5036d52175a818a1aed3ac93241f9369dd6cd7d3c8cce92ddfc4cce88c4e"
+   },
+   "speaker": {
+    "shape": [
+     310,
+     11
+    ],
+    "mean": 0.09090907871723175,
+    "std": 0.2138945311307907,
+    "head": [
+     0.50016,
+     0.47717,
+     0.0125,
+     0.00589,
+     0.00039,
+     0.00141,
+     0.00031,
+     0.00052
+    ],
+    "sha256_fp16": "18a8e59173362dca2d5a217ef2741ca196fd36414486fbb25a9d00ae284f1303"
+   },
+   "ev_at": {
+    "shape": [
+     310,
+     1
+    ],
+    "mean": 0.023141441866755486,
+    "std": 0.04556458815932274,
+    "head": [
+     0.00974,
+     0.01035,
+     0.02325,
+     0.05409,
+     0.09508,
+     0.23192,
+     0.27689,
+     0.20875
+    ],
+    "sha256_fp16": "4601b03e1485089b2a4cb7c0bf2ad17dbdcc3238b608f9d111507f4e0b01964d"
+   },
+   "ev_rec": {
+    "shape": [
+     310,
+     1
+    ],
+    "mean": 0.0023195373360067606,
+    "std": 0.002584344707429409,
+    "head": [
+     0.00198,
+     0.00127,
+     0.00154,
+     0.00218,
+     0.00217,
+     0.00173,
+     0.00258,
+     0.00359
+    ],
+    "sha256_fp16": "4a2a5c0bb0018341300ca6cc6e2a090c81d95a7a1c99fdeda32cf8d19ef55a3a"
+   }
+  },
+  "audio_events": {
+   "shape": [
+    310,
+    50
+   ],
+   "mean": 0.03431880101561546,
+   "std": 0.09500976651906967,
+   "head": [
+    0.00051,
+    0.00072,
+    0.00346,
+    1e-05,
+    0.0125,
+    0.0022,
+    0.00015,
+    0.0009
+   ],
+   "sha256_fp16": "6f7f987a2d82c90a38c2cfe0fbd5993da97ecdb495e7d761fede4a2d25b9c99b"
+  },
+  "transcript": [
+   {
+    "text": "Welcome back, folks.",
+    "tags": []
+   },
+   {
+    "text": "Marcus Delaney brings the ball up the floor, fourth quarter, three minutes left.",
+    "tags": [
+     [
+      "ENTITY_PERSON",
+      "Marcus Delaney"
+     ],
+     [
+      "NUMBER_ORDINAL",
+      "fourth"
+     ],
+     [
+      "NUMBER_DURATION",
+      "three minutes left."
+     ]
+    ]
+   },
+   {
+    "text": "Delaney Theo Brandt.",
+    "tags": [
+     [
+      "ENTITY_PERSON",
+      "Theo Brandt."
+     ]
+    ]
+   },
+   {
+    "text": "Brandt drives, he scores. What a move by Theo Brandt.",
+    "tags": [
+     [
+      "ENTITY_PERSON",
+      "Brandt"
+     ],
+     [
+      "ENTITY_PERSON",
+      "Theo Brandt."
+     ]
+    ]
+   },
+   {
+    "text": "That puts the Harbor City Hawks ahead, one hundred two to ninety eight.",
+    "tags": [
+     [
+      "ENTITY_ORG",
+      "Harbor City Hawks"
+     ],
+     [
+      "NUMBER_SCORE",
+      "one hundred two to ninety eight."
+     ]
+    ]
+   },
+   {
+    "text": "Brandt has twenty six points tonight, and the crowd is on its feet.",
+    "tags": [
+     [
+      "ENTITY_PERSON",
+      "Brandt"
+     ],
+     [
+      "NUMBER_STAT",
+      "twenty six points"
+     ]
+    ]
+   },
+   {
+    "text": "Time out called on the floor. We will be right back after this.",
+    "tags": []
+   }
+  ]
+ }
+}

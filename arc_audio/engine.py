@@ -876,7 +876,7 @@ class Engine:
             unit_t = unit if vt is not None else None
         rec = dict(start=pd['span']['start'], end=pd['span']['end'], kind=kind, unit=unit, tokens=toks, value=None if val is None else val.get('v'), value2=None if val is None else val.get('v2'), heard=' '.join((w['w'] for w in ws)), state='read', value_from_text=None if vt is None else vt.get('v'), value2_from_text=None if vt is None else vt.get('v2'))
         rec['value_model'], rec['value2_model'] = (rec['value'], rec['value2'])
-        if any((ch.isdigit() for w in ws for ch in w['w'])) and vt is not None and (vt.get('v') is not None):
+        if vt is not None and vt.get('v') is not None and (any((ch.isdigit() for w in ws for ch in w['w'])) or (vt.get('v2') is not None and rec['value2'] is None) or rec['value'] is None):
             rec.update(value=vt.get('v'), value2=vt.get('v2'), state='read_text', unit=unit_t or unit)
         if dec:
             rec.update(src='decoder', decoder_tag=pd['dtag'], kind_head=self._number_kind(a, b), heard=' '.join((w['w'] for w in span_ws)))
