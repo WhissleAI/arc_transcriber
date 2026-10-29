@@ -1,12 +1,40 @@
-Arc v1.1 - Copyright (c) 2026 WhissleAI. All rights reserved except as granted below.
+Arc v1.1 - Copyright (c) 2026 Whissle Inc. All rights reserved except as expressly granted below.
 
-The Arc code and Arc model weights in this repository are licensed under the Creative Commons
-Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0), reproduced in full below.
-You may use, share and adapt them for non-commercial purposes only, with attribution to WhissleAI.
-Any commercial use - including use in a product or service, or to provide paid services - requires
-a separate commercial licence from WhissleAI (https://whissle.ai).
+The Arc code and Arc model weights are licensed to you under the Creative Commons Attribution-NonCommercial 4.0
+International License (CC BY-NC 4.0), reproduced in full below, and the Whissle terms in this section.
+Non-commercial use only. Third-party components keep their own licences; see NOTICE.
 
-Third-party components keep their own licences; see NOTICE.
+Whissle terms
+-------------
+
+1. Rights holder. Arc (including Arc Mini and Arc Transcriber: code, model weights, tag ontology and documentation)
+   is developed and owned by Whissle Inc.
+
+2. Commercial use. Any commercial use requires a separate written licence from Whissle Inc. Contact
+   ksingla@whissle.ai or https://whissle.ai. Whissle Inc. reads "NonCommercial" to exclude, for example: use in or with
+   a product or service; providing paid, hosted or ad-supported services; use by or for a for-profit organisation in
+   its business; and using outputs (transcripts, tags, events, links) for any of these.
+
+3. Reserved rights. Whissle Inc. keeps all rights not expressly granted. These public licences are grants to you: they
+   do not limit Whissle Inc.'s own use of Arc, or its right to license Arc (including later versions and derived models)
+   on any other terms, including commercial terms.
+
+4. Outputs. Whissle Inc. claims no ownership of the outputs you generate, but generating or using outputs for a
+   commercial purpose is a commercial use of Arc. You are responsible for your outputs and for having the rights and
+   consents needed for the audio you process.
+
+5. Patents and trademarks. No patent or trademark rights are granted, expressly or by implication or estoppel (CC BY-NC
+   4.0, Section 2(b)(2)). "Whissle", "Whissle Arc", "Arc Mini" and "Arc Transcriber" and related logos are trademarks of
+   Whissle Inc. You may say that your work is based on Arc; do not name or market a product or model as Arc, or suggest
+   that Whissle Inc. endorses it.
+
+6. Contributions. By submitting a contribution (pull request, patch, or code, data or weights attached to an issue or
+   discussion) you confirm that you have the right to submit it, you license it under this licence, and you grant
+   Whissle Inc. a perpetual, worldwide, irrevocable, royalty-free licence to use, modify, distribute, sublicense and
+   relicense it under any terms, including commercial ones. See CONTRIBUTING.md.
+
+7. No warranty. Arc is provided "as is", without warranties of any kind, and Whissle Inc. is not liable for any damages
+   arising from its use, to the fullest extent permitted by law (see also Section 5 of CC BY-NC 4.0 below).
 
 -----------------------------------------------------------------------
 

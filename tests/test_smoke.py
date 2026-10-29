@@ -122,7 +122,7 @@ def test_events_and_context(arc):
 def test_full_backbone():
     from arc_audio import Arc, load_audio
     from arc_transcriber.cli import load_names
-    a = Arc.from_pretrained(MODEL or "WhissleAI/arc-v1.1", backbone="full", revision=None if MODEL else "v1.1.1")
+    a = Arc.from_pretrained(MODEL or "WhissleAI/arc-v1.1", backbone="full", revision=None if MODEL else "v1.1.2")
     out = a.predict(load_audio(str(CLIP)), domain="nba", names=load_names(str(NAMES)))
     assert len(" ".join(u["text"] for u in out["transcript"]).split()) > 20
     assert any(n["state"] == "linked" for n in out["names"])

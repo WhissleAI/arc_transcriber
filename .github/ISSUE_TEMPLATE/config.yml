@@ -1,5 +1,8 @@
 blank_issues_enabled: true
 contact_links:
   - name: Model weights and model card
-    url: https://huggingface.co/WhissleAI/arc-v1
+    url: https://huggingface.co/WhissleAI/arc-v1.1
     about: Weights, evaluation results and the full model card live on Hugging Face.
+  - name: Commercial licence
+    url: https://whissle.ai
+    about: Arc is non-commercial only under its public licence. For commercial use, contact ksingla@whissle.ai.

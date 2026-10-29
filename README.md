@@ -20,17 +20,17 @@ Two models, one API and one output schema:
 Coming next: **Arc Transcriber Edge**, a 4-bit version of the full model for Android, Mac and cloud.
 
 - **Model weights, model card and evaluation results:** https://huggingface.co/WhissleAI/arc-v1.1 (downloaded on first use)
-- **This repo:** inference code (`arc_audio` 1.1.1) and the `arc-transcribe` CLI, CC BY-NC 4.0 (non-commercial). Bugs go in [Issues](../../issues).
+- **This repo:** inference code (`arc_audio` 1.1.2) and the `arc-transcribe` CLI, CC BY-NC 4.0 with the Whissle terms (non-commercial only; commercial licences: ksingla@whissle.ai). Bugs go in [Issues](../../issues).
 - English, 16 kHz mono (other rates are resampled).
 
 ## Install
 
 ```bash
-pip install "arc-transcriber @ git+https://github.com/WhissleAI/arc_transcriber@v1.1.1"
-pip install "arc-transcriber[live] @ git+https://github.com/WhissleAI/arc_transcriber@v1.1.1"     # + websockets, sounddevice (live / mic)
+pip install "arc-transcriber @ git+https://github.com/WhissleAI/arc_transcriber@v1.1.2"
+pip install "arc-transcriber[live] @ git+https://github.com/WhissleAI/arc_transcriber@v1.1.2"     # + websockets, sounddevice (live / mic)
 ```
 
-The first run downloads `WhissleAI/arc-v1.1` at revision `v1.1.1` into the Hugging Face cache (only the folder of the model you
+The first run downloads `WhissleAI/arc-v1.1` at revision `v1.1.2` into the Hugging Face cache (only the folder of the model you
 use). The model repository asks you to accept its terms (approval is automatic): open https://huggingface.co/WhissleAI/arc-v1.1
 while logged in, accept, then `hf auth login` (or set `HF_TOKEN`). Arc Transcriber (full) also downloads `nvidia/parakeet-tdt-0.6b-v2`
 (public, CC-BY-4.0); NeMo is not needed. Python >= 3.10, torch >= 2.1, transformers >= 5.19.
@@ -68,7 +68,7 @@ Try it on the bundled synthetic clip (fictional names): `arc-transcribe examples
 | `--device` | `cpu` (default) or `cuda` |
 | `--format` | `txt` (default), `json`, `srt`, `vtt`; `-o FILE` (default stdout) |
 | `--live`, `--mic`, `--duration S`, `--fast` | live mode from a file at real-time pace, or from the microphone |
-| `--model`, `--revision` | another Hugging Face repo / local folder, or revision (default `WhissleAI/arc-v1.1` at `v1.1.1`) |
+| `--model`, `--revision` | another Hugging Face repo / local folder, or revision (default `WhissleAI/arc-v1.1` at `v1.1.2`) |
 
 Live progress goes to stderr; the result goes to stdout or `-o`.
 
@@ -135,6 +135,12 @@ Live modes with a real service need `pip install "arc-transcriber[live]"` (webso
 `arc.predict(wav, transcript="external", words=words)` or `stream.add_words(words)`. The adapters are tested offline with recorded
 message fixtures (`tests/test_asr_adapters.py`).
 
+## What's new in 1.1.2
+
+- Licence and metadata only: Whissle Inc. named as rights holder; Whissle terms added to LICENSE (commercial licences,
+  reserved rights, outputs, patents and trademarks, contributions); CONTRIBUTING.md and a pull request template. Code
+  behaviour and model weights are unchanged (model revision `v1.1.2` has the same weight files as `v1.1.1`).
+
 ## What's new in 1.1.1
 
 - Model names: **Arc Mini** (`--backbone mini`, was `edge`) and **Arc Transcriber** (`--backbone full`, was `parakeet`); the old names
@@ -159,7 +165,7 @@ message fixtures (`tests/test_asr_adapters.py`).
 ## Tests
 
 ```bash
-pip install "arc-transcriber[test] @ git+https://github.com/WhissleAI/arc_transcriber@v1.1.1"
+pip install "arc-transcriber[test] @ git+https://github.com/WhissleAI/arc_transcriber@v1.1.2"
 pytest -q                      # CPU, Arc Mini; downloads WhissleAI/arc-v1.1 on first use, skipped when offline
 ARC_TEST_PARAKEET=1 pytest -q  # also Arc Transcriber (full) (ARC_MODEL=/local/arc-v1.1 to use a local copy of the model repo)
 python scripts/check_parity.py --backbone mini --candidate out.json      # check an exported model against the golden outputs
@@ -167,6 +173,13 @@ python scripts/check_parity.py --backbone mini --candidate out.json      # check
 
 ## License
 
-Code: CC BY-NC 4.0 ([LICENSE](LICENSE)), non-commercial use only; commercial use requires a separate licence from WhissleAI
-(https://whissle.ai). Weights (downloaded from Hugging Face): Arc weights CC BY-NC 4.0; the modified Moonshine Streaming tiny model
-MIT; Arc Transcriber (full) uses NVIDIA Parakeet-TDT 0.6B v2 (CC-BY-4.0), downloaded from NVIDIA's repository. See [NOTICE](NOTICE).
+Code: CC BY-NC 4.0 plus the Whissle terms in [LICENSE](LICENSE), non-commercial use only. Weights (downloaded from Hugging
+Face): Arc weights CC BY-NC 4.0 under the same terms; the modified Moonshine Streaming tiny model MIT; Arc Transcriber (full)
+uses NVIDIA Parakeet-TDT 0.6B v2 (CC-BY-4.0), downloaded from NVIDIA's repository. See [NOTICE](NOTICE).
+
+- **Commercial use** (in a product or service, paid or hosted services, business use, or commercial use of outputs) needs a
+  separate written licence from Whissle Inc.: ksingla@whissle.ai, https://whissle.ai.
+- Whissle Inc. owns Arc and keeps all rights not expressly granted; the public licences do not limit its own use of Arc or its
+  right to license Arc on other terms. No patent or trademark rights are granted; "Whissle", "Whissle Arc", "Arc Mini" and
+  "Arc Transcriber" are Whissle Inc. trademarks.
+- Contributions are welcome under [CONTRIBUTING.md](CONTRIBUTING.md) (includes a licence grant that lets Whissle Inc. relicense them).

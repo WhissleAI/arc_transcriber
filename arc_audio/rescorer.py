@@ -25,6 +25,8 @@ try:
 except Exception:
     _jf = None
 
+    # Fallback port of jellyfish.metaphone (https://github.com/jamesturk/jellyfish).
+    # MIT License, Copyright (c) 2015 James Turk; the licence text is in NOTICE.
     def _metaphone(s):
         result = []
         s = unicodedata.normalize('NFKD', s.lower())

@@ -4,10 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "arc-transcriber"
-version = "1.1.1"
+version = "1.1.2"
 description = "Arc v1.1: one streaming model for transcript, inline name / number tags, speakers, tags, events and device-directed speech (Arc Mini or Arc Transcriber)"
 readme = "README.md"
-license = {text = "CC-BY-NC-4.0"}
+license = {text = "CC-BY-NC-4.0 with the Whissle terms in LICENSE; non-commercial use only; commercial licences from Whissle Inc."}
+authors = [{name = "Whissle Inc.", email = "ksingla@whissle.ai"}]
 requires-python = ">=3.10"
 # tested: torch 2.11, transformers 5.19 (Moonshine Streaming + Parakeet encoder support)
 dependencies = ["torch>=2.1", "transformers>=5.19", "safetensors", "numpy", "soundfile", "huggingface_hub", "rapidfuzz", "jellyfish", "num2words"]
