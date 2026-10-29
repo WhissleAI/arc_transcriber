@@ -86,18 +86,36 @@ class Arc:
         self.cfg = json.load(open(os.path.join(path, 'config.json')))
         self.table = Table(os.path.join(path, 'tags.json'))
         self.net = ArcNet(self.table, self.cfg['model'])
-        from safetensors.torch import load_file
-        sd = load_file(os.path.join(path, 'model.safetensors'))
+        from .weights import load_state, load_moonshine
+        sd = load_state(path, 'model')
         miss, unexp = self.net.load_state_dict(sd, strict=False)
         miss = [k for k in miss if k not in ('trunk.delay_lut', 'head.valid') and (not k.startswith('head.cols_'))]
         if miss or unexp:
-            raise RuntimeError(f'checkpoint mismatch: missing {miss[:5]} unexpected {unexp[:5]}')
+            raise RuntimeError(f'weights mismatch: missing {miss[:5]} unexpected {unexp[:5]}')
         self.net.to(self.dev).eval()
-        from transformers import MoonshineStreamingForConditionalGeneration, AutoTokenizer
+        from transformers import AutoTokenizer
+        self.backbone = (self.cfg.get('backbone') or {}).get('type', 'edge')
         mp = os.path.join(path, self.cfg['encoder']['subfolder'])
-        self.moon = MoonshineStreamingForConditionalGeneration.from_pretrained(mp).to(self.dev).float().eval()
+        self.moon = load_moonshine(mp, decoder_only=self.backbone == 'parakeet').to(self.dev).float().eval()
         self.tok = AutoTokenizer.from_pretrained(mp) if load_decoder else None
-        self.enc = self.moon.model.encoder
+        self.ev_head = self.dd_head = None
+        self.bb = None
+        if self.backbone == 'parakeet':
+            from . import server as S
+            bc = self.cfg['backbone']
+            self.heads, hsd = S.load_heads(os.path.join(path, bc.get('adapters', 'adapters.safetensors')), self.dev)
+            self.heads.pos_off = int(bc.get('pos_off', 2))
+            self.bb = S.Backbone(S.fetch_backbone(bc), tap=int(bc.get('tap', 12)), device=self.dev, half=bc.get('half'))
+            self.moon.model.encoder = S.Shim(self.bb, self.heads, self.moon.model.decoder.pos_emb)
+            self.enc = None
+        else:
+            self.enc = self.moon.model.encoder
+            hp = os.path.join(path, 'heads.safetensors')
+            hsd = None
+            if os.path.exists(hp):
+                from safetensors.torch import load_file
+                hsd = load_file(hp)
+        self._load_aux(hsd)
         self._moons = {}
         self._mp = mp
         self.pieces = None
@@ -105,6 +123,64 @@ class Arc:
             from .wordch import Pieces
             self.pieces = Pieces(os.path.join(mp, 'tokenizer.json'))
         self.domains = list(FINE_DOMAINS)
+    def _load_aux(self, sd):
+        if not sd:
+            return
+        from .events import EventHead, DirectedHead
+        ev = {k[len('events.'):]: v for k, v in sd.items() if k.startswith('events.')}
+        if ev:
+            self.ev_head = EventHead(k=ev['c2.weight'].shape[0])
+            self.ev_head.load_state_dict(ev)
+            self.ev_head.to(self.dev).eval()
+        dd = {k[len('device_directed.'):]: v for k, v in sd.items() if k.startswith('device_directed.')}
+        if dd:
+            self.dd_head = DirectedHead()
+            self.dd_head.load_state_dict(dd)
+            self.dd_head.to(self.dev).eval()
+
+    def event_tracker(self, events='default'):
+        if self.ev_head is None or events in (None, False, 'none', 'off'):
+            return None
+        from .events import EventTracker, LABELS
+        ec = self.cfg.get('audio_events') or {}
+        st = ec.get('status') or {}
+        if events == 'all':
+            on = set(LABELS)
+        elif events == 'default':
+            on = {l for l in LABELS if st.get(l, 'experimental') in ('stable', 'beta')}
+        else:
+            on = set(events)
+        return EventTracker(self.ev_head, ec.get('thresholds') or {}, st, on)
+
+    def directed(self, X):
+        if self.dd_head is None or X is None or len(X) == 0:
+            return None
+        p = self.dd_head.prob(torch.as_tensor(np.asarray(X, np.float32), device=self.dev))
+        thr = float((self.cfg.get('device_directed') or {}).get('threshold', 0.5))
+        return dict(p=round(p, 4), directed=bool(p >= thr))
+
+    @torch.no_grad()
+    def _feats(self, wav, tap=False):
+        if self.backbone == 'parakeet':
+            from .server import ServerFeatures
+            bc = self.cfg['backbone']
+            src = ServerFeatures(self.bb, self.heads, chunk_s=float(bc.get('chunk_s', 30.0)), ctx_s=float(bc.get('context_s', 4.0)), tap=tap)
+            xs, ts = src.feed(wav)
+            x2, t2 = src.flush()
+            X = np.stack(xs + x2).astype(np.float32) if xs or x2 else np.zeros((0, 640), np.float32)
+            T = np.stack(ts + t2).astype(np.float32) if tap and (ts or t2) else None
+            return (X.astype(np.float16).astype(np.float32), X, T)
+        if not tap:
+            x = pool10(MST.encode_offline(self.enc, np.asarray(wav, np.float32)))
+            return (x, x, None)
+        H, Ht = MST.encode_offline(self.enc, np.asarray(wav, np.float32), tap=int((self.cfg.get('audio_events') or {}).get('tap', 2)))
+        x = pool10(H)
+        return (x, x, pool10(Ht))
+
+    def set_context(self, names=None, terms=None, topic=None, previous_text=None, auto_prev=False, **ctx):
+        self._ctx = context_dict(names, terms, topic, previous_text, ctx)
+        self._ctx_auto = bool(auto_prev)
+
     DECODER_FILES = {'v1e': 'decoder_v1e.safetensors', 'release': 'decoder_release.safetensors'}
 
     def default_decoder(self):
@@ -120,6 +196,8 @@ class Arc:
         return d
 
     def moon_for(self, mode, decoder=None):
+        if mode == 'moonshine_release' and (self.cfg.get('alignment') or {}).get('decoder') == 'main':
+            return self.moon
         if mode == 'moonshine_release':
             key = 'release'
         elif mode == 'builtin' and self.resolve_decoder(decoder) == 'v1e' and os.path.exists(os.path.join(self._mp, self.DECODER_FILES['v1e'])):
@@ -138,18 +216,24 @@ class Arc:
     @property
     def _moon_rel(self):
         return self._moons.get('release')
-    HF_REPO = 'WhissleAI/arc-v1'
-    MODEL_FILES = ['config.json', 'tags.json', 'model.safetensors', 'moonshine-streaming-tiny/*', 'LICENSE', 'NOTICE']
+    HF_REPO = 'WhissleAI/arc-v1.1'
+    BACKBONES = {'edge': 'edge', 'server': 'server', 'parakeet': 'server'}
+    MODEL_FILES = ['config.json', 'tags.json', '*.safetensors', '*/*', 'LICENSE', 'NOTICE']
 
     @classmethod
-    def from_pretrained(cls, repo_or_dir='WhissleAI/arc-v1', device=None, revision=None, threads=None, **kw):
+    def from_pretrained(cls, repo_or_dir='WhissleAI/arc-v1.1', backbone='edge', device=None, revision=None, threads=None, **kw):
+        if backbone not in cls.BACKBONES:
+            raise ValueError('backbone must be edge | parakeet (or server)')
+        sub = cls.BACKBONES[backbone]
         path = repo_or_dir
         if not os.path.isdir(path):
             from huggingface_hub import snapshot_download
             if revision is None and repo_or_dir == cls.HF_REPO:
                 from . import __version__
                 revision = f'v{__version__}'
-            path = snapshot_download(repo_or_dir, revision=revision, allow_patterns=cls.MODEL_FILES)
+            path = snapshot_download(repo_or_dir, revision=revision, allow_patterns=[f'{sub}/{p}' for p in cls.MODEL_FILES] + ['LICENSE', 'NOTICE'])
+        if os.path.isdir(os.path.join(path, sub)) and os.path.exists(os.path.join(path, sub, 'config.json')):
+            path = os.path.join(path, sub)
         return cls(path, device=device, threads=threads, **kw)
 
     def delay_frames(self, delay_s):
@@ -160,7 +244,7 @@ class Arc:
 
     @torch.no_grad()
     def features(self, wav):
-        return pool10(MST.encode_offline(self.enc, np.asarray(wav, np.float32)))
+        return self._feats(wav)[0]
 
     def tags(self, domain=None, include_experimental=False):
         from .engine import Readout
@@ -175,7 +259,7 @@ class Arc:
         for c in out:
             c.setdefault('kind', 'other')
         return out
-    TRANSCRIPT_CFG = {'builtin': dict(final_beams=4, loopfix=True), 'moonshine_release': dict(final_beams=1, loopfix=False)}
+    TRANSCRIPT_CFG = {'builtin': dict(final_beams=4, loopfix=True, loop_guard=True), 'moonshine_release': dict(final_beams=1, loopfix=False)}
     DECODER_CFG = {'tagged': dict(tagged=True, len_mult=1.3), 'v1e': dict(tagged=False, len_mult=1.0)}
 
     def _transcriber(self, cfg=None, mode='builtin', decoder=None):
@@ -207,13 +291,22 @@ class Arc:
         cfg = self.cfg.get('alignment')
         if fast:
             cfg = dict(cfg or {}, _fast_dtw=True)
-        return align_text(self.moon_for('moonshine_release'), self.tok, self.dev, torch.float32, wav_seg, text, t0, cfg)
+        return align_text(self.moon_for('moonshine_release'), self.tok, self.dev, torch.float32, wav_seg, text, t0, cfg, hop_s=self.hop_s)
 
-    def transcribe(self, wav, names=None, bias_names=False, cfg=None, mode='builtin', decoder=None):
+    @property
+    def hop_s(self):
+        return 0.08 if self.backbone == 'parakeet' else None
+
+    def transcribe(self, wav, names=None, bias_names=False, cfg=None, mode='builtin', decoder=None, context=None, auto_prev=False):
         from .transcribe import UttSegmenter
         wav = load_audio(wav) if not isinstance(wav, np.ndarray) else wav
         tr = self._transcriber(cfg, mode, decoder)
         self._set_bias(tr, names, bias_names)
+        if context is not None or getattr(self, '_ctx', None):
+            c = context if context is not None else self._ctx
+            tr.set_context(c.get('ctx') if isinstance(c, dict) and 'ctx' in c else c, auto_prev=auto_prev or getattr(self, '_ctx_auto', False))
+        elif auto_prev:
+            tr.set_context(None, auto_prev=True)
         seg = UttSegmenter(tr.c)
         utts = []
         n = (len(wav) + FR - 1) // FR
@@ -245,7 +338,7 @@ class Arc:
         tr.always_types = ['player']
 
     @torch.no_grad()
-    def predict(self, audio, domain='unknown', delay_s=0.3, names=None, transcript='builtin', words=None, include_experimental=False, calibrated=True, diarization='auto', rescore=True, bias_names=None, return_frames=True, chunk_frames=3000, name_text=None, decoder=None, spans=None, name_source=None, word_channel=True, word_arrival='rule', word_source=None, fallback='auto', strict=False, text_layer=None):
+    def predict(self, audio, domain='unknown', delay_s=0.3, names=None, transcript='builtin', words=None, include_experimental=False, calibrated=True, diarization='auto', rescore=True, bias_names=None, return_frames=True, chunk_frames=3000, name_text=None, decoder=None, spans=None, name_source=None, word_channel=True, word_arrival='rule', word_source=None, fallback='auto', strict=False, text_layer=None, events='default', context=None, auto_prev=False, kb_snap=True):
         t_start = time.time()
         wav = load_audio(audio)
         dom_i = domain_index(domain)
@@ -254,7 +347,7 @@ class Arc:
         utts = []
         nsrc = self.name_source(name_source, transcript, decoder, spans)
         if transcript in ('builtin', 'moonshine_release'):
-            utts = self.transcribe(wav, names, default_bias(bias_names, transcript), mode=transcript, decoder=decoder)
+            utts = self.transcribe(wav, names, default_bias(bias_names, transcript), mode=transcript, decoder=decoder, context=context, auto_prev=auto_prev)
             for u in utts:
                 ws.add(u['words'], 'moonshine')
         elif transcript == 'parakeet':
@@ -271,7 +364,8 @@ class Arc:
         elif transcript != 'none':
             raise ValueError('transcript must be builtin | moonshine_release | parakeet | external | none')
         ws.mark_covered(len(wav) / SR + 10)
-        x = self.features(wav)
+        evt = self.event_tracker(events)
+        x, xe, xt = self._feats(wav, tap=evt is not None)
         N = len(x)
         xs = np.concatenate([x[d:], np.repeat(x[-1:], min(d, N), 0)]) if N else x
         eng = Engine(self.net, self.cfg, dom_i, d, ws, kb=self._kb(names), include_experimental=include_experimental, calibrated=calibrated, diarization=diarization, rescore=rescore, name_text=name_text, name_source=nsrc, word_channel=word_channel, pieces=self.pieces, word_arrival=word_arrival, word_source=word_source or ('builtin' if transcript in ('builtin', 'moonshine_release') else 'external'), text_layer=text_layer)
@@ -284,8 +378,9 @@ class Arc:
             eng.feed(h[0], xb)
         eng.finish()
         out = self._result(eng, utts, ws, domain, d, return_frames)
+        self._post(out, utts, names, xe, xt, evt, kb_snap, eng, return_frames)
         if self.fallback_mode(fallback, strict, transcript, nsrc) == 'builtin':
-            fb = self.predict(wav, domain=domain, delay_s=delay_s, names=names, transcript='builtin', include_experimental=include_experimental, calibrated=calibrated, diarization=diarization, rescore=rescore, bias_names=bias_names, return_frames=False, chunk_frames=chunk_frames, decoder=decoder, word_channel=word_channel, fallback=None)
+            fb = self.predict(wav, domain=domain, delay_s=delay_s, names=names, transcript='builtin', include_experimental=include_experimental, calibrated=calibrated, diarization=diarization, rescore=rescore, bias_names=bias_names, return_frames=False, chunk_frames=chunk_frames, decoder=decoder, word_channel=word_channel, fallback=None, events=None, kb_snap=False)
             from .textlayer import fallback_names
             add = fallback_names(out['names'], fb['names'])
             for r in add:
@@ -294,6 +389,28 @@ class Arc:
             out['fallback'] = 'builtin'
         out['timing'] = dict(audio_s=round(len(wav) / SR, 2), wall_s=round(time.time() - t_start, 2))
         return out
+
+    def _post(self, out, utts, names, xe, xt, evt, kb_snap, eng, return_frames):
+        if evt is not None and xt is not None:
+            evt.push(list(xe), list(xt))
+            evt.step(final=True)
+            out['audio_events'] = evt.out
+            if return_frames:
+                from .events import LABELS
+                out.setdefault('frames', {})['audio_events'] = dict(labels=LABELS, probs=evt.frames())
+        if self.dd_head is not None:
+            for u, t in zip(utts, out['transcript']):
+                t['device_directed'] = self.directed(xe[u['f0']:u['f1'] + 1])
+        if kb_snap and names:
+            from .kbsnap import KB, link, add_spans
+            kb = KB(self._kb(names))
+            for r in out['names']:
+                link(r, kb)
+            add = []
+            for t in out['transcript']:
+                add += add_spans(t.get('words') or [], out['names'] + add, kb, lambda: eng._new_id('name'))
+            if add:
+                out['names'] = sorted(out['names'] + add, key=lambda r: (r['start'], r['end']))
 
     def fallback_mode(self, fallback='auto', strict=False, transcript='external', name_source='word'):
         if strict or fallback in (None, False, 'none', 'off'):
@@ -315,8 +432,8 @@ class Arc:
             out['frames'] = dict(tags={q: R.out_ids[q] for q in R.out_ids if R.out_ids[q]}, probs={q: np.concatenate(v) if v else np.zeros((0, len(R.out_ids.get(q, [])))) for q, v in eng.frames.items() if q in R.out_ids and R.out_ids[q]}, bio=np.concatenate(eng.frames['bio']) if eng.frames['bio'] else None, bio_tags=['bio.cough', 'bio.throat_clear', 'bio.breath'], speaker_index=np.concatenate(eng.frames['speaker_index']) if eng.frames['speaker_index'] else None)
         return out
 
-    def stream(self, domain='unknown', delay_s=0.3, names=None, transcript='builtin', include_experimental=False, calibrated=True, diarization='auto', rescore=True, bias_names=None, partials=True, word_wait_s=None, partial_every_s=0.4, partial_window_s=7.0, background=True, worker_threads=None, live=True, name_text=None, decoder=None, name_source=None, early_commit=None, interim_source=None, word_channel=True, fallback='auto', strict=False, text_layer=None):
-        return Stream(self, domain, delay_s, names, transcript, include_experimental, calibrated, diarization, rescore, bias_names, partials, word_wait_s, partial_every_s=partial_every_s, partial_window_s=partial_window_s, background=background, worker_threads=worker_threads, live=live, name_text=name_text, decoder=decoder, name_source=name_source, early_commit=early_commit, interim_source=interim_source, word_channel=word_channel, fallback=fallback, strict=strict, text_layer=text_layer)
+    def stream(self, domain='unknown', delay_s=0.3, names=None, transcript='builtin', include_experimental=False, calibrated=True, diarization='auto', rescore=True, bias_names=None, partials=True, word_wait_s=None, partial_every_s=0.4, partial_window_s=7.0, background=True, worker_threads=None, live=True, name_text=None, decoder=None, name_source=None, early_commit=None, interim_source=None, word_channel=True, fallback='auto', strict=False, text_layer=None, events='default', context=None, auto_prev=False, kb_snap=True):
+        return Stream(self, domain, delay_s, names, transcript, include_experimental, calibrated, diarization, rescore, bias_names, partials, word_wait_s, partial_every_s=partial_every_s, partial_window_s=partial_window_s, background=background, worker_threads=worker_threads, live=live, name_text=name_text, decoder=decoder, name_source=name_source, early_commit=early_commit, interim_source=interim_source, word_channel=word_channel, fallback=fallback, strict=strict, text_layer=text_layer, events=events, context=context, auto_prev=auto_prev, kb_snap=kb_snap)
 
     def early_policy(self, domain='unknown', transcript='builtin', early_commit=None, interim_source=None):
         if early_commit is False or transcript in ('none',):
@@ -333,6 +450,27 @@ class Arc:
             t = tab.get(kind) or {}
             out[kind] = t.get(domain, t.get('unknown'))
         return out if any((v is not None for v in out.values())) else None
+
+KB_KIND = {'person': 'person', 'team': 'team', 'organization': 'org', 'org': 'org', 'place': 'place', 'law': 'law', 'product': 'product'}
+
+def context_dict(names=None, terms=None, topic=None, previous_text=None, extra=None):
+    c = dict(extra or {})
+    kb, ty = (list(c.pop('kb', []) or []), list(c.pop('kb_type', []) or []))
+    ty = ty + [''] * (len(kb) - len(ty))
+    for n in names or []:
+        d = dict(name=n) if isinstance(n, str) else dict(n)
+        kb.append(d['name'])
+        ty.append(KB_KIND.get(d.get('kind', ''), 'term'))
+    for t in terms or []:
+        kb.append(str(t))
+        ty.append('term')
+    if kb:
+        c['kb'], c['kb_type'] = (kb, ty)
+    if topic:
+        c['dom'] = str(topic)
+    if previous_text:
+        c['prev'] = str(previous_text)
+    return c
 
 def tag_words(u, events):
     if not u.get('tag_spans') or not events:
@@ -461,7 +599,7 @@ def _slice(buf, lo, a, b):
 
 class Stream:
 
-    def __init__(self, arc, domain, delay_s, names, transcript, include_experimental, calibrated, diarization, rescore, bias_names, partials, word_wait_s, partial_every_s=0.4, partial_window_s=7.0, background=True, worker_threads=None, live=True, name_text=None, decoder=None, name_source=None, early_commit=None, interim_source=None, word_channel=True, fallback=None, strict=False, text_layer=None):
+    def __init__(self, arc, domain, delay_s, names, transcript, include_experimental, calibrated, diarization, rescore, bias_names, partials, word_wait_s, partial_every_s=0.4, partial_window_s=7.0, background=True, worker_threads=None, live=True, name_text=None, decoder=None, name_source=None, early_commit=None, interim_source=None, word_channel=True, fallback=None, strict=False, text_layer=None, events='default', context=None, auto_prev=False, kb_snap=True):
         self.a = arc
         self.dom_i = domain_index(domain)
         self.domain = domain
@@ -475,8 +613,27 @@ class Stream:
         key = transcript if transcript in ('builtin', 'moonshine_release') else interim_source if interim_source in ww else 'external'
         wait = word_wait_s if word_wait_s is not None else float(ww.get(key, 6.0))
         self.eng = Engine(arc.net, arc.cfg, self.dom_i, self.d, self.words, kb=Arc._kb(names), include_experimental=include_experimental, calibrated=calibrated, diarization=diarization, rescore=rescore, word_wait_s=wait, provisional='audio' if transcript == 'none' else 'words', name_text=name_text, name_source=self.nsrc, early=self.early, word_channel=word_channel, pieces=arc.pieces, word_arrival='live', word_source='builtin' if transcript in ('builtin', 'moonshine_release') else 'external', text_layer=text_layer)
-        self.menc = MST.MSTStreamEncoder(arc.enc)
+        self.evt = arc.event_tracker(events)
+        self.src = None
+        self.menc = None
+        if arc.backbone == 'parakeet':
+            from .server import ServerFeatures
+            bc = arc.cfg['backbone']
+            self.src = ServerFeatures(arc.bb, arc.heads, chunk_s=float(bc.get('stream_chunk_s', 10.0)), ctx_s=float(bc.get('stream_context_s', 2.0)), tap=self.evt is not None)
+        else:
+            self.menc = MST.MSTStreamEncoder(arc.enc, tap=int((arc.cfg.get('audio_events') or {}).get('tap', 2)) if self.evt is not None else None)
         self.pool = Pooler()
+        self.tpool = Pooler()
+        self.xe = []
+        self.xe0 = 0
+        self.dd_wait = []
+        self.dd_out = []
+        self.ev_sent = 0
+        self.dd_sent = 0
+        self.kb = None
+        if kb_snap and names:
+            from .kbsnap import KB
+            self.kb = KB(Arc._kb(names))
         self.xq = []
         self.n_x = 0
         self.st = None
@@ -488,7 +645,7 @@ class Stream:
         self.total = 0
         self.utts = []
         self.partial = None
-        self.partials = partials and transcript in ('builtin', 'moonshine_release', 'parakeet')
+        self.partials = partials and transcript in ('builtin', 'moonshine_release', 'parakeet') and (arc.backbone != 'parakeet' or arc.dev.type == 'cuda')
         self.partial_every = float(partial_every_s)
         self.partial_win = float(partial_window_s)
         self.live_on = live
@@ -504,6 +661,9 @@ class Stream:
             tm = 'moonshine_release' if transcript == 'moonshine_release' else 'builtin'
             self.tr = arc._transcriber(mode=tm, decoder=decoder if tm == 'builtin' else None)
             arc._set_bias(self.tr, names, default_bias(bias_names, transcript))
+            if context is not None or getattr(arc, '_ctx', None) or auto_prev:
+                c = context if context is not None else getattr(arc, '_ctx', None)
+                self.tr.set_context(c, auto_prev=auto_prev or getattr(arc, '_ctx_auto', False))
             self.seg = UttSegmenter(self.tr.c)
             self.last_partial = -1000000000.0
         self.pk = None
@@ -544,6 +704,10 @@ class Stream:
 
     def set_names(self, names):
         self.eng.set_names(Arc._kb(names))
+
+    def set_context(self, ctx=None, auto_prev=False, max_tokens=96, **kw):
+        if self.tr is not None:
+            self.tr.set_context(ctx, auto_prev=auto_prev, max_tokens=max_tokens, **kw)
         if self.fb is not None:
             self.fb.set_names(names)
 
@@ -603,7 +767,7 @@ class Stream:
         pcm = np.asarray(pcm, np.float32).reshape(-1)
         self.audio = np.concatenate([self.audio, pcm])
         self.total += len(pcm)
-        xs = self.pool.push(self.menc.feed(pcm).float().cpu().numpy())
+        xs = self._features(pcm, final=False)
         self._advance(xs, final=False)
         if self.seg is not None:
             self._segment_step(final=False)
@@ -627,7 +791,7 @@ class Stream:
 
     @torch.no_grad()
     def flush(self):
-        xs = self.pool.push(self.menc.flush().float().cpu().numpy()) + self.pool.flush()
+        xs = self._features(None, final=True)
         self._advance(xs, final=True)
         if self.seg is not None:
             self._segment_step(final=True)
@@ -638,6 +802,7 @@ class Stream:
             sys.setswitchinterval(self._swi)
             self._check_worker()
         self._join()
+        self._dd_step(final=True)
         if self.pk is not None:
             self.utts += self.pk.drain(self.words)
         self.words.mark_covered(self.total / SR + 10)
@@ -656,6 +821,48 @@ class Stream:
         if self.mode in ('builtin', 'moonshine_release', 'parakeet'):
             out['transcript_rewritten'] = rewrite(self.utts, self.eng.out['names'])
         return out
+
+    def _features(self, pcm, final):
+        if self.src is not None:
+            xe, ts = self.src.flush() if final else self.src.feed(pcm)
+            xs = [x.astype(np.float16).astype(np.float32) for x in xe]
+        else:
+            H = self.menc.flush() if final else self.menc.feed(pcm)
+            T = self.menc.tap_out
+            xs = self.pool.push(H.float().cpu().numpy())
+            if final:
+                xs += self.pool.flush()
+            ts = []
+            if self.evt is not None:
+                ts = self.tpool.push(T.float().cpu().numpy()) if T is not None else []
+                if final:
+                    ts += self.tpool.flush()
+            xe = xs
+        self.xe += list(xe)
+        if self.evt is not None:
+            self.evt.push(list(xe), list(ts))
+            self.evt.step(final=final)
+        return xs
+
+    def _dd_step(self, final=False):
+        if self.a.dd_head is None:
+            return
+        n = self.xe0 + len(self.xe)
+        keep = []
+        for u in self.dd_wait:
+            if u['f1'] + 1 <= n or final:
+                lo, hi = (max(u['f0'], self.xe0), min(u['f1'] + 1, n))
+                u['device_directed'] = self.a.directed(self.xe[lo - self.xe0:hi - self.xe0]) if hi > lo else None
+                if u['device_directed'] is not None:
+                    self.dd_out.append(dict(start=u['start'], end=u['end'], **u['device_directed']))
+            else:
+                keep.append(u)
+        self.dd_wait = keep
+        lo = min([u['f0'] for u in self.dd_wait] + [n - 300])
+        cut = lo - self.xe0
+        if cut > 0:
+            self.xe = self.xe[cut:]
+            self.xe0 += cut
 
     def _fallback_step(self, final):
         from .textlayer import fallback_names
@@ -769,7 +976,7 @@ class Stream:
                     from .tagdec import map_spans
                     pu = dict(text=txt, tag_spans=map_spans(pu['text'].split(), pu['tag_spans'], txt.split()))
             t_dec = time.time()
-            W = align_eo(self.a.moon_for('moonshine_release'), self.a.tok, self.a.dev, eo, len(x), txt, ws / SR, dict(self.a.cfg.get('alignment') or {}, _fast_dtw=True)) if txt and len(buf) >= 800 else []
+            W = align_eo(self.a.moon_for('moonshine_release'), self.a.tok, self.a.dev, eo, len(x), txt, ws / SR, dict(self.a.cfg.get('alignment') or {}, _fast_dtw=True), hop_s=self.a.hop_s) if txt and len(buf) >= 800 else []
             self.tr.stats.update({k: st[k] for k in ('decode_ms', 'utterances', 'audio_s')})
             self.tr.stats['partial_decodes'] = self.tr.stats.get('partial_decodes', 0) + 1
             self.tr.stats['partial_ms'] = self.tr.stats.get('partial_ms', 0.0) + (time.time() - t) * 1000
@@ -787,7 +994,16 @@ class Stream:
 
     def _join(self):
         while self.done:
-            self.utts.append(self.done.pop(0))
+            u = self.done.pop(0)
+            self.utts.append(u)
+            if self.a.dd_head is not None:
+                self.dd_wait.append(u)
+            if self.kb:
+                from .kbsnap import add_spans
+                with self.words.lock:
+                    recent = [r for r in self.eng.out['names'][-300:] if r['end'] > u['start'] - 1]
+                    self.eng.out['names'] += add_spans(u.get('words') or [], recent, self.kb, lambda: self.eng._new_id('name'))
+        self._dd_step()
         po = self.partial_out
         self.partial = None if po is None else {k: v for k, v in po.items() if k != 'f0'}
 
@@ -797,6 +1013,20 @@ class Stream:
         for k, n in self.sent.items():
             out[k] = e[k][n:]
             self.sent[k] = len(e[k])
+        if self.kb:
+            from .kbsnap import link
+            for r in out['names']:
+                link(r, self.kb)
+            for x in out['updates']:
+                r = x.get('record') if isinstance(x, dict) else None
+                if isinstance(r, dict) and 'heard' in r and str(r.get('tag', '')).startswith('entity.mention'):
+                    link(r, self.kb)
+        if self.evt is not None:
+            out['audio_events'] = self.evt.out[self.ev_sent:]
+            self.ev_sent = len(self.evt.out)
+        if self.a.dd_head is not None:
+            out['device_directed'] = self.dd_out[self.dd_sent:]
+            self.dd_sent = len(self.dd_out)
         R = self.eng.R
         fr = {}
         for q, v in self.eng.frames.items():

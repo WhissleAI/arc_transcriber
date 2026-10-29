@@ -1,13 +1,17 @@
-"""arc-transcribe: transcribe a file (or live audio) with Arc v1, with names linked to your list and numbers with values.
+"""arc-transcribe: transcribe a file (or live audio) with Arc v1.1: transcript with inline name / number tags, names linked to your
+list, numbers with values, speakers, tags, sound events and device-directed speech, from one streaming model.
 
-    arc-transcribe clip.wav --domain nba --names roster.txt                       # built-in transcript, offline
+    arc-transcribe clip.wav --domain nba --names roster.txt                       # edge backbone (default), offline
+    arc-transcribe clip.wav --backbone parakeet --device cuda                     # server backbone (larger, more accurate)
+    arc-transcribe clip.wav --context terms.txt --topic meeting                   # context: names / terms / topic for the decoder
     arc-transcribe clip.wav --asr deepgram --format srt -o clip.srt               # Deepgram words (DEEPGRAM_API_KEY)
     arc-transcribe clip.wav --asr verbit --live                                   # Verbit live order (VERBIT_WS_URL, VERBIT_API_KEY)
     arc-transcribe clip.wav --live                                                # stream the file at real-time pace
     arc-transcribe --mic --domain talk                                            # microphone (pip install sounddevice)
     arc-transcribe clip.wav --asr deepgram --demo                                 # no key: simulated Deepgram messages
 
-The model (WhissleAI/arc-v1, pinned revision) is downloaded from Hugging Face on first use.
+The model (WhissleAI/arc-v1.1, pinned revision) is downloaded from Hugging Face on first use; the parakeet backbone also downloads
+nvidia/parakeet-tdt-0.6b-v2 (CC-BY-4.0, about 2.5 GB) on first use.
 """
 import argparse, asyncio, json, os, sys, time
 
@@ -44,14 +48,27 @@ def load_arc(a):
     t = time.time()
     rev = a.revision if not os.path.isdir(a.model) else None
     try:
-        arc = Arc.from_pretrained(a.model, revision=rev, device=a.device, threads=a.threads)
+        arc = Arc.from_pretrained(a.model, backbone=a.backbone, revision=rev, device=a.device, threads=a.threads)
     except Exception as e:                                   # gated repo / no token: say what to do
         if type(e).__name__ in ("GatedRepoError", "RepositoryNotFoundError") or "401" in str(e):
             raise SystemExit(f"arc-transcribe: cannot download {a.model}: accept the model's terms on https://huggingface.co/{a.model} "
                              "while logged in, then run `hf auth login` (or set HF_TOKEN)")
         raise
-    log(f"arc-transcribe {__version__}: model {a.model}{'@' + rev if rev else ''} on {a.device} ({time.time() - t:.1f} s)")
+    log(f"arc-transcribe {__version__}: model {a.model}{'@' + rev if rev else ''} ({a.backbone}) on {a.device} ({time.time() - t:.1f} s)")
+    if a.context or a.topic or a.auto_context:
+        arc.set_context(terms=load_terms(a.context), topic=a.topic, auto_prev=a.auto_context)
     return arc
+
+
+def load_terms(spec):
+    """--context: a .txt file (one term per line), a .json list, or a comma-separated list of names / terms / phrases"""
+    if not spec:
+        return None
+    if os.path.exists(spec):
+        if spec.lower().endswith(".json"):
+            return [str(x) for x in json.load(open(spec, encoding="utf-8"))]
+        return [l.strip() for l in open(spec, encoding="utf-8") if l.strip() and not l.startswith("#")]
+    return [t.strip() for t in spec.split(",") if t.strip()]
 
 
 def show(new, quiet):
@@ -68,7 +85,8 @@ def show(new, quiet):
 # ---------------------------------------------------------------- offline (whole file)
 def run_offline(arc, a, wav, names):
     if a.asr == "builtin":
-        return arc.predict(wav, domain=a.domain, names=names, transcript="builtin", return_frames=False, delay_s=a.delay)
+        return arc.predict(wav, domain=a.domain, names=names, transcript="builtin", return_frames=False, delay_s=a.delay, events=a.events,
+                           kb_snap=not a.no_snap)
     from . import asr as X
     if a.demo:
         words = [dict(text=w["text"], start=w["start"], end=w["end"], is_final=True) for u in arc.transcribe(wav) for w in u["words"]]
@@ -79,7 +97,7 @@ def run_offline(arc, a, wav, names):
     else:
         raise SystemExit("verbit: live captions only (run at real-time pace); use --demo for the offline simulation")
     return arc.predict(wav, domain=a.domain, names=names, transcript="external", words=words, name_source="word",
-                       strict=a.strict, return_frames=False, delay_s=a.delay)
+                       strict=a.strict, return_frames=False, delay_s=a.delay, events=a.events, kb_snap=not a.no_snap)
 
 
 # ---------------------------------------------------------------- live (file at real-time pace, or microphone)
@@ -115,8 +133,9 @@ async def run_live(arc, a, wav, names):
     from . import asr as X
     ext_mode = a.asr != "builtin"
     s = arc.stream(domain=a.domain, names=names, delay_s=a.delay, transcript="external" if ext_mode else "builtin",
-                   name_source="word" if ext_mode else None, interim_source=a.asr if ext_mode else None, strict=a.strict)
-    acc = dict(names=[], numbers=[], transcript=[], diarization=[], events=[], utterances=[])
+                   name_source="word" if ext_mode else None, interim_source=a.asr if ext_mode else None, strict=a.strict,
+                   events=a.events, kb_snap=not a.no_snap)
+    acc = dict(names=[], numbers=[], transcript=[], diarization=[], events=[], utterances=[], audio_events=[], device_directed=[])
 
     def add(new):
         for k in acc:
@@ -178,6 +197,14 @@ def main(argv=None):
     ap.add_argument("--domain", default="unknown", help="nba nhl nfl cricket soccer esports news talk stream_chat meeting court_appellate "
                                                          "court_trial assistant assistant_noisy short_clips unknown (default)")
     ap.add_argument("--names", help="your name list: .txt (one per line, optional TAB kind) or .json")
+    ap.add_argument("--backbone", choices=["edge", "parakeet"], default="edge",
+                    help="edge (default: small, on-device, CPU real time) or parakeet (server: larger encoder, more accurate, GPU recommended)")
+    ap.add_argument("--context", help="names / terms / phrases the decoder should expect: .txt (one per line), .json list, or 'a,b,c'")
+    ap.add_argument("--topic", help="short topic / domain hint for the decoder context (e.g. 'meeting', 'nba', 'customer support')")
+    ap.add_argument("--auto-context", action="store_true", help="feed the text of earlier utterances back as decoder context (memory)")
+    ap.add_argument("--events", choices=["default", "all", "none"], default="default",
+                    help="sound / channel events: default = stable + beta labels, all = include experimental labels, none = off")
+    ap.add_argument("--no-snap", action="store_true", help="turn off the name-list snap post-pass (fuzzy / phonetic match to --names)")
     ap.add_argument("--asr", choices=["builtin", "deepgram", "verbit"], default="builtin", help="transcript words (default: builtin)")
     ap.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
     ap.add_argument("--format", choices=["json", "txt", "srt", "vtt"], default="txt")

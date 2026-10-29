@@ -16,8 +16,10 @@ def n_frames(n_samples):
 
 class MSTStreamEncoder:
 
-    def __init__(self, enc, dev=None, dtype=None):
+    def __init__(self, enc, dev=None, dtype=None, tap=None):
         self.enc = enc
+        self.tap = tap
+        self.tap_out = None
         p = next(enc.parameters())
         self.dev, self.dtype = (dev or p.device, dtype or p.dtype)
         self.em = enc.embedder
@@ -122,9 +124,13 @@ class MSTStreamEncoder:
                 self.H[l + 1] = self._cat(self.H[l + 1], h)
                 self.n_H[l + 1] = hi
         out = None
+        self.tap_out = None
         if self.n_H[self.L] > self.n_out:
             new = self.H[self.L][self.n_out - self.H0[self.L]:]
             out = self.enc.final_norm(new[None])[0]
+            if self.tap is not None:
+                t = self.tap
+                self.tap_out = self.H[t][self.n_out - self.H0[t]:self.n_H[self.L] - self.H0[t]]
             self.n_out = self.n_H[self.L]
         self._trim()
         return out
@@ -145,14 +151,22 @@ class MSTStreamEncoder:
         return out if out is not None else torch.zeros(0, self.enc.config.hidden_size, device=self.dev, dtype=self.dtype)
 
 @torch.no_grad()
-def encode_offline(enc, wav, chunk_s=30.0):
-    s = MSTStreamEncoder(enc)
-    outs = []
+def encode_offline(enc, wav, chunk_s=30.0, tap=None):
+    s = MSTStreamEncoder(enc, tap=tap)
+    outs, taps = ([], [])
     n = int(chunk_s * 16000)
     for i in range(0, len(wav), n):
         outs.append(s.feed(wav[i:i + n]))
+        if s.tap_out is not None:
+            taps.append(s.tap_out)
     outs.append(s.flush())
-    return torch.cat(outs, 0).float().cpu().numpy()
+    if s.tap_out is not None:
+        taps.append(s.tap_out)
+    H = torch.cat(outs, 0).float().cpu().numpy()
+    if tap is None:
+        return H
+    T = torch.cat(taps, 0).float().cpu().numpy() if taps else np.zeros((0, H.shape[1]), np.float32)
+    return (H, T)
 
 @torch.no_grad()
 def reference_offline(enc, wav):

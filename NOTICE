@@ -1,18 +1,20 @@
-arc_transcriber (Arc v1 inference code)
+arc_transcriber (Arc v1.1 inference code)
 Copyright 2026 WhissleAI. Licensed under the Creative Commons Attribution-NonCommercial 4.0
 International License (CC BY-NC 4.0, see LICENSE); commercial use requires a separate licence from WhissleAI.
 
-This repository holds code only. The model weights are downloaded at run time from https://huggingface.co/WhissleAI/arc-v1:
-Arc weights (model.safetensors) under CC BY-NC 4.0, and a modified version of the Moonshine Streaming tiny speech model
-by Useful Sensors, Inc. (dba Moonshine AI) (https://huggingface.co/moonshine-ai/moonshine-streaming-tiny,
-https://github.com/moonshine-ai/moonshine) under the MIT License (licence and copyright notice retained in that repository's
-moonshine-streaming-tiny/LICENSE). Its encoder and decoder weights were changed by WhissleAI.
+This repository holds code only. The model weights are downloaded at run time from https://huggingface.co/WhissleAI/arc-v1.1:
+Arc weights under CC BY-NC 4.0, and modified versions of the Moonshine Streaming tiny speech model by Useful Sensors, Inc.
+(dba Moonshine AI) (https://huggingface.co/moonshine-ai/moonshine-streaming-tiny, https://github.com/moonshine-ai/moonshine)
+under the MIT License (licence and copyright notice retained in the model repository's edge/moonshine-streaming-tiny/LICENSE and
+server/decoder/LICENSE).
+
+The parakeet (server) backbone downloads NVIDIA Parakeet-TDT 0.6B v2 (https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2,
+CC-BY-4.0, Copyright (c) NVIDIA Corporation) at run time and uses its encoder unmodified; arc_audio/server.py loads the encoder
+weights into the transformers ParakeetEncoder and re-implements its log-mel front end. The weights are not included here.
+The optional transcript="parakeet" finals tier downloads the same model through NeMo at run time.
 
 arc_audio/rescorer.py contains a fallback copy of the Metaphone function from jellyfish (https://github.com/jamesturk/jellyfish),
 MIT License, Copyright (c) 2015 James Turk. It is used only when the jellyfish package is not installed.
-
-The optional local finals tier (transcript="parakeet") downloads NVIDIA Parakeet-TDT 0.6B v2 (CC-BY-4.0) through NeMo at run time;
-it is not included here.
 
 examples/example_synth.wav is synthetic speech generated with the Kokoro-82M text-to-speech model (hexgrad/Kokoro-82M, Apache-2.0)
 from a script with fictional names; it contains no recording of a real person.

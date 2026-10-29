@@ -213,7 +213,7 @@ def align_eo(moon, tok, dev, eo, n_samples, text, t0, cfg=None, return_att=False
     return (W, att, ids, hop_s) if return_att else W
 
 @torch.no_grad()
-def align_text(moon, tok, dev, dtype, wav, text, t0, cfg=None, return_att=False):
+def align_text(moon, tok, dev, dtype, wav, text, t0, cfg=None, return_att=False, hop_s=None):
     if not text or not text.strip() or len(wav) < 800:
         return []
-    return align_eo(moon, tok, dev, encode(moon, dev, dtype, wav), len(wav), text, t0, cfg, return_att)
+    return align_eo(moon, tok, dev, encode(moon, dev, dtype, wav), len(wav), text, t0, cfg, return_att, hop_s=hop_s)

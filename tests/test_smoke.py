@@ -1,7 +1,8 @@
-"""CPU smoke test: downloads WhissleAI/arc-v1 (pinned revision) from Hugging Face on first use; skipped when offline.
+"""CPU smoke test: downloads WhissleAI/arc-v1.1 (pinned revision, edge backbone) from Hugging Face on first use; skipped when offline.
 
-    pytest -q                                  # or: python -m pytest tests
-    ARC_MODEL=/path/to/arc-v1 pytest -q        # a local copy of the model instead of the download
+    pytest -q                                          # or: python -m pytest tests
+    ARC_MODEL=/path/to/arc-v1.1 pytest -q              # a local copy of the model repository instead of the download
+    ARC_TEST_PARAKEET=1 pytest -q                      # also run the parakeet (server) backbone (downloads ~2.5 GB)
 """
 import json, os, socket, subprocess, sys
 from pathlib import Path
@@ -25,7 +26,7 @@ def online():
 @pytest.fixture(scope="session")
 def arc():
     if not MODEL and not online():
-        pytest.skip("offline and no ARC_MODEL: cannot download WhissleAI/arc-v1")
+        pytest.skip("offline and no ARC_MODEL: cannot download WhissleAI/arc-v1.1")
     from arc_transcriber import load
     return load(MODEL) if MODEL else load()
 
@@ -38,6 +39,48 @@ def test_text_rules():
     assert v["v"] == 1500
     v, _ = TL.text_value("time_of_day", ["6", "p.m."])
     assert v["v"] == 18 * 3600
+
+
+def test_event_window_matches_offline():
+    import torch
+    from arc_audio.events import EventHead, CTX
+    torch.manual_seed(0)
+    h = EventHead(d_in=16, k=5, hid=8).eval()
+    x = torch.randn(23, 16)
+    with torch.no_grad():
+        ref = h(x[None])[0]
+        parts, done = [], 0
+        for n in (4, 9, 15, 23):
+            hi = n if n == 23 else n - CTX
+            if hi > done:
+                base = max(0, done - CTX)
+                parts.append(h.window(x[base:n], done - base, hi - base, n - base if n == 23 else None))
+                done = hi
+    assert torch.allclose(torch.cat(parts), ref, atol=1e-5)
+
+
+def test_int4_unpack_roundtrip(tmp_path):
+    import json as J
+    import torch
+    from safetensors.torch import save_file
+    from arc_audio.weights import load_q4
+    codes = torch.randint(0, 16, (6, 32), dtype=torch.uint8)
+    s = torch.rand(6) * 0.01 + 1e-3
+    z = torch.randint(0, 16, (6,), dtype=torch.uint8)
+    pk = lambda c: (c.reshape(-1)[0::2] | (c.reshape(-1)[1::2] << 4)).contiguous()
+    lay = {"w": dict(shape=[3, 64], axis=-1, rc=[3, 64, 0], dtype="float32")}
+    save_file({"w.q": pk(codes), "w.s": s, "w.z": pk(z), "b": torch.ones(3)}, str(tmp_path / "m.q4.safetensors"),
+              metadata={"format": "pt", "int4_layout": J.dumps(lay), "group_size": "32"})
+    sd = load_q4(str(tmp_path / "m.q4.safetensors"))
+    ref = ((codes.float() - z.float()[:, None]) * s[:, None]).reshape(3, 64)
+    assert torch.equal(sd["w"], ref) and torch.equal(sd["b"], torch.ones(3))
+
+
+def test_context_prompt():
+    from arc_audio.api import context_dict
+    c = context_dict(names=["Jane Doe", {"name": "Harbor City Hawks", "kind": "team"}], terms=["Arc"], topic="meeting", previous_text="hello")
+    assert c["kb"] == ["Jane Doe", "Harbor City Hawks", "Arc"] and c["kb_type"] == ["term", "team", "term"]
+    assert c["dom"] == "meeting" and c["prev"] == "hello"
 
 
 def test_output_formats():
@@ -61,6 +104,28 @@ def test_predict_builtin(arc):
     assert any(n["state"] == "linked" for n in out["names"])
     pair = [n for n in out["numbers"] if "102" in n["heard"]]
     assert pair and (pair[0]["value"], pair[0]["value2"]) == (102, 98)
+
+
+def test_events_and_context(arc):
+    from arc_audio import load_audio
+    wav = load_audio(str(CLIP))
+    out = arc.predict(wav, domain="nba", events="all", return_frames=True)
+    assert "audio_events" in out and out["frames"]["audio_events"]["probs"].shape[1] == 50
+    assert all("device_directed" in u for u in out["transcript"])
+    s = arc.stream(domain="nba", background=False, auto_prev=True)
+    s.set_context(kb=["Marcus Delaney", "Theo Brandt"], kb_type=["person", "person"])
+    got = [s.feed(wav[i:i + 1600]) for i in range(0, len(wav), 1600)] + [s.flush()]
+    assert sum(len(g["transcript"]) for g in got) > 0
+
+
+@pytest.mark.skipif(not os.environ.get("ARC_TEST_PARAKEET"), reason="ARC_TEST_PARAKEET=1 runs the server backbone")
+def test_parakeet_backbone():
+    from arc_audio import Arc, load_audio
+    from arc_transcriber.cli import load_names
+    a = Arc.from_pretrained(MODEL or "WhissleAI/arc-v1.1", backbone="parakeet", revision=None if MODEL else "v1.1.0")
+    out = a.predict(load_audio(str(CLIP)), domain="nba", names=load_names(str(NAMES)))
+    assert len(" ".join(u["text"] for u in out["transcript"]).split()) > 20
+    assert any(n["state"] == "linked" for n in out["names"])
 
 
 def test_cli_builtin_and_demo(arc, tmp_path):

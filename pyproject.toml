@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "arc-transcriber"
-version = "1.0.1"
-description = "Arc v1 transcriber: streaming transcript with names linked to your list, numbers with values, speakers and tags"
+version = "1.1.0"
+description = "Arc v1.1: one streaming model for transcript, inline name / number tags, speakers, tags, events and device-directed speech (edge or Parakeet backbone)"
 readme = "README.md"
 license = {text = "CC-BY-NC-4.0"}
 requires-python = ">=3.10"
-# tested: torch 2.11, transformers 5.19 (Moonshine Streaming support)
-dependencies = ["torch>=2.1", "transformers>=5.19", "safetensors", "numpy", "soundfile", "huggingface_hub", "rapidfuzz", "jellyfish"]
+# tested: torch 2.11, transformers 5.19 (Moonshine Streaming + Parakeet encoder support)
+dependencies = ["torch>=2.1", "transformers>=5.19", "safetensors", "numpy", "soundfile", "huggingface_hub", "rapidfuzz", "jellyfish", "num2words"]
 
 [project.optional-dependencies]
 live = ["websockets>=12", "sounddevice"]    # --asr deepgram/verbit --live, --mic

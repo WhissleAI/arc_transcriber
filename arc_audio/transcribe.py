@@ -96,6 +96,62 @@ class UttSegmenter:
         self.low_run = 0
         return out
 
+def _never_emit():
+    from .tagdec import NEVER_EMIT
+    return NEVER_EMIT
+
+class SuppressIds:
+
+    def __init__(self, ids):
+        self.ids = list(ids)
+        self._t = None
+
+    def __call__(self, input_ids, scores):
+        if self._t is None or self._t.device != scores.device:
+            self._t = torch.as_tensor(self.ids, device=scores.device, dtype=torch.long)
+        scores[:, self._t] = float('-inf')
+        return scores
+
+class RepeatGuard:
+
+    def __init__(self, eos, start, max_unit=8, copies=4, min_tokens=6):
+        self.eos, self.start, self.max_unit, self.copies, self.min_tokens = (eos, start, max_unit, copies, min_tokens)
+
+    def looping(self, seq):
+        for n in range(1, self.max_unit + 1):
+            k = max(self.copies, -(-self.min_tokens // n))
+            if len(seq) < n * k:
+                break
+            u = seq[-n:]
+            if seq[-n * k:] == u * k:
+                return True
+        return False
+
+    def __call__(self, input_ids, scores):
+        for b in range(input_ids.shape[0]):
+            if self.looping(input_ids[b, self.start:].tolist()):
+                scores[b, :] = float('-inf')
+                scores[b, self.eos] = 0.0
+        return scores
+
+class TagOffsets:
+
+    def __init__(self, offsets):
+        from .tagdec import TID
+        offsets = {k: float(v) for k, v in offsets.items() if k in TID and float(v) != 0.0}
+        self.ids = [TID[k] for k in offsets]
+        self.b = list(offsets.values())
+        self._t = None
+
+    def __call__(self, input_ids, scores):
+        if not self.ids:
+            return scores
+        if self._t is None or self._t[0].device != scores.device:
+            self._t = (torch.as_tensor(self.ids, device=scores.device, dtype=torch.long), torch.as_tensor(self.b, device=scores.device, dtype=scores.dtype))
+        scores = scores.clone()
+        scores[:, self._t[0]] += self._t[1]
+        return torch.log_softmax(scores, -1)
+
 class Transcriber:
 
     def __init__(self, moon, tok, dev, dtype, cfg=None):
@@ -105,6 +161,35 @@ class Transcriber:
         from .tagdec import is_tagged_tokenizer
         self.tagged = bool(self.c.get('tagged', False)) and tok is not None and is_tagged_tokenizer(tok)
         self.last_ids = []
+        self.ctx = None
+        self.ctx_max = 96
+        self.auto_prev = False
+        self.hist = []
+        self._t_now = None
+        if self.c.get('context'):
+            self.set_context(**self.c['context'])
+
+    def set_context(self, ctx=None, auto_prev=False, max_tokens=96, **kw):
+        c = dict(ctx or {}, **kw)
+        self.ctx = c or None
+        self.auto_prev = bool(auto_prev)
+        self.ctx_max = int(max_tokens)
+
+    def _prompt_ids(self):
+        if not self.ctx and (not self.auto_prev):
+            return []
+        from .ctxprompt import build_prompt, prev_text
+        c = dict(self.ctx or {})
+        if self.auto_prev and (not c.get('prev')):
+            c['prev'] = prev_text(self.hist, self._t_now)
+        return build_prompt(self.tok, c, 'full' if c.get('kb') else 'prev', self.ctx_max)
+
+    def _guards(self, start):
+        out = []
+        offs = self.c.get('tag_offsets') if self.tagged else None
+        if offs:
+            out.append(TagOffsets(offs))
+        return out, ([SuppressIds(_never_emit()), RepeatGuard(int(self.m.config.eos_token_id), start)] if self.c.get('loop_guard', False) else [])
 
     def _max_len(self, n_samples):
         return 1 + int(float(self.c.get('len_mult', 1.0)) * (4 + self.c['tokens_per_s'] * n_samples / SR))
@@ -128,24 +213,34 @@ class Transcriber:
         return LogitsProcessorList([BiasProcessor(self.trie, w, self.bcfg['start_bonus'], self.bcfg['cont_bonus'])])
 
     def _gen(self, kw, n_samples, span_types, prefix=None, return_ids=False, final=False):
+        from transformers import LogitsProcessorList
         procs = self._procs(span_types)
+        P = self._prompt_ids()
+        st = self.m.config.decoder_start_token_id
+        pre, guards = self._guards(len(P) + 1)
         nb = int(self.c.get('final_beams', 1)) if final and (not prefix) and (not return_ids) else 1
         if nb > 1:
-            from transformers import LogitsProcessorList
             from .bias import RowBias
-            extra = {'logits_processor': LogitsProcessorList([RowBias(procs[0])])} if procs else {}
-            out = self.m.generate(**kw, max_length=self._max_len(n_samples), do_sample=False, num_beams=nb, **extra)
-            self.last_ids = [int(t) for t in out[0].tolist()]
-            return self.tok.batch_decode(out, skip_special_tokens=True)[0].strip()
-        if prefix:
-            st = self.m.config.decoder_start_token_id
-            kw = dict(kw, decoder_input_ids=torch.tensor([[st] + list(prefix)], device=self.dev, dtype=torch.long))
-        out = self.m.generate(**kw, max_length=max(self._max_len(n_samples), 2 + len(prefix or ())), do_sample=False, **{'logits_processor': procs} if procs else {})
-        self.last_ids = [int(t) for t in out[0].tolist()]
-        txt = self.tok.batch_decode(out, skip_special_tokens=True)[0].strip()
+            lp = pre + ([RowBias(procs[0])] if procs else []) + guards
+            extra = {'logits_processor': LogitsProcessorList(lp)} if lp else {}
+            if P:
+                kw = dict(kw, decoder_input_ids=torch.tensor([P + [st]], device=self.dev, dtype=torch.long), decoder_start_token_id=P[0])
+            out = self.m.generate(**kw, max_length=self._max_len(n_samples) + len(P), do_sample=False, num_beams=nb, **extra)
+            ids = [int(t) for t in out[0].tolist()][len(P):]
+            self.last_ids = ids
+            return self.tok.decode(ids, skip_special_tokens=True).strip()
+        if prefix or P:
+            kw = dict(kw, decoder_input_ids=torch.tensor([P + [st] + list(prefix or ())], device=self.dev, dtype=torch.long))
+            if P:
+                kw['decoder_start_token_id'] = P[0]
+        lp = pre + (list(procs) if procs else []) + guards
+        out = self.m.generate(**kw, max_length=max(self._max_len(n_samples) + len(P), 2 + len(P) + len(prefix or ())), do_sample=False, **{'logits_processor': LogitsProcessorList(lp)} if lp else {})
+        ids = [int(t) for t in out[0].tolist()][len(P):]
+        self.last_ids = ids
+        txt = self.tok.decode(ids, skip_special_tokens=True).strip()
         if return_ids:
             sp = set(self.tok.all_special_ids)
-            return (txt, [int(t) for t in out[0].tolist() if int(t) not in sp])
+            return (txt, [t for t in ids if t not in sp])
         return txt
 
     @torch.no_grad()
@@ -183,6 +278,7 @@ class Transcriber:
     def utterance(self, f0, f1, reason, get_audio, get_states=None, span_types=None):
         pad = int(self.c['pad_s'] * SR)
         a, b = (f0 * FR, (f1 + 1) * FR)
+        self._t_now = f0 / 10
         if self.c['decode'] in ('states', 'slice') and get_states is not None:
             h = get_states(max(0, a - pad), b + pad)
             txt = self.decode_states(h, b - a + 2 * pad, span_types) if len(h) else ''
@@ -192,6 +288,8 @@ class Transcriber:
         if self.c.get('loopfix', False):
             txt = loopfix(txt)
         u = dict(start=round(f0 / 10, 1), end=round((f1 + 1) / 10, 1), f0=f0, f1=f1, text=txt, reason=reason, final=True)
+        if txt:
+            self.hist = (self.hist + [(f0 / 10, (f1 + 1) / 10, txt)])[-64:]
         if self.tagged:
             from .tagdec import map_spans
             sp = self.tagged_spans(raw)
@@ -203,6 +301,7 @@ class Transcriber:
         pad = int(self.c['pad_s'] * SR)
         ms0, n0, a0 = (self.stats['decode_ms'], self.stats['utterances'], self.stats['audio_s'])
         a = max(0, f0 * FR - pad)
+        self._t_now = f0 / 10
         if self.c['decode'] in ('states', 'slice') and get_states is not None:
             h = get_states(a, n_total)
             txt = self.decode_states(h, n_total - a, span_types) if len(h) else ''

@@ -967,7 +967,7 @@ class Engine:
         from .tagdec import NAME_TAG, NUMBER_KIND, layer
         from .words import frames_of
         L = layer(s['tag'])
-        if L is None or s['tag'] == 'ENTITY_LEGAL':
+        if L not in ('name', 'number') or s['tag'] == 'ENTITY_LEGAL':
             return None
         fa, fb = frames_of(s['start'], s['end'])
         pd = dict(kind=L, src='decoder', dtag=s['tag'], a=fa, b=fb, keys=set(s['keys']), span=dict(start=round(float(s['start']), 3), end=round(float(s['end']), 3), p=None))
