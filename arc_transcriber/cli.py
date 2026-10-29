@@ -1,4 +1,4 @@
-"""arc-transcribe: transcribe a file (or live audio) with Arc v1.1: transcript with inline name / number tags, names linked to your
+"""arc-transcribe: transcribe a file (or live audio) with Arc: transcript with inline name / number tags, names linked to your
 list, numbers with values, speakers, tags, sound events and device-directed speech, from one streaming model.
 
     arc-transcribe clip.wav --domain nba --names roster.txt                       # Arc Mini (default), offline

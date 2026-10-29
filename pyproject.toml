@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "arc-transcriber"
-version = "1.1.2"
-description = "Arc v1.1: one streaming model for transcript, inline name / number tags, speakers, tags, events and device-directed speech (Arc Mini or Arc Transcriber)"
+version = "1.2.0"
+description = "Arc: one streaming model for transcript, inline name / number tags, speakers, tags, events and device-directed speech (Arc Mini 1.1.1 or Arc Transcriber 1.2.0)"
 readme = "README.md"
 license = {text = "CC-BY-NC-4.0 with the Whissle terms in LICENSE; non-commercial use only; commercial licences from Whissle Inc."}
 authors = [{name = "Whissle Inc.", email = "ksingla@whissle.ai"}]

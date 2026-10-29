@@ -1,6 +1,6 @@
 # arc_transcriber
 
-A command-line tool and Python library for **Arc v1.1**, an all-in-one streaming audio model. Give it audio (a file or live), and
+A command-line tool and Python library for **Arc**, an all-in-one streaming audio model. Give it audio (a file or live), and
 optionally your list of names and some context. One model returns, every 100 ms:
 
 - a **transcript** with **inline tags** on names, numbers and entities;
@@ -10,30 +10,45 @@ optionally your list of names and some context. One model returns, every 100 ms:
 - **device-directed speech** (is this utterance addressed to an assistant?);
 - **context memory**: the decoder can take your names, terms, a topic, and what was said earlier.
 
-Two models, one API and one output schema:
+Two models, one API and one output schema (versions as loaded by `arc-transcriber` 1.2.0):
 
-| model | `--backbone` | download | runs on | use it for |
-|---|---|---|---|---|
-| **Arc Mini** | `mini` (default; alias `edge`) | about 71 MB | CPU (files at about 0.3x real time on 4 cores), GPU optional | apps, laptops, on-device, lowest latency |
-| **Arc Transcriber** (full) | `full` (aliases `parakeet`, `server`) | about 77 MB + NVIDIA Parakeet-TDT 0.6B v2 encoder (about 2.5 GB, on first use) | GPU recommended, CPU for files | best transcript and name accuracy |
+| model | version | `--backbone` | download | runs on | use it for |
+|---|---|---|---|---|---|
+| **Arc Mini** | 1.1.1 | `mini` (default; alias `edge`) | about 71 MB | CPU (files at about 0.3x real time on 4 cores), GPU optional | apps, laptops, on-device, lowest latency |
+| **Arc Transcriber** (full) | **1.2.0** | `full` (aliases `parakeet`, `server`) | about 77 MB + NVIDIA Parakeet-TDT 0.6B v2 encoder (about 2.5 GB, on first use) | GPU recommended, CPU for files | best transcript and name accuracy |
 
 Coming next: **Arc Transcriber Edge**, a 4-bit version of the full model for Android, Mac and cloud.
 
-- **Model weights, model card and evaluation results:** https://huggingface.co/WhissleAI/arc-v1.1 (downloaded on first use)
-- **This repo:** inference code (`arc_audio` 1.1.2) and the `arc-transcribe` CLI, CC BY-NC 4.0 with the Whissle terms (non-commercial only; commercial licences: ksingla@whissle.ai). Bugs go in [Issues](../../issues).
+- **Model weights, model card and evaluation results:** https://huggingface.co/WhissleAI/arc-v1.1 (downloaded on first use; the
+  repository name stays `arc-v1.1`, versions are git revisions of it)
+- **This repo:** inference code (`arc_audio` 1.2.0) and the `arc-transcribe` CLI, CC BY-NC 4.0 with the Whissle terms (non-commercial only; commercial licences: ksingla@whissle.ai). Bugs go in [Issues](../../issues).
 - English, 16 kHz mono (other rates are resampled).
 
 ## Install
 
 ```bash
-pip install "arc-transcriber @ git+https://github.com/WhissleAI/arc_transcriber@v1.1.2"
-pip install "arc-transcriber[live] @ git+https://github.com/WhissleAI/arc_transcriber@v1.1.2"     # + websockets, sounddevice (live / mic)
+pip install "arc-transcriber @ git+https://github.com/WhissleAI/arc_transcriber@v1.2.0"
+pip install "arc-transcriber[live] @ git+https://github.com/WhissleAI/arc_transcriber@v1.2.0"     # + websockets, sounddevice (live / mic)
 ```
 
-The first run downloads `WhissleAI/arc-v1.1` at revision `v1.1.2` into the Hugging Face cache (only the folder of the model you
+The first run downloads `WhissleAI/arc-v1.1` at revision `v1.2.0` into the Hugging Face cache (only the folder of the model you
 use). The model repository asks you to accept its terms (approval is automatic): open https://huggingface.co/WhissleAI/arc-v1.1
 while logged in, accept, then `hf auth login` (or set `HF_TOKEN`). Arc Transcriber (full) also downloads `nvidia/parakeet-tdt-0.6b-v2`
 (public, CC-BY-4.0); NeMo is not needed. Python >= 3.10, torch >= 2.1, transformers >= 5.19.
+
+### Versions
+
+Each package version loads the model revision with the same number (pass `--revision` / `revision=` to choose another):
+
+| `arc-transcriber` | model revision | Arc Mini | Arc Transcriber (full) |
+|---|---|---|---|
+| 1.2.0 | `v1.2.0` | 1.1.1 | **1.2.0** |
+| 1.1.2 | `v1.1.2` | 1.1.1 | 1.1.1 |
+| 1.1.1 | `v1.1.1` | 1.1.1 | 1.1.1 |
+| 1.1.0 | `v1.1.0` | 1.1.0 | 1.1.0 |
+
+Benchmarks and the comparison of Arc Transcriber 1.2.0 with 1.1.1 are on the
+[model card](https://huggingface.co/WhissleAI/arc-v1.1). Changes per version: [CHANGELOG.md](CHANGELOG.md).
 
 ## CLI
 
@@ -68,7 +83,7 @@ Try it on the bundled synthetic clip (fictional names): `arc-transcribe examples
 | `--device` | `cpu` (default) or `cuda` |
 | `--format` | `txt` (default), `json`, `srt`, `vtt`; `-o FILE` (default stdout) |
 | `--live`, `--mic`, `--duration S`, `--fast` | live mode from a file at real-time pace, or from the microphone |
-| `--model`, `--revision` | another Hugging Face repo / local folder, or revision (default `WhissleAI/arc-v1.1` at `v1.1.2`) |
+| `--model`, `--revision` | another Hugging Face repo / local folder, or revision (default `WhissleAI/arc-v1.1` at `v1.2.0`) |
 
 Live progress goes to stderr; the result goes to stdout or `-o`.
 
@@ -98,7 +113,7 @@ Live progress goes to stderr; the result goes to stdout or `-o`.
 ```python
 from arc_audio import Arc, load_audio
 
-arc = Arc.from_pretrained("WhissleAI/arc-v1.1", backbone="mini", device="cpu", threads=4)    # backbone="full" for Arc Transcriber
+arc = Arc.from_pretrained("WhissleAI/arc-v1.1", backbone="mini", revision="v1.2.0", device="cpu", threads=4)  # backbone="full": Arc Transcriber
 names = ["Marcus Delaney", {"name": "Theo Brandt", "aliases": ["Brandt"]}, {"name": "Harbor City Hawks", "kind": "team"}]
 
 # whole file
@@ -135,40 +150,25 @@ Live modes with a real service need `pip install "arc-transcriber[live]"` (webso
 `arc.predict(wav, transcript="external", words=words)` or `stream.add_words(words)`. The adapters are tested offline with recorded
 message fixtures (`tests/test_asr_adapters.py`).
 
-## What's new in 1.1.2
+## What's new in 1.2.0
 
-- Licence and metadata only: Whissle Inc. named as rights holder; Whissle terms added to LICENSE (commercial licences,
-  reserved rights, outputs, patents and trademarks, contributions); CONTRIBUTING.md and a pull request template. Code
-  behaviour and model weights are unchanged (model revision `v1.1.2` has the same weight files as `v1.1.1`).
+- **Arc Transcriber 1.2.0** (`--backbone full`): lower word error rate (15.7 % -> 13.7 % on our held-out multi-domain dev set),
+  more names and numbers found, better assistant intents and diarization, fewer repetition loops; device-directed default
+  threshold 0.85 (was 0.50) and re-calibrated audio-event thresholds (safety labels set for a low false-alarm rate). Short assistant
+  commands are transcribed slightly worse than by 1.1.1. Details and numbers: [model card](https://huggingface.co/WhissleAI/arc-v1.1).
+- **Arc Mini is unchanged** (1.1.1). Code behaviour, API and output schema are unchanged; the default model revision is `v1.2.0`.
+- Golden reference outputs for Arc Transcriber (`tests/golden/full.json`) match 1.2.0; `tests/golden/mini.json` is unchanged.
 
-## What's new in 1.1.1
-
-- Model names: **Arc Mini** (`--backbone mini`, was `edge`) and **Arc Transcriber** (`--backbone full`, was `parakeet`); the old names
-  still work. Model folders on Hugging Face are now `mini/` and `full/` (revision `v1.1.1`; `v1.1.0` is unchanged).
-- External ASR words (`--asr deepgram|verbit`) are grouped into utterances like the built-in transcript; name spans no longer run into
-  the next word; `heard` texts have no trailing punctuation; repeated records of the same mention are merged; spelled-out scores
-  ("one hundred and two to ninety eight") keep both values.
-- A clear error when live mode needs `pip install "arc-transcriber[live]"`.
-- `docs/DEPLOYMENT.md` (porting to MLX / Core ML / ONNX Runtime / ExecuTorch / TensorRT) and golden reference outputs for checking
-  an export (`tests/golden/`, `scripts/check_parity.py`).
-
-## What's new in 1.1.0
-
-- Two backbones: `edge` (new on-device model, 4-bit packed weights, about 71 MB download) and `parakeet` (server model on the NVIDIA
-  Parakeet-TDT 0.6B v2 encoder).
-- 34 inline tag classes in the transcript (new: law, product, term, phone, email, URL, address), repetition-loop guard, per-class
-  tag calibration.
-- Decoder context (names, terms, topic, earlier text) and context memory (`auto_prev`).
-- Name-list snap post-pass (fuzzy / phonetic), sound / channel events with a status per label, device-directed speech.
-- The default model is `WhissleAI/arc-v1.1`. The API is backward compatible: 1.0 calls keep working (they use the edge backbone).
+Earlier versions: [CHANGELOG.md](CHANGELOG.md).
 
 ## Tests
 
 ```bash
-pip install "arc-transcriber[test] @ git+https://github.com/WhissleAI/arc_transcriber@v1.1.2"
+pip install "arc-transcriber[test] @ git+https://github.com/WhissleAI/arc_transcriber@v1.2.0"
 pytest -q                      # CPU, Arc Mini; downloads WhissleAI/arc-v1.1 on first use, skipped when offline
 ARC_TEST_PARAKEET=1 pytest -q  # also Arc Transcriber (full) (ARC_MODEL=/local/arc-v1.1 to use a local copy of the model repo)
 python scripts/check_parity.py --backbone mini --candidate out.json      # check an exported model against the golden outputs
+python scripts/check_parity.py --run --backbone full -o full.json --model /local/arc-v1.1   # write a candidate with arc_audio
 ```
 
 ## License

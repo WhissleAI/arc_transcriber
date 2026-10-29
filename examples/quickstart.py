@@ -1,4 +1,4 @@
-"""Arc v1.1 quick start: python examples/quickstart.py [--backbone edge|parakeet] [--device cpu|cuda]
+"""Arc quick start: python examples/quickstart.py [--backbone edge|parakeet] [--device cpu|cuda]
 
 Runs the bundled synthetic clip (fictional names) through Arc offline and live, and prints the transcript with inline tags,
 linked names, numbers with values, sound / channel events and device-directed scores."""

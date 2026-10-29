@@ -12,6 +12,10 @@ checked against the golden outputs in `tests/golden/` with `scripts/check_parity
 | **Arc Transcriber** (full) | `full` (`parakeet`, `server`) | NVIDIA Parakeet-TDT 0.6B v2 encoder + adapters + transcript decoder + Arc | cloud GPU (CUDA fp16, ORT CUDA, TensorRT), Mac (MLX) for files |
 | Arc Transcriber Edge | (coming) | a 4-bit version of the full model | Android / Mac / cloud |
 
+Versions in model revision `v1.2.0` (the default of `arc-transcriber` 1.2.0): Arc Mini 1.1.1, Arc Transcriber 1.2.0. Arc Transcriber
+1.2.0 has the same files, tensor names and packed format as 1.1.1, so a port of 1.1.1 loads it unchanged; check it against
+`tests/golden/full.json`, which matches 1.2.0 (`tests/golden/mini.json` matches Arc Mini 1.1.1).
+
 Budgets for Arc Mini on device: **download <= 50 MB**, **resident RAM < 200 MB**, real time on 2 mobile big cores.
 Today (PyTorch reference, weights unpacked to float32): download 71 MB, RAM about 1.0 GB (files) / 1.6 GB (live). The gap is closed by
 the items in "Reducing RAM" below; none of them needs new weights.
