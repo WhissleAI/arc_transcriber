@@ -3,7 +3,29 @@
 Package versions of `arc-transcriber` (this repository) and the model revisions of
 [WhissleAI/arc-v1.1](https://huggingface.co/WhissleAI/arc-v1.1) they load by default. Model numbers are on the model card.
 
-## Unreleased
+## 1.2.1
+
+Code-only release: model revision stays `v1.2.0` (`arc_audio.MODEL_REVISION`; the package no longer derives the revision from its
+own version). Same weights, same golden outputs.
+
+- Written form (`arc_audio/written.py`): `transcript_written` in `predict()` (per utterance `text` + `words`), `transcribe(written=True)`
+  (`text_written`, `words_written`), stream results (`transcript_written` for new utterances; `flush()` adds `transcript_written_all`),
+  `arc-transcribe --written` and a `written` field per JSON line. Built from Arc's own number tags and values: times ("2:30 p.m."),
+  money ("$45", "€12.50", "$2 million"), dates ("March 3", "March 3, 2024", "the 3rd of March"), percents, decimals, cardinals,
+  ordinals from 10, phone numbers and IDs as digits, scores ("3–1") in sports domains. A span whose value is not certain keeps its
+  words; single-digit counts / durations / ordinals stay words (`spell_small=False` to change). Linked names take the list's spelling
+  word for word (`spell_names`; unlike `transcript_rewritten`, no unspoken words are added). `tests/test_written.py`,
+  `evals/written_form/` (digits found: 22 % -> 74 % on 120 number-heavy clips; LibriSpeech WER unchanged).
+- Date records keep the month: "March third" gives `heard` "March third", `date` {year, month, day} and `iso` "--03-03" (was `heard`
+  "third", the month lost); "the third of March" is covered too. `value` is unchanged (the day, or the year).
+- Apple GPU: `device="mps"` runs Arc Mini (float64 pooling sums kept on the CPU; event-head tensors on the model's device) with the
+  same outputs as CPU (`tests/golden/mini.json` passes on MPS), and Arc Transcriber's `ServerFeatures` no longer passes CPU tensors to
+  the GPU heads ("Passed CPU tensor to MPS op"; the CUDA path makes the same mixed-device call, untested here). `device="auto"` picks cuda > mps > cpu;
+  `device="mps"` without MPS falls back to cpu with a warning. CLI: `--device mps|auto`.
+- `pytest` runs against the checkout (`pythonpath = ["."]`), not an installed copy.
+- `evals/FINDINGS.md`: new items 18-25 (written form and benchmarks, the date month, MPS and speed, Mini's error mix, short-clip
+  fillers, the context prompt budget, live context on short questions, short-clip readouts) and new evidence for items 1, 6, 8, 10
+  and 13. `evals/written_form/` (the written-form benchmark).
 
 - `c/`: `arc_score` (teacher-forced log P(text | audio) for candidate texts, name spans scored inside Arc's name tags, encoder
   reused, shared prefixes decoded once) and the final decode's n-best (`arc_utt.alts`, `alt_scores`), with `build/arc-score`

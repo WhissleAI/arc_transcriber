@@ -4,11 +4,12 @@
     arc = load()                               # Arc Mini: Arc.from_pretrained("WhissleAI/arc-v1.1", backbone="mini", revision="v1.2.0")
     arc = load(backbone="full", device="cuda") # Arc Transcriber (full, Parakeet encoder)
 """
-__version__ = "1.2.0"
+__version__ = "1.2.1"
 DEFAULT_MODEL = "WhissleAI/arc-v1.1"
-DEFAULT_REVISION = "v1.2.0"
+DEFAULT_REVISION = "v1.2.0"                 # model revision (1.2.1 is a code-only release)
 
 
 def load(model=DEFAULT_MODEL, revision=DEFAULT_REVISION, device="cpu", threads=None, backbone="mini"):
+    """device: cpu (default), cuda, mps (Apple GPU) or auto (cuda > mps > cpu)"""
     from arc_audio import Arc
     return Arc.from_pretrained(model, backbone=backbone, revision=revision, device=device, threads=threads)

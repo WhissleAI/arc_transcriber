@@ -4,6 +4,8 @@ list, numbers with values, speakers, tags, sound events and device-directed spee
     arc-transcribe clip.wav --domain nba --names roster.txt                       # Arc Mini (default), offline
     arc-transcribe clip.wav --backbone full --device cuda                         # Arc Transcriber (full, more accurate)
     arc-transcribe clip.wav --context terms.txt --topic meeting                   # context: names / terms / topic for the decoder
+    arc-transcribe clip.wav --written                                             # written form: "2:30 p.m.", "$45", "March 3"
+    arc-transcribe clip.wav --device auto                                         # cuda > mps (Apple GPU) > cpu
     arc-transcribe clip.wav --asr deepgram --format srt -o clip.srt               # Deepgram words (DEEPGRAM_API_KEY)
     arc-transcribe clip.wav --asr verbit --live                                   # Verbit live order (VERBIT_WS_URL, VERBIT_API_KEY)
     arc-transcribe clip.wav --live                                                # stream the file at real-time pace
@@ -54,7 +56,7 @@ def load_arc(a):
             raise SystemExit(f"arc-transcribe: cannot download {a.model}: accept the model's terms on https://huggingface.co/{a.model} "
                              "while logged in, then run `hf auth login` (or set HF_TOKEN)")
         raise
-    log(f"arc-transcribe {__version__}: model {a.model}{'@' + rev if rev else ''} ({a.backbone}) on {a.device} ({time.time() - t:.1f} s)")
+    log(f"arc-transcribe {__version__}: model {a.model}{'@' + rev if rev else ''} ({a.backbone}) on {arc.dev} ({time.time() - t:.1f} s)")
     if a.context or a.topic or a.auto_context:
         arc.set_context(terms=load_terms(a.context), topic=a.topic, auto_prev=a.auto_context)
     return arc
@@ -147,7 +149,8 @@ async def run_live(arc, a, wav, names):
     s = arc.stream(domain=a.domain, names=names, delay_s=a.delay, transcript="external" if ext_mode else "builtin",
                    name_source="word" if ext_mode else None, interim_source=a.asr if ext_mode else None, strict=a.strict,
                    events=a.events, kb_snap=not a.no_snap)
-    acc = dict(names=[], numbers=[], transcript=[], diarization=[], events=[], utterances=[], audio_events=[], device_directed=[])
+    acc = dict(names=[], numbers=[], transcript=[], transcript_written=[], diarization=[], events=[], utterances=[], audio_events=[],
+               device_directed=[])
 
     def add(new):
         for k in acc:
@@ -202,6 +205,11 @@ async def run_live(arc, a, wav, names):
                                   **({"device_directed": u["device_directed"]} if u.get("device_directed") else {})) for u in acc["transcript"]]
     else:
         out["transcript"] = [dict(start=u["start"], end=u["end"], text=u["text"], words=u.get("words", [])) for u in acc["transcript"]]
+    if final.get("transcript_written_all") is not None:            # whole session, with the names linked by the end
+        out["transcript_written"] = final["transcript_written_all"]
+    elif out["transcript"] and "words" in out["transcript"][0]:
+        from arc_audio import Arc
+        out["transcript_written"] = Arc.written(out, a.domain)
     return out
 
 
@@ -222,8 +230,11 @@ def main(argv=None):
                     help="sound / channel events: default = stable + beta labels, all = include experimental labels, none = off")
     ap.add_argument("--no-snap", action="store_true", help="turn off the name-list snap post-pass (fuzzy / phonetic match to --names)")
     ap.add_argument("--asr", choices=["builtin", "deepgram", "verbit"], default="builtin", help="transcript words (default: builtin)")
-    ap.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
+    ap.add_argument("--device", choices=["cpu", "cuda", "mps", "auto"], default="cpu",
+                    help="cpu (default), cuda, mps (Apple GPU; falls back to cpu with a warning if unavailable) or auto (cuda > mps > cpu)")
     ap.add_argument("--format", choices=["json", "txt", "srt", "vtt"], default="txt")
+    ap.add_argument("--written", action="store_true", help="txt / srt / vtt: the written transcript (numbers as digits: '2:30 p.m.', "
+                                                            "'$45', 'March 3'; names in your list's spelling) instead of inline tags")
     ap.add_argument("-o", "--output", help="output file (default: stdout)")
     ap.add_argument("--live", action="store_true", help="stream the file through Arc at real-time pace (100 ms chunks)")
     ap.add_argument("--mic", action="store_true", help="live from the default microphone (needs sounddevice)")
@@ -260,7 +271,7 @@ def main(argv=None):
             out = run_offline(arc, a, wav, names)
     except MissingKey as e:
         raise SystemExit(f"arc-transcribe: {e}")
-    text = render(out, a.format)
+    text = render(out, a.format, written=a.written)
     if a.output:
         open(a.output, "w", encoding="utf-8").write(text)
         log(f"wrote {a.output} ({a.format}; {len(out.get('names') or [])} names, {len(out.get('numbers') or [])} numbers)")

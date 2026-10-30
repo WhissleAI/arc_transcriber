@@ -29,7 +29,7 @@ class EventHead(nn.Module):
             z = F.pad(z, (0, r))
         h1 = F.gelu(F.conv1d(z, self.c1.weight, self.c1.bias))
         off = lo - CTX + 2
-        idx = torch.arange(h1.shape[-1]) + off
+        idx = torch.arange(h1.shape[-1], device=h1.device) + off
         valid = (idx >= 0) & (idx < (n_total if n_total is not None else 1 << 30))
         h1 = h1 * valid.to(h1.dtype)
         y = F.conv1d(h1, self.c2.weight, self.c2.bias)
@@ -72,9 +72,9 @@ class EventTracker:
         new = []
         if hi > self.n_done:
             base = max(self.x0, self.n_done - CTX)
-            X = torch.as_tensor(np.stack(self.X[base - self.x0:]), dtype=torch.float32)
+            X = torch.as_tensor(np.stack(self.X[base - self.x0:]), dtype=torch.float32, device=self.head.ln.weight.device)
             z = self.head.window(X, self.n_done - base, hi - base, n - base if final else None)
-            p = torch.sigmoid(z).numpy()
+            p = torch.sigmoid(z).float().cpu().numpy()
             self.probs.append(p)
             on = np.nonzero(self.on)[0]
             for i in range(len(p)):

@@ -75,10 +75,29 @@ class Pooler:
 def frame_db(a):
     return -120.0 if len(a) == 0 else float(20 * np.log10(np.sqrt(np.mean(a * a)) + 1e-06))
 
+def resolve_device(device):
+    """'auto' -> cuda, else mps (Apple GPU), else cpu. 'mps' falls back to cpu with a warning when MPS is not available."""
+    d = str(device or 'cpu')
+    if d == 'auto':
+        if torch.cuda.is_available():
+            return 'cuda'
+        return 'mps' if _mps_ok() else 'cpu'
+    if d.startswith('mps') and (not _mps_ok()):
+        import warnings
+        warnings.warn("device='mps': MPS is not available in this torch build / machine; running on cpu", RuntimeWarning, stacklevel=3)
+        return 'cpu'
+    if d.startswith('cuda') and (not torch.cuda.is_available()):
+        raise RuntimeError(f"device={d!r}: no CUDA device visible (use device='auto' to pick cuda > mps > cpu)")
+    return d
+
+def _mps_ok():
+    b = getattr(torch.backends, 'mps', None)
+    return bool(b is not None and b.is_available())
+
 class Arc:
 
     def __init__(self, path, device=None, threads=None, load_decoder=True):
-        device = device or os.environ.get('ARC_DEVICE', 'cpu')
+        device = resolve_device(device or os.environ.get('ARC_DEVICE', 'cpu'))
         if threads:
             torch.set_num_threads(int(threads))
         self.path = path
@@ -231,8 +250,8 @@ class Arc:
         if not os.path.isdir(path):
             from huggingface_hub import snapshot_download
             if revision is None and repo_or_dir == cls.HF_REPO:
-                from . import __version__
-                revision = f'v{__version__}'
+                from . import MODEL_REVISION
+                revision = MODEL_REVISION
             path = snapshot_download(repo_or_dir, revision=revision, allow_patterns=[f'{d}/{p}' for d in subs for p in cls.MODEL_FILES] + ['LICENSE', 'NOTICE'])
         for d in subs:
             if os.path.exists(os.path.join(path, d, 'config.json')):
@@ -301,7 +320,9 @@ class Arc:
     def hop_s(self):
         return 0.08 if self.backbone == 'parakeet' else None
 
-    def transcribe(self, wav, names=None, bias_names=False, cfg=None, mode='builtin', decoder=None, context=None, auto_prev=False):
+    def transcribe(self, wav, names=None, bias_names=False, cfg=None, mode='builtin', decoder=None, context=None, auto_prev=False, written=False, domain='unknown'):
+        """utterances [{start, end, text, words, tag_spans, ...}]. written=True adds text_written / words_written: numbers in written
+        form from Arc's number tags ('two thirty p.m.' -> '2:30 p.m.'; see arc_audio.written)."""
         from .transcribe import UttSegmenter
         wav = load_audio(wav) if not isinstance(wav, np.ndarray) else wav
         tr = self._transcriber(cfg, mode, decoder)
@@ -323,6 +344,9 @@ class Arc:
             u = tr.utterance(f0, f1, why, get)
             u['words'] = self._words_for(u, wav)
             u['source'] = mode
+            if written:
+                from .written import written_words
+                u['text_written'], u['words_written'] = written_words(u['words'], domain) if u['words'] else (u['text'], [])
             utts.append(u)
         return utts
 
@@ -398,6 +422,7 @@ class Arc:
                 for u in out['transcript']:
                     u['device_directed'] = self.directed(xe[int(u['start'] * 10):int(u['end'] * 10) + 1])
         tidy_out(out, [w for u in out['transcript'] for w in u.get('words') or []])
+        out['transcript_written'] = self.written(out, domain)
         out['timing'] = dict(audio_s=round(len(wav) / SR, 2), wall_s=round(time.time() - t_start, 2))
         return out
 
@@ -422,6 +447,15 @@ class Arc:
                 add += add_spans(t.get('words') or [], out['names'] + add, kb, lambda: eng._new_id('name'))
             if add:
                 out['names'] = sorted(out['names'] + add, key=lambda r: (r['start'], r['end']))
+
+    @staticmethod
+    def written(out, domain='unknown'):
+        """transcript_written for a predict() result: linked names in the list's spelling and numbers in written form, per utterance"""
+        from .written import written_transcript
+        tr = out.get('transcript') or []
+        if not tr or 'words' not in tr[0]:
+            return None
+        return written_transcript(tr, out.get('names'), domain)
 
     def fallback_mode(self, fallback='auto', strict=False, transcript='external', name_source='word'):
         if strict or fallback in (None, False, 'none', 'off'):
@@ -484,7 +518,37 @@ def extend_number(r, words):
         vt, _ = TL.text_value(r.get('kind'), ws)
         if vt is not None and vt.get('v') is not None:
             r.update(value=vt.get('v'), value2=vt.get('v2'), state='read_text')
+    if r.get('kind') == 'date':
+        extend_date(r, W, i, j)
     return r
+
+def extend_date(r, W, i, j):
+    """a date record covers its month too: 'March third' (or 'the third of March') -> heard 'March third', date {year, month, day},
+    iso '--03-03'. value keeps its meaning (the day, or the year when only a year was said)."""
+    from .written import parse_date, date_iso, is_month, core
+    txt = lambda w: str(w.get('text', w.get('w', '')))
+    if i > 0 and is_month(txt(W[i - 1])) and W[i]['start'] - W[i - 1]['end'] < 0.6 and (not txt(W[i - 1]).rstrip().endswith(('.', ',', '?', '!'))):
+        i -= 1
+    if j + 2 < len(W) and core(txt(W[j + 1])) == 'of' and is_month(txt(W[j + 2])) and (not txt(W[j]).rstrip().endswith(('.', ',', '?', '!'))):
+        j += 2
+    ws = [txt(w) for w in W[i:j + 1]]
+    k0 = next((k for k, w in enumerate(ws) if is_month(w) or core(w) in NUMWORDS_DATE or any((ch.isdigit() for ch in w))), None)
+    if k0 is None:
+        return r
+    ws = ws[k0:]
+    i += k0
+    d = parse_date(ws)
+    if d is None:
+        return r
+    r['heard'] = ' '.join(ws)
+    r['start'] = round(min(r['start'], W[i]['start']), 3)
+    r['end'] = round(max(r['end'], W[i + len(ws) - 1]['end']), 3)
+    r['date'] = d
+    r['iso'] = date_iso(d)
+    return r
+
+from .numlib import ORD as _ORD, VAL as _VAL, SC as _SC
+NUMWORDS_DATE = set(_ORD) | set(_VAL) | set(_SC)
 
 def tidy_out(out, words):
     from .tidy import tidy_name, tidy_number, keep_number, dedupe_names
@@ -872,6 +936,8 @@ class Stream:
             out['voice_roles'] = self.vroles.roles()
         if self.mode in ('builtin', 'moonshine_release', 'parakeet'):
             out['transcript_rewritten'] = rewrite(self.utts, self.eng.out['names'])
+            from .written import written_transcript
+            out['transcript_written_all'] = written_transcript(self.utts, self.eng.out['names'], self.domain)
         return out
 
     def _features(self, pcm, final):
@@ -1151,6 +1217,13 @@ class Stream:
             self.n_frames_out = nf
         out['transcript'] = [utt_out(u, True) if 'tag_spans' in u else u for u in self.utts[getattr(self, '_utt_sent', 0):]]
         self._utt_sent = len(self.utts)
+        if out['transcript']:
+            from .written import written_transcript
+            with self.words.lock:
+                nm = [r for r in self.eng.out['names'] if r.get('state') == 'linked']
+            out['transcript_written'] = written_transcript(out['transcript'], nm, self.domain)
+        else:
+            out['transcript_written'] = []
         out['transcript_partial'] = self.partial
         out['time_s'] = round(self.total / SR, 3)
         out['decided_until_s'] = round(self.eng.f / 10, 1)

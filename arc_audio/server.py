@@ -262,8 +262,8 @@ class ServerFeatures:
         if k1 <= self.k:
             return ([], [])
         with torch.no_grad():
-            X = self.heads.arc.head(pool_range(Z, n_ms, self.k, k1))
-            Xt = self.heads.tap.head(pool_range(Zt, n_ms, self.k, k1)) if Zt is not None else torch.zeros(k1 - self.k, 640)
+            X = self.heads.arc.head(pool_range(Z, n_ms, self.k, k1).to(self.dev)).float().cpu()
+            Xt = self.heads.tap.head(pool_range(Zt, n_ms, self.k, k1).to(self.dev)).float().cpu() if Zt is not None else torch.zeros(k1 - self.k, 640)
         j0 = int(frame_of_enc(torch.tensor(0)))
         for j in range(self.k, min(k1, j0)):
             X[j - self.k] = 0.0

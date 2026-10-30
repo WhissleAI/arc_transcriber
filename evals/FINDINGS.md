@@ -5,6 +5,10 @@ What building Steer on Arc Mini taught us, each with its evidence and an ask. Th
 - **Py 1.1.1**: Python reference runs during development (the signal study, the Pipecat integration).
 - **v1.4 demo**: the Arc v1.4 demo server's replay data, used in the ASR comparison film.
 - **rerun**: this PR's scripts, `arc_audio` 1.2.0 with Arc Mini 1.1.1 files, CPU, 2026-10-29.
+- **Mac 1.6.6**: Steer for Mac 1.6.6 test runs (libarc, Arc Mini 1.1.1), 2026-10-30. Behaviour only.
+- **TypeWhisper**: the independent TypeWhisper benchmark (10 English suites, 340 clips, Mac mini M5 Pro, CPU), with `arc-transcriber`
+  1.2.0 and the package defaults (`Arc.predict(wav)`, plain `transcript`).
+- **1.2.1**: `arc_audio` 1.2.1 (the written-form PR), Arc Mini 1.1.1 files, M3 Pro, 2026-10-30 (`evals/written_form`).
 
 All speech is synthetic (Steer TTS or macOS voices). A real-voice session is still owed and may change the device-directed and affect conclusions.
 
@@ -20,6 +24,8 @@ All speech is synthetic (Steer TTS or macOS voices). A real-voice session is sti
   - Close short utterances on a pause too: apply `min_s` when merging, not when closing, or close them after a longer pause.
   - Add `Stream.finalize()` / `end_turn()`, which closes the current utterance without tearing the stream down.
   - Add a public per-call context setter on a running stream.
+- **Still there in 1.2.1** (`UttSegmenter` unchanged). In Steer's live path, short clips also get no device-directed or intent
+  readout (#25).
 
 ### 2. `transcript_rewritten` can duplicate a token
 - **Evidence (Py 1.1.1, Pipecat):** "Priya Raymond" was linked to "Priya Raman", but the linked span covered only "Priya". The rewrite gave "Priya Raman Raymond", so the service uses the plain transcript plus `names`.
@@ -48,6 +54,7 @@ All speech is synthetic (Steer TTS or macOS voices). A real-voice session is sti
 - **Operating-room film (libarc):** the nurse's lines scored **0.74–0.93**, the surgeon's commands **0.51–0.88**.
 - **Pipecat session (Py 1.1.1):** 0.0005–0.26 for speech addressed to the agent.
 - **Rerun (`device_directed`, `context_memory`):** In the operating room, commands with the name scored 0.58–0.84 (mean 0.73) and staff-to-staff cross-talk 0.50–0.91 (mean 0.78, all 18 ≥ 0.5). AUC was **0.33** (tag) and 0.34 (head). On the context-memory sessions (4 voices), commands vs speech to someone else gave tag AUC **0.440**.
+- **Mac 1.6.6 (cabin noise):** clearly addressed "Steer, …" commands read device_directed **0.27–0.45**, under the 0.5 bar.
 - **Ask:**
   - Train with multi-talker negatives: narration, TV, staff talking to each other, speech to someone in the room.
   - Publish an operating point. Steer's target for always-listening is ≥ 95% precision at ≥ 80% recall.
@@ -68,6 +75,8 @@ All speech is synthetic (Steer TTS or macOS voices). A real-voice session is sti
 - **Film screen (libarc, primed):** "Scope" was missed 8/9 (heard as "Let's go"); "Nova" and "Camera" 9/9; "Atlas" and "Display" 7/9.
 - **Steer:** "Steer" was heard in 9/12 clips on macOS voices (lost as "Sleep in…", "Yeah. Save…").
 - **Rerun (unprimed → primed, 9 each):** Scope 1 → 7, Nova 3 → 9, Camera 0 → 6, Atlas 5 → 8, Display 3 → 4, Steer 3 → 5. Unprimed, "Scope" was heard as "Let's go", "Camera" as "Tamara", "Display" as "Just play" and "Steer" as "Yeah" / "Steel". One primed "Atlas" clip (Aman voice) came back as a long hallucinated sentence: "Here, Chloe's thumb will be suggesting Pashchini of three keys…".
+- **Mac 1.6.6 (cabin noise, 180 clips):** the name came out **"Dear" 59/180** against "Steer" 51/180; the rest were "Yeah", "Here",
+  "Dave", "Diaz". In noise the wake name is missed more often than it is heard.
 - **Ask:**
   - Ship a name-screening tool, or guidance on which names work.
   - Make priming dependable for one-word names.
@@ -100,6 +109,11 @@ All speech is synthetic (Steer TTS or macOS voices). A real-voice session is sti
   - The linker linked "Sherlock Holmes" to the author "T. Rice Holmes".
   - `kb_snap` matched "Read Frankenstein" to *The Pilgrim's Progress by John Bunyan Every Child Can Read*, on the word "Read".
 - **Rerun:** With the 2,000-title list: 32% (49/152) and 8 wrong links. With `kb_snap`: 34% (52/152) and **70** wrong links. With the top 20 live-RAG candidates from the stand-in search: 53% (title 55/120, author 25/32) and 13 wrong links. The median time was 1.9 s per clip with the 2,000-entry list, against 0.46 s with 20 entries.
+- **Steer, 2026-10-30:** of the 21 book requests Steer still gets wrong, **19 never had the right title among the candidates** Arc
+  was given. The linker couldn't have linked them; the loss is upstream, in what reaches the candidate list and the prompt.
+- **Linker input (1.2.1, code):** names are encoded as at most `NAME_MAX_BYTES` = 40 bytes (`model.encode_names`, head kept).
+  **28%** of the 2,000 most-read titles in `book_search/data/catalog.tsv.gz` are longer. Long titles are cut, and titles that share a
+  40-byte head look the same to the linker. The linker also scores every name passed to it, with no shortlist (#23).
 - **Ask:**
   - Train the linker on titles (`work_product`) at catalog scale, tens of thousands of entries.
   - Make `kb_snap` ignore command words and stopwords.
@@ -132,6 +146,7 @@ All speech is synthetic (Steer TTS or macOS voices). A real-voice session is sti
   - Arc was 96.1% right in a quiet room and **83.0%** in a loud one (−28 dBFS). whisper tiny.en got 99.0% and 96.7% on the same clips.
   - The losses are one-word commands: "Pause" → "Oz" / "Of course"; "Resume" → "was you"; "Mute Telegram" → "Newt Telegram".
 - **Rerun (`commands`):** 3,344 clips, 4 macOS voices: 74.9% right overall; 84.9% quiet, 75.1% noisy, **61.5%** loud room, 78.2% soft voice. By voice: Samantha 86.5%, Aman 82.1%, Daniel 75.8%, Flo 55.4%. "Mute Telegram" → "New Telegram" in all 32 clips.
+- **Mac 1.6.6 (noise):** "chapter" came back as chat / chap / challenge / channel / check, and "stop" as "stopped".
 - **Ask:** use noise augmentation weighted to short commands. The `assistant_noisy` domain exists; say whether apps should switch to it from the noise level.
 
 ### 14. Whispers and low-level speech are the weakest input, and there is no vocal-effort output
@@ -180,3 +195,159 @@ All speech is synthetic (Steer TTS or macOS voices). A real-voice session is sti
   - Mask profanity and bio events in `assistant`, or calibrate them.
   - Say whether the single-speaker diarization is expected in `assistant`.
   - Affect has no trained output in Mini. It is the most valuable missing signal for Steer's delivery.
+
+## Benchmarks, output format and runtime
+
+### 18. No written-form output, so benchmarks score Arc's numbers as words
+- **TypeWhisper:** "numbers come out as words ('two thirty in the afternoon', 'plus one two one two …')". Digits EN: **Arc Mini 28%,
+  Arc Transcriber 4%**, against Parakeet-TDT 0.6B v2 60%, Whisper small 64%, Apple SpeechAnalyzer 84%. On their number-formatting
+  suite, WER was Mini 26.5%, Transcriber 27.1%, Parakeet 20.4%.
+- **Cause:** the decoder writes the spoken form, and the package had no inverse text normalization. Arc already knows where every
+  number is and what kind it is (inline NUMBER_* tags and the `numbers` values). But only names were rewritten
+  (`transcript_rewritten`; `NUMWORD_RE` skips numbers).
+  - A normalizer doesn't undo it either. Whisper's `EnglishTextNormalizer` turns "two thirty" into "230" and "March third" into
+    "march 3rd", but "2:30" into "2 30" and "March 3" into "march 3".
+- **1.2.1 (`evals/written_form`: 40 number-heavy sentences × 3 macOS voices, Arc Mini, scored against written references):**
+
+  | | `transcript` | `transcript_written` |
+  |---|---|---|
+  | Digits found | 22.2% | **74.1%** (76.3% with single digits as digits) |
+  | Whole sentence right | 18.3% | 52.5% |
+  | WER (Whisper normalizer) | 27.2% | 24.2% |
+
+  `transcript_written` is built from Arc's own tags. On 73 LibriSpeech clips, WER is unchanged (15.48%).
+- **Most remaining misses are recognition errors, not format:** "102 to nine two"; "two point high kilograms"; "$5. $5." for "$3.99";
+  "Please remind my old kids" for "Please arrive by 8 p.m.".
+  - Some are tagging: "two thousand four hundred employees" was tagged NUMBER_MONEY.
+  - Some are style: "the 15th of October" for "October 15"; "21st" after a month.
+- **Ask:**
+  - Treat the written form as a product output, and decide its style: US or UK dates, and when single digits are words.
+  - Put it in the model card's benchmark recipe: score `transcript_written` against written references.
+  - Consider a written-form decoder target, or a written-form head on the tags, so the C port and other runtimes get it too.
+    libarc has no `arc_audio/written.py`.
+  - Tell benchmarkers which field to score. TypeWhisper scored `transcript`, which was what the README suggested then.
+
+### 19. A date record lost its month
+- **Evidence (1.2.0):** "The meeting moved to 2:30 on March 3rd" (macOS voice). The transcript's NUMBER_DATE tag covered "March
+  third", but the `numbers` record had `heard` "third" and value 3.
+  - `tidy_number` trimmed `heard` to number words, so "March" went, and nothing kept the month.
+  - "the third of March" was worse: the tag covered only "third".
+- **1.2.1:** `extend_date` keeps the month (and "of March"). It adds `date` {year, month, day} and `iso` ("--03-03", "2024-03-03",
+  "2024"). `value` keeps its meaning (the day, or the year) for existing clients.
+- **Ask:**
+  - Decide the date value in the schema: the ISO string, or year / month / day fields. One number can't hold "March 3".
+  - Port the fix to libarc (`c/src`, its `tidy_number` / `extend_number`). The golden clip has no date, so `make parity` can't catch it.
+  - Train NUMBER_DATE spans to include "of <Month>" when the ordinal comes first.
+
+### 20. `device="mps"` failed, so Arc ran CPU-only on a Mac
+- **TypeWhisper:** "arc_audio … fails on MPS with 'Passed CPU tensor to MPS op'". Both models ran on the CPU: Mini at 30× real time,
+  Transcriber at 3.2×.
+- **Causes (reproduced on an M3 Pro):**
+  - Arc Mini: the pooling carry is float64 on the device (`model.zero_carry`), and MPS has no float64.
+  - Event head: the tracker built its input on the CPU (`events.EventTracker.step`).
+  - Arc Transcriber: `server.ServerFeatures._emit` passed CPU-pooled features to the GPU heads. This gives the reported error, and
+    the CUDA path makes the same call.
+- **1.2.1:** fixed, and `device="auto"` picks cuda > mps > cpu.
+  - Arc Mini on MPS reproduces `tests/golden/mini.json` exactly.
+  - A test with a stand-in backbone covers the Transcriber's feature path.
+- **Speed (M3 Pro, 60 s of LibriSpeech, Arc Mini):**
+
+  | | CPU, 4 threads | MPS |
+  |---|---|---|
+  | `predict()` | 4.3 s (13.9× real time) | 4.9 s (12.2×) |
+  | Streaming, 100 ms chunks | 11.9 s | **43.8 s** |
+
+  MPS gives Mini nothing: the model is small and the decode goes step by step.
+- **Arc Transcriber** couldn't be timed: the 2.5 GB Parakeet download was over this run's disk budget.
+  - Its encoder alone, with random weights of the same shape, takes 1.2 s per 38 s window on the CPU and 0.24 s on MPS. That is
+    about 2.4 s per minute of audio.
+  - TypeWhisper measured roughly 19 s per minute, so most of the Transcriber's CPU time is outside the encoder: the decoder, beams
+    and alignment.
+- **Ask:**
+  - Run CI on macOS arm64 with `device="mps"`, and on CUDA for the full model.
+  - Profile Arc Transcriber. If the decoder and alignment dominate, batch them or move them to the GPU. Its 3.2× against Parakeet's
+    208× is the gap people see.
+
+### 21. Mini's plain-transcript gap is recognition errors, not number format
+- **TypeWhisper (WER without the accented suite):** Arc Mini **23.4%**, Arc Transcriber 9.9%, Parakeet-TDT 0.6B v2 5.8%.
+
+  | Suite | Arc Mini | Arc Transcriber | Parakeet v2 |
+  |---|---|---|---|
+  | LibriSpeech | 9.8% | 4.0% | 1.5% |
+  | Common Voice | 42.8% | 13.8% | 6.9% |
+  | Code dictation | 37.8% | 15.6% | 5.8% |
+
+  Arc Transcriber trails the encoder it is built on in every suite.
+- **1.2.1 (Arc Mini, 73 LibriSpeech clips, 1,169 words, Whisper normalizer):** 15.5% WER, 181 errors. Numbers caused **1** error
+  (0.6%). The rest:
+  - other substitutions: 47%;
+  - near-spellings or homophones: 29% ("kaliko" → "calico" ×5, "Leighton" → "Layton", "idylls" → "idols", "recognising" →
+    "recognizing");
+  - insertions: 15%, mostly short words ("a", "in", "is");
+  - deletions: 8%.
+
+  Rare words, proper nouns and short function words dominate. The written form can't close this gap.
+- **On the number sentences:** most of Mini's 24% WER is mishearing. It is worst on one voice (Flo, UK): "three unread and three
+  three parties in front of the register" for "352 participants registered".
+- **Ask:**
+  - Publish Arc Transcriber against its own base encoder on standard sets. It loses about 4 points to Parakeet on the same encoder,
+    which suggests the decoder or the heads cost accuracy. Say whether that is the price of the tags.
+  - For Mini: more read speech and more accents (Common Voice 42.8%), and British spellings, which the normalizer doesn't map.
+
+## Short clips, noise and live context
+
+### 22. Arc Mini writes a filler on very short silence, noise and key clicks
+- **Mac 1.6.6:** 0.4–0.9 s clips of silence, room noise and key clicks came back "Okay." / "Yeah." / "Mm-hmm." in **20 of 24**. Arc's
+  own speech frames read under 10% on the same clips.
+- **1.2.1 rerun (Python, synthetic 0.4–0.9 s clips):** 13 of 24 were non-empty:
+  - digital silence 0/6;
+  - room noise at −45 dBFS 4/6;
+  - fan noise 4/6;
+  - key clicks 5/6.
+
+  The words were "Yeah." ×8, "Oh." ×4 and "Mm-mm." ×1.
+- **Impact:** push-to-talk taps and accidental presses produce a "Yeah." that an app may take as an answer.
+- **Ask:**
+  - Gate the final decode on the speech readout (and `min_voiced_s`) for short clips, or return an empty text with a low confidence.
+  - Train with short non-speech clips whose target is empty.
+
+### 23. The context prompt budget is small and silent about what it drops
+- **Code (1.2.1, `ctxprompt.build_prompt`):** at most 96 context tokens. Names and terms get up to `kb_max` = 40; previous text gets up
+  to `prev_max` = 48.
+  - A name that doesn't fit is **skipped, not truncated**, in list order. Later, shorter names can still go in.
+  - So which names Arc sees depends on list order and length, and nothing reports what was dropped.
+- **Measured (Arc Mini tokenizer):** of 5, 10, 20 or 40 typed book titles (median 8 tokens), **4** make it into the prompt. Of 12
+  two-word person names, 7 do. Steer's search wants about 40 candidates (#11).
+- **Linker side:** every name passed is scored (there is no shortlist), and names are cut to 40 bytes (#10). With 2,000 titles the
+  median clip took 1.9 s, against 0.46 s with 20.
+- **Reddit (r/speechtech, the Arc post):** people asked how many names the context takes and what happens to the rest. The README
+  doesn't say.
+- **Ask:**
+  - Document the budget, and return which names made it into the prompt (or rank them by relevance before cutting).
+  - Raise `kb_max` for the names prompt, or let apps trade previous text for names.
+  - For titles, make `NAME_MAX_BYTES` larger, or keep both head and tail.
+
+### 24. Live-context words don't pull short questions
+- **Mac 1.6.6:** "How much butter?" came back "How much longer?" / "How much better?" / "How much a banter?" across voices. This
+  happened even with the page's words, "butter" included, in the context.
+- **Impact:** the reading app's main use, questions about the page, fails on exactly the word the context has.
+- **Ask:**
+  - Say how strong the context pull is meant to be on short utterances.
+  - Consider a bias weight apps can set, or a boost for context words in two- to four-word questions. Related: #9 (context helps
+    longer utterances).
+
+### 25. No device-directed or intent readout for very short clips in the live path
+- **Mac 1.6.6 (libarc, live):** clips under about 1 s get a transcript, but no device-directed value and no assistant intent.
+- **1.2.1 offline `predict()` (Python, `assistant` domain) does give them:**
+
+  | Clip | Head | Utterance tag |
+  |---|---|---|
+  | "Pause." (0.46 s) | 0.67 | 0.63 |
+  | "Stop." (0.53 s) | 0.95 | 0.16 |
+  | "Open WhatsApp." (0.92 s) | 0.11 | 0.30 |
+
+  No assistant intent passed its threshold on any of these. So the gap is in the live path, where the utterance record waits for
+  the segmenter (#1). The two numbers also disagree ("Stop." 0.95 against 0.16; #4).
+- **Ask:**
+  - Emit the utterance readouts on `flush()` / end of turn for any clip with speech, however short, together with the final (#1).
+  - Calibrate intents for one- and two-word commands.

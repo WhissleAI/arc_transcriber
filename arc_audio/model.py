@@ -136,7 +136,12 @@ def pool_segment(z, starts, carry):
     new_n = torch.where(last < 0, carry[1] + T, (T - last).double())
     return (out, (new_s, new_n))
 
+def pool_device(device):
+    device = torch.device(device)
+    return torch.device('cpu') if device.type == 'mps' else device
+
 def zero_carry(B, D, device):
+    device = pool_device(device)
     z = lambda *s: torch.zeros(*s, dtype=torch.float64, device=device)
     return dict(utt=(z(B, D), z(B)), speaker=(z(B, S_MAX, D), z(B, S_MAX)), item=(z(B, D), z(B)))
 
@@ -164,15 +169,19 @@ class TagHead(nn.Module):
 
     def pooled(self, h, spk, ustart, carry, h_utt=None):
         zin, new = ({}, {})
+        dev = h.device
+        pd = pool_device(dev)
+        spk, ustart = (spk.to(pd), ustart.to(pd))
         for q in POOLED:
             hq = h_utt if q == 'utt' and h_utt is not None else h
-            z = hq + self.pool_in[q](hq)
+            z = (hq + self.pool_in[q](hq)).float().to(pd)
             if q == 'speaker':
-                zin[q], new[q] = pool_speaker(z.float(), spk, carry[q])
+                zin[q], new[q] = pool_speaker(z, spk, carry[q])
             elif q == 'utt':
-                zin[q], new[q] = pool_segment(z.float(), ustart, carry[q])
+                zin[q], new[q] = pool_segment(z, ustart, carry[q])
             else:
-                zin[q], new[q] = pool_segment(z.float(), None, carry[q])
+                zin[q], new[q] = pool_segment(z, None, carry[q])
+            zin[q] = zin[q].to(dev)
         return (zin, new)
 
     def logits_q(self, q, zq, dom, K=None):

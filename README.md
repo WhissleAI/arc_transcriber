@@ -38,10 +38,12 @@ while logged in, accept, then `hf auth login` (or set `HF_TOKEN`). Arc Transcrib
 
 ### Versions
 
-Each package version loads the model revision with the same number (pass `--revision` / `revision=` to choose another):
+Each package version loads the model revision in this table (pass `--revision` / `revision=` to choose another). Code-only releases
+keep the previous model revision:
 
 | `arc-transcriber` | model revision | Arc Mini | Arc Transcriber (full) |
 |---|---|---|---|
+| 1.2.1 | `v1.2.0` | 1.1.1 | 1.2.0 |
 | 1.2.0 | `v1.2.0` | 1.1.1 | **1.2.0** |
 | 1.1.2 | `v1.1.2` | 1.1.1 | 1.1.1 |
 | 1.1.1 | `v1.1.1` | 1.1.1 | 1.1.1 |
@@ -57,6 +59,8 @@ arc-transcribe meeting.wav                                                     #
 arc-transcribe game.wav --domain nba --names roster.txt                        # link names to your list
 arc-transcribe game.wav --names roster.txt --format json -o game.json          # full records (JSON)
 arc-transcribe call.wav --backbone full --device cuda                          # Arc Transcriber (full) on a GPU
+arc-transcribe call.wav --device auto                                          # cuda > mps (Apple GPU) > cpu
+arc-transcribe meeting.wav --written                                           # written form: "2:30 p.m.", "$45", "March 3"
 arc-transcribe talk.wav --context terms.txt --topic "product launch"           # decoder context: names / terms / topic
 arc-transcribe talk.wav --auto-context                                         # context memory: feed back what was said
 arc-transcribe room.wav --events all                                           # include experimental sound-event labels
@@ -80,8 +84,9 @@ Try it on the bundled synthetic clip (fictional names): `arc-transcribe examples
 | `--events` | `default` (stable + beta labels), `all` (adds experimental labels), `none` |
 | `--no-snap` | turn off the fuzzy / phonetic snap of mentions to `--names` |
 | `--asr` | `builtin` (default), `deepgram`, `verbit` (external transcript words) |
-| `--device` | `cpu` (default) or `cuda` |
+| `--device` | `cpu` (default), `cuda`, `mps` (Apple GPU; falls back to `cpu` with a warning when MPS is missing) or `auto` (cuda > mps > cpu) |
 | `--format` | `txt` (default), `json`, `srt`, `vtt`; `-o FILE` (default stdout) |
+| `--written` | txt / srt / vtt show the written transcript (numbers as digits, names in your list's spelling) instead of inline tags |
 | `--live`, `--mic`, `--duration S`, `--fast` | live mode from a file at real-time pace, or from the microphone |
 | `--model`, `--revision` | another Hugging Face repo / local folder, or revision (default `WhissleAI/arc-v1.1` at `v1.2.0`) |
 
@@ -100,9 +105,11 @@ Live progress goes to stderr; the result goes to stdout or `-o`.
 
 | key | content |
 |---|---|
-| `transcript` | utterances `{start, end, text, words, tags, device_directed: {p, directed}}` |
+| `transcript` | utterances `{start, end, text, words, tags, device_directed: {p, directed}}`: the text as spoken ("two thirty", "forty five dollars") |
+| `transcript_written` | the same utterances in written form, the text to show: numbers from Arc's number tags as digits ("2:30 p.m.", "$45", "€12.50", "March 3, 2024", "12.5%", "21st", "555-1234", "3–1" in sports domains) and linked names in your list's spelling. A rewritten span is one word `{text, start, end, written_from, kind}` |
+| `transcript_rewritten` | (older) linked names replaced by the full entity name; numbers unchanged |
 | `names` | `heard`, `tag`, `entity` (your list's spelling) or null, `state` (`linked` / `not_in_list` / `abstain`), `start`, `end`, `via` (`snap` = filled by the name-list snap) |
-| `numbers` | `heard`, `kind`, `value` (+ `value2` for pairs), `unit`, `start`, `end` |
+| `numbers` | `heard`, `kind`, `value` (+ `value2` for pairs), `unit`, `start`, `end`; dates also `date: {year, month, day}` and `iso` (`"--03-03"` for "March third", `"2024-03-03"`, `"2024"`) |
 | `speakers`, `diarization` | per-speaker role and tags; `{speaker, start, end}` segments |
 | `utterances`, `segments`, `spans`, `events` | per-utterance acts / intents, segment labels, word-span tags, instant events (speaker change, ...) |
 | `audio_events` | `{label, start, end, p, status}` (status `stable` / `beta` / `experimental`) |
@@ -131,9 +138,28 @@ s.set_context(kb=["Theo Brandt"], kb_type=["person"])         # context can chan
 final = s.flush()
 ```
 
+- `predict(...)["transcript_written"]` is the written form; `arc.transcribe(wav, written=True)` adds `text_written` / `words_written` to
+  each utterance; each `stream.feed()` / `flush()` result has `transcript_written` for its new utterances (and `flush()` also
+  `transcript_written_all` for the session). `arc_audio.written.to_written("two thirty p.m.")` formats plain text.
+- `device="auto"` picks cuda, then mps (Apple GPU), then cpu; `device="mps"` falls back to cpu with a warning when MPS is not there.
 - `predict(..., events="all")` turns on experimental event labels; `events=None` turns events off.
 - `predict(..., kb_snap=False)` turns off the name-list snap; `context=dict(kb=[...], kb_type=[...], dom=..., prev=...)` sets the
   decoder context for one call.
+### Written form and benchmarks
+
+Arc's decoder writes numbers as they are spoken, and tags each one with its kind; the written form is built from those tags, not by a
+second model. Rules: only number spans change; a span whose value is not certain from its words keeps its words ("two thirty" with no
+time tag, no "at" and no "p.m."; "twelve fifty" with no currency); single-digit counts, durations and ordinals stay words ("two kids",
+"first"), as in common style guides (`spell_small=False` in `arc_audio.written` writes them as digits). Words Arc already wrote as
+digits are left as they are.
+
+**What to score.** For word error rate against written references, or any check that looks for digits, score
+`" ".join(u["text"] for u in out["transcript_written"])` (or `arc-transcribe --written --format txt`). The spoken-form `transcript`
+is right for references written as words. With Whisper's `EnglishTextNormalizer` the two give nearly the same WER on plain speech,
+but the normalizer does not undo every spoken form ("two thirty" -> "230", "March third" -> "march 3rd", while "2:30" -> "2 30"
+and "March 3" -> "march 3"), so number-heavy sets score better on `transcript_written`. Measured in
+[`evals/written_form`](evals/written_form/).
+
 ### External ASR words (optional)
 
 Arc can read the words of an external ASR service as its transcript input; it still listens to the audio for everything else. The
@@ -149,6 +175,17 @@ Live modes with a real service need `pip install "arc-transcriber[live]"` (webso
 `arc_transcriber.asr.deepgram_file`, `DeepgramLive`, `VerbitLive`, `deepgram_live_words`, `verbit_words`, then
 `arc.predict(wav, transcript="external", words=words)` or `stream.add_words(words)`. The adapters are tested offline with recorded
 message fixtures (`tests/test_asr_adapters.py`).
+
+## What's new in 1.2.1
+
+- **Written form**: `transcript_written` in `predict()` and the stream, `transcribe(written=True)`, `arc-transcribe --written`.
+  Numbers become digits from Arc's own number tags ("two thirty p.m." -> "2:30 p.m.", "forty five dollars" -> "$45", "March third"
+  -> "March 3"); linked names take your list's spelling without adding words that were not said.
+- **Date records keep the month**: a `numbers` record for "March third" now has `heard` "March third", `date` `{month: 3, day: 3}`
+  and `iso` `"--03-03"` (it was `heard` "third", value 3). `value` keeps its meaning (the day, or the year when only a year was said).
+- **Apple GPU**: `device="mps"` works for Arc Mini (same outputs as CPU: `tests/golden/mini.json` passes on MPS) and for Arc
+  Transcriber's feature path (it failed with "Passed CPU tensor to MPS op"); `device="auto"` picks cuda > mps > cpu.
+- Model revision unchanged (`v1.2.0`); same weights, same golden outputs.
 
 ## What's new in 1.2.0
 
@@ -174,6 +211,7 @@ utterance tags and sound events, checked against arc_audio (`make -C c parity MI
 pip install "arc-transcriber[test] @ git+https://github.com/WhissleAI/arc_transcriber@v1.2.0"
 pytest -q                      # CPU, Arc Mini; downloads WhissleAI/arc-v1.1 on first use, skipped when offline
 ARC_TEST_PARAKEET=1 pytest -q  # also Arc Transcriber (full) (ARC_MODEL=/local/arc-v1.1 to use a local copy of the model repo)
+pytest -q tests/test_written.py   # written form: text rules anywhere; spoken clips with macOS `say`; GPU feature path on MPS / CUDA
 python scripts/check_parity.py --backbone mini --candidate out.json      # check an exported model against the golden outputs
 python scripts/check_parity.py --run --backbone full -o full.json --model /local/arc-v1.1   # write a candidate with arc_audio
 ```
