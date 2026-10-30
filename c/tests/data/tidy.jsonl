@@ -1,0 +1,46 @@
+{"k": "word", "i": "Brandt.", "clean": "Brandt", "num": false}
+{"k": "word", "i": "\u201cHello,\u201d", "clean": "Hello", "num": false}
+{"k": "word", "i": "...", "clean": "", "num": false}
+{"k": "word", "i": "$5", "clean": "$5", "num": true}
+{"k": "word", "i": "\u00a320,", "clean": "\u00a320", "num": true}
+{"k": "word", "i": "\u20ac3!", "clean": "\u20ac3", "num": true}
+{"k": "word", "i": "100%", "clean": "100%", "num": true}
+{"k": "word", "i": "rock'n'roll", "clean": "rock'n'roll", "num": false}
+{"k": "word", "i": "O'Brien's", "clean": "O'Brien's", "num": false}
+{"k": "word", "i": "(maybe)", "clean": "maybe", "num": false}
+{"k": "word", "i": "--", "clean": "", "num": false}
+{"k": "word", "i": "twenty-six", "clean": "twenty-six", "num": true}
+{"k": "word", "i": "twenty-", "clean": "twenty", "num": true}
+{"k": "word", "i": "4.30", "clean": "4.30", "num": true}
+{"k": "word", "i": "fourth", "clean": "fourth", "num": true}
+{"k": "word", "i": "Fourteenth,", "clean": "Fourteenth", "num": true}
+{"k": "word", "i": "nil", "clean": "nil", "num": true}
+{"k": "word", "i": "one", "clean": "one", "num": true}
+{"k": "word", "i": "hundred.", "clean": "hundred", "num": true}
+{"k": "word", "i": "pts", "clean": "pts", "num": false}
+{"k": "word", "i": "x", "clean": "x", "num": false}
+{"k": "word", "i": "", "clean": "", "num": false}
+{"k": "word", "i": "  spaced  ", "clean": "spaced", "num": false}
+{"k": "word", "i": "na\u00efve", "clean": "na\u00efve", "num": false}
+{"k": "word", "i": "caf\u00e9\u2014", "clean": "caf\u00e9", "num": false}
+{"k": "word", "i": "#1", "clean": "#1", "num": true}
+{"k": "word", "i": "@home", "clean": "@home", "num": false}
+{"k": "word", "i": "+44", "clean": "+44", "num": true}
+{"k": "word", "i": "a.m.", "clean": "a.m", "num": false}
+{"k": "word", "i": "o'clock", "clean": "o'clock", "num": false}
+{"k": "phrase", "i": "102 to 98.", "clean": "102 to 98", "num": "102 to 98", "keep": true}
+{"k": "phrase", "i": "has twenty six points tonight", "clean": "has twenty six points tonight", "num": "twenty six points", "keep": true}
+{"k": "phrase", "i": "the score was nil to one", "clean": "the score was nil to one", "num": "nil to one", "keep": true}
+{"k": "phrase", "i": "about $ 5 million dollars more", "clean": "about 5 million dollars more", "num": "5 million dollars", "keep": true}
+{"k": "phrase", "i": "no 7 shirt", "clean": "no 7 shirt", "num": "no 7", "keep": true}
+{"k": "phrase", "i": "minus three degrees outside", "clean": "minus three degrees outside", "num": "minus three degrees", "keep": true}
+{"k": "phrase", "i": "fourth quarter", "clean": "fourth quarter", "num": "fourth quarter", "keep": true}
+{"k": "phrase", "i": "three minutes left.", "clean": "three minutes left", "num": "three minutes", "keep": true}
+{"k": "phrase", "i": "Hello there", "clean": "Hello there", "num": "Hello there", "keep": false}
+{"k": "phrase", "i": "", "clean": "", "num": "", "keep": false}
+{"k": "phrase", "i": "it costs \u00a320 per month and", "clean": "it costs \u00a320 per month and", "num": "\u00a320 per month and", "keep": true}
+{"k": "name", "i": {"heard": "to Theo Brandt.", "entity": "Theo Brandt", "state": "linked", "via": null, "p": 0.9, "start": 1.0, "end": 2.0, "words": [{"w": "to", "start": 1.0, "end": 1.2}, {"w": "Theo", "start": 1.2, "end": 1.5}, {"w": "Brandt.", "start": 1.5, "end": 2.0}]}, "heard": "Theo Brandt", "start": 1.2, "end": 2.0}
+{"k": "name", "i": {"heard": "Marcus Delaney brings", "entity": null, "state": "not_in_list", "via": null, "p": 0.4, "start": 3.0, "end": 4.2, "words": [{"w": "Marcus", "start": 3.0, "end": 3.4}, {"w": "Delaney", "start": 3.4, "end": 3.9}, {"w": "brings", "start": 3.9, "end": 4.2}]}, "heard": "Marcus Delaney", "start": 3.0, "end": 3.9}
+{"k": "name", "i": {"heard": "Brandt", "entity": "Theo Brandt", "state": "linked", "via": "snap", "p": 0.5, "start": 1.5, "end": 2.0, "words": [{"w": "Brandt", "start": 1.5, "end": 2.0}]}, "heard": "Brandt", "start": 1.5, "end": 2.0}
+{"k": "name", "i": {"heard": "the Hawks,", "entity": "Harbor City Hawks", "state": "linked", "via": "snap", "p": 0.6, "start": 5.0, "end": 5.6, "words": [{"w": "the", "start": 5.0, "end": 5.2}, {"w": "Hawks,", "start": 5.2, "end": 5.6}]}, "heard": "Hawks", "start": 5.2, "end": 5.6}
+{"k": "dedupe", "i": [{"heard": "Theo Brandt", "entity": "Theo Brandt", "state": "linked", "via": null, "p": 0.9, "start": 1.2, "end": 2.0, "words": [{"w": "Theo", "start": 1.2, "end": 1.5}, {"w": "Brandt.", "start": 1.5, "end": 2.0}]}, {"heard": "Marcus Delaney", "entity": null, "state": "not_in_list", "via": null, "p": 0.4, "start": 3.0, "end": 3.9, "words": [{"w": "Marcus", "start": 3.0, "end": 3.4}, {"w": "Delaney", "start": 3.4, "end": 3.9}]}, {"heard": "Brandt", "entity": "Theo Brandt", "state": "linked", "via": "snap", "p": 0.5, "start": 1.5, "end": 2.0, "words": [{"w": "Brandt", "start": 1.5, "end": 2.0}]}, {"heard": "Hawks", "entity": "Harbor City Hawks", "state": "linked", "via": "snap", "p": 0.6, "start": 5.2, "end": 5.6, "words": [{"w": "Hawks,", "start": 5.2, "end": 5.6}]}], "kept": [["Theo Brandt", "Theo Brandt", 1.2], ["Marcus Delaney", null, 3.0], ["Hawks", "Harbor City Hawks", 5.2]]}

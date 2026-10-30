@@ -1,0 +1,57 @@
+# libarc (c/): build and unit tests on Linux and macOS on every push / pull request that touches c/.
+# The golden parity check needs the Arc weights, which are gated on Hugging Face: it runs only when started by hand
+# (Actions > libarc > Run workflow) and only if the repository has an HF_TOKEN secret with access to WhissleAI/arc-v1.1.
+name: libarc
+
+on:
+  push:
+    paths: ["c/**", ".github/workflows/c.yml"]
+  pull_request:
+    paths: ["c/**", ".github/workflows/c.yml"]
+  workflow_dispatch:
+    inputs:
+      parity:
+        description: "Also run the golden parity check (needs the HF_TOKEN secret)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: make -C c -j4
+      - name: Unit tests (no weights)
+        run: make -C c test
+
+  parity:
+    if: github.event_name == 'workflow_dispatch' && inputs.parity
+    runs-on: ubuntu-latest
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Fetch Arc Mini weights
+        if: env.HF_TOKEN != ''
+        run: |
+          pip install -q huggingface_hub numpy
+          python -c "from huggingface_hub import snapshot_download; snapshot_download('WhissleAI/arc-v1.1', revision='v1.2.0', allow_patterns=['mini/*', 'mini/*/*'], local_dir='arc-v1.1')"
+      - name: Golden parity (tests/golden/mini.json)
+        if: env.HF_TOKEN != ''
+        run: |
+          make -C c -j4 build/arc-parity
+          make -C c parity MINI=$PWD/arc-v1.1/mini ARC=$PWD PY=python
+      - name: No token
+        if: env.HF_TOKEN == ''
+        run: echo "HF_TOKEN is not set; the parity check needs the gated Arc weights and was skipped."

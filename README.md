@@ -161,6 +161,13 @@ message fixtures (`tests/test_asr_adapters.py`).
 
 Earlier versions: [CHANGELOG.md](CHANGELOG.md).
 
+## C library (Arc Mini)
+
+[`c/`](c/README.md) holds **libarc**, a dependency-free C11 library (one header, `c/include/arc.h`) that runs Arc Mini from
+the same release folder without Python: transcript with inline tags and word times, linked names, numbers with values,
+utterance tags and sound events, checked against arc_audio (`make -C c parity MINI=/path/arc-v1.1/mini`). Arc Transcriber
+(full) is not supported there yet.
+
 ## Tests
 
 ```bash

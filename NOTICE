@@ -15,7 +15,8 @@ weights into the transformers ParakeetEncoder and re-implements its log-mel fron
 The optional transcript="parakeet" finals tier downloads the same model through NeMo at run time.
 
 arc_audio/rescorer.py contains a fallback copy of the Metaphone function from jellyfish (https://github.com/jamesturk/jellyfish),
-MIT License, Copyright (c) 2015 James Turk. It is used only when the jellyfish package is not installed.
+MIT License, Copyright (c) 2015 James Turk. It is used only when the jellyfish package is not installed. c/src/arc_ntext.c
+contains a C port of the same function (matching jellyfish's behaviour).
 Its licence:
 
   MIT License
