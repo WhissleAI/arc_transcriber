@@ -46,8 +46,9 @@ def _sig(x):
 
 class Readout:
 
-    def __init__(self, model, cfg, dom_i, include_experimental=False, calibrated=True):
+    def __init__(self, model, cfg, dom_i, include_experimental=False, calibrated=True, masked=()):
         tab = model.head.table
+        self.masked = tuple(masked or ())
         self.tab = tab
         self.dom_i = dom_i
         self.la = np.asarray(cfg['prior']['la'], np.float32)[dom_i] if calibrated else np.zeros(tab.n, np.float32)
@@ -56,7 +57,7 @@ class Readout:
         self.status = {}
         for i in tab.trained:
             s = st.get(tab.ids[i], 'shipped')
-            if s.startswith('not_shipped') or not tab.valid[dom_i, i]:
+            if s.startswith('not_shipped') or not tab.valid[dom_i, i] or (self.masked and tab.ids[i].startswith(self.masked)):
                 continue
             if not emit[i]:
                 s = 'experimental:not_supported_in_domain'
@@ -95,9 +96,18 @@ class Readout:
 
 class Engine:
 
-    def __init__(self, model, cfg, dom_i, delay, words, kb=None, include_experimental=False, calibrated=True, diarization='slots', word_wait_s=6.0, rescore=True, provisional=None, name_text=None, name_source='head', early=None, word_channel=True, pieces=None, word_arrival='live', word_source='builtin', text_layer=None):
+    def __init__(self, model, cfg, dom_i, delay, words, kb=None, include_experimental=False, calibrated=True, diarization='slots', word_wait_s=6.0, rescore=True, provisional=None, name_text=None, name_source='head', early=None, word_channel=True, pieces=None, word_arrival='live', word_source='builtin', text_layer=None, name_candidates=5, alias_link=True, live_hold=None, command_complete_hold_s=0.0, masked=()):
         self.m, self.cfg, self.dom_i, self.d = (model, cfg, dom_i, int(delay))
-        self.R = Readout(model, cfg, dom_i, include_experimental, calibrated)
+        self.masked = tuple(masked or ())
+        self.R = Readout(model, cfg, dom_i, include_experimental, calibrated, self.masked)
+        self.n_cands = int(name_candidates or 0)
+        self.alias_on = bool(alias_link)
+        self.alias = None
+        if live_hold is True:
+            live_hold = {}
+        self.live_hold = None if live_hold in (None, False) else dict(dict(name_p=0.5, min_span_s=0.3), **live_hold)
+        self.cc_hold = int(round(float(command_complete_hold_s or 0.0) * 10))
+        self.cc_pend = None
         tab = self.tab = model.head.table
         dev = next(model.parameters()).device
         self.dev = dev
@@ -189,7 +199,7 @@ class Engine:
         self.nwt = nm['nwt_vocab']
         self.bio_names = ('cough', 'throat_clear', 'breath')
         bc = cfg.get('bio_events') or {}
-        self.bio_on = FINE_DOMAINS[dom_i] in bc.get('domains', FINE_DOMAINS) or include_experimental
+        self.bio_on = (FINE_DOMAINS[dom_i] in bc.get('domains', FINE_DOMAINS) or include_experimental) and (not (self.masked and 'bio.cough'.startswith(self.masked)))
         dcfg = cfg['diarization']
         if diarization in (None, 'auto'):
             diarization = (dcfg.get('by_domain') or {}).get(FINE_DOMAINS[dom_i], dcfg.get('default', 'slots'))
@@ -220,6 +230,8 @@ class Engine:
         from .rescorer import NameRescorer
         self.resc = NameRescorer(kb, self._resc_params())
         self.exn = TL.ExactNames(kb)
+        from .kbsnap import AliasIndex
+        self.alias = AliasIndex(kb) if getattr(self, 'alias_on', True) else None
 
     @torch.no_grad()
     def feed(self, h, x):
@@ -457,7 +469,17 @@ class Engine:
                     ev = dict(tag=tid, t=round(t0, 2), p=round(pj, 4), window={'ev_at': 'at', 'ev_rec': 'recent', 'ev_imm': 'imminent'}[q])
                     if R.status.get(i, 'shipped') != 'shipped':
                         ev['status'] = R.status[i]
+                    if self.cc_hold and tid == 'discourse.assistant.command_complete':
+                        c = self.cc_pend
+                        if c is None:
+                            self.cc_pend = dict(ev=ev, quiet=0)
+                        else:
+                            c['ev'].update(t=ev['t'], p=max(c['ev']['p'], ev['p']))
+                            c['quiet'] = 0
+                        continue
                     self.out['events'].append(ev)
+        if self.cc_pend is not None:
+            self._cc_step(f, is_speech)
         for g, loc in R.grp_loc.get('frame', []):
             ok = [j for j in loc if j in set(R.out_cols['frame'])]
             if not ok:
@@ -491,6 +513,24 @@ class Engine:
             if bio[k] >= 0.5 and f - last > 10:
                 self.ev_last['bio', k] = f
                 self.out['bio_events'].append(dict(tag=f'bio.{nm}', t=round(t0, 2), p=round(float(bio[k]), 4), status='uncalibrated'))
+
+    def _cc_step(self, f, is_speech):
+        """command_complete hold-off: a firing is released only after hold-off seconds without speech; speech in between (a
+        trailing modifier: "... at nine am | on next Sunday") holds it until the speaker stops, and a later firing moves it there"""
+        c = self.cc_pend
+        if is_speech:
+            c['quiet'] = 0
+            return
+        c['quiet'] += 1
+        if c['quiet'] >= self.cc_hold:
+            self._cc_release(f)
+
+    def _cc_release(self, f):
+        c, self.cc_pend = (self.cc_pend, None)
+        ev = c['ev']
+        ev['released_t'] = round((f + 1) / 10, 2)
+        ev['hold_off_s'] = self.cc_hold / 10
+        self.out['events'].append(ev)
 
     def _close_utt(self):
         if self.utt0 is None or self.utt_p is None:
@@ -801,10 +841,28 @@ class Engine:
         cj = r['pred'] if r.get('pred') is not None else int(np.argmax(cz)) if len(cz) else None
         if self.diag:
             rec['ptr'] = dict(margin=None if cj is None else round(float(z[2 + cj] - z[0]), 3), p_new=round(float(pz[0]), 4), sim=r.get('sim'), n_words=len(ws))
+        self._name_extras(rec, r, pz, allowed)
         rec['words'] = [dict(w=w['w'], start=w['start'], end=w['end']) for w in ws]
         rec['span_p'] = pd['span'].get('p')
         rec['show'] = self._show_name(tid, rec['span_p'], ws)
         return rec
+
+    def _name_extras(self, rec, r, pz, allowed):
+        """ranked candidates from the linker (additive field) and the list check before a name is left unlinked"""
+        if self.n_cands and self.kb:
+            if r is not None and r.get('ranked') is not None:
+                rec['candidates'] = [dict(entity=self.kb[row]['name'], p=round(p, 4)) for row, p in r['ranked'][:self.n_cands]]
+                rec['p_not_in_list'] = r.get('p_new')
+            elif pz is not None and allowed is not None and len(allowed):
+                pa = pz[2 + np.asarray(allowed)]
+                o = np.argsort(-pa, kind='stable')[:self.n_cands]
+                rec['candidates'] = [dict(entity=self.kb[int(allowed[k])]['name'], p=round(float(pa[k]), 4)) for k in o]
+                rec['p_not_in_list'] = round(float(pz[0]), 4)
+        if self.alias and rec.get('state') in ('not_in_list', 'abstain') and rec.get('heard'):
+            hit = self.alias.lookup(rec['heard'], None if allowed is None else set((int(x) for x in allowed)))
+            if hit is not None:
+                row, via = hit
+                rec.update(entity=self.kb[row]['name'], state='linked', kb_index=int(row), via=via, linker_state=rec.get('state'))
 
     def _text_span(self, pd, ws, W):
         from .nametext import snap, gate
@@ -1039,8 +1097,10 @@ class Engine:
             cj = r['pred'] if r.get('pred') is not None else int(np.argmax(cz)) if len(cz) else None
             if self.diag:
                 rec['ptr'] = dict(margin=None if cj is None else round(float(z[2 + cj] - z[0]), 3), p_new=round(float(pz[0]), 4), sim=r.get('sim'), n_words=len(ws))
+            self._name_extras(rec, r, pz, allowed)
         else:
             rec.update(entity=None, p=None, state='not_in_list')
+            self._name_extras(rec, None, None, allowed if self.E is not None else None)
         rec['words'] = [dict(w=w['w'], start=w['start'], end=w['end']) for w in ws]
         rec['span_p'] = rec['head_p'] = hp
         rec['show'] = any((_w(w['w']) and _w(w['w']) not in DISPLAY_STOP and (_w(w['w']) not in BACKCHANNEL) and (not numeric_word(w['w'])) and (not is_filler(w['w'])) for w in ws))
@@ -1260,7 +1320,10 @@ class Engine:
             r = dict(tag=tid, start=round(o[0] / 10, 1), p_now=round(float(p['span_in'][j]), 3), p_mean=round(o[2] / o[3], 3), kind_guess=None, name_guess=None, value_from_text=None)
             if R.status.get(i, 'shipped') != 'shipped':
                 r['status'] = R.status[i]
-            if tid == 'entity.numeral' and num_loc:
+            lh = self.live_hold
+            if lh is not None and (o[1] - o[0] + 1) / 10 < float(lh.get('min_span_s') or 0.0):
+                r['held'] = True
+            elif tid == 'entity.numeral' and num_loc:
                 pv = o[5][num_loc] / o[3]
                 k = int(np.argmax(pv))
                 r['kind_guess'] = dict(label=tab.ids[cols[num_loc[k]]].split('.')[-1], p=round(float(pv[k]), 3))
@@ -1291,6 +1354,10 @@ class Engine:
                         g = None if rec is None else dict(entity=rec['entity'], state=rec['state'], p=round(float(rec['p']), 3), heard=rec['heard'], start=rec['start'], end=rec['end'], show=rec['show'])
                         self._live_cache[j] = c = (key, g)
                     r['name_guess'] = c[1]
+                    g = c[1]
+                    if lh is not None and g is not None and g.get('state') == 'linked' and g.get('p') is not None and (g['p'] < float(lh.get('name_p') or 0.0)):
+                        r['name_guess'] = None
+                        r['held'] = True
             sp_out.append(r)
         for j in [j for j in self._live_cache if j not in self.open_spans]:
             del self._live_cache[j]
@@ -1346,6 +1413,8 @@ class Engine:
 
     @torch.no_grad()
     def finish(self):
+        if self.cc_pend is not None:
+            self._cc_release(max(self.f - 1, 0))
         for j, o in list(self.open_spans.items()):
             self._close_span(j, o)
         self.open_spans = {}

@@ -209,4 +209,6 @@ class NameRescorer:
         link = pred is not None and conf >= p.get('thr', 0.5)
         if link:
             self.recent.append((t_s, pred))
-        return dict(pred=pred, p=round(conf, 4), link=bool(link), sim=round(float(sims[j - 1]), 3) if pred is not None else None)
+        order = np.argsort(-pr[1:], kind='stable')
+        ranked = [(int(allowed[k]), float(pr[1 + k])) for k in order]
+        return dict(pred=pred, p=round(conf, 4), link=bool(link), sim=round(float(sims[j - 1]), 3) if pred is not None else None, ranked=ranked, p_new=round(float(pr[0]), 4))
