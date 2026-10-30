@@ -1,0 +1,6714 @@
+{
+ "env": {
+  "date": "2026-10-29",
+  "arc_audio": "1.2.0",
+  "torch": "2.11.0",
+  "python": "3.11.9",
+  "platform": "macOS-26.2-arm64-arm-64bit",
+  "cpu": "Apple M3 Pro",
+  "device": "cpu",
+  "threads": 4,
+  "runtime": "Python reference (arc_audio)",
+  "model_dir": "<hf cache>/models--WhissleAI--arc-v1.1/snapshots/6f637153ea4953d81811e68168cd29572316d32b/mini/moonshine-streaming-tiny",
+  "backbone": "edge",
+  "model_snapshot": "6f637153ea49",
+  "model_revision": "v1.2.0"
+ },
+ "clips": 200,
+ "catalog_books": 61476,
+ "search": {
+  "table": {
+   "title": {
+    "none": {
+     "words_pct": 49.166666666666664,
+     "right_pct": 67.5,
+     "n": 120
+    },
+    "static": {
+     "words_pct": 65.83333333333333,
+     "right_pct": 72.5,
+     "n": 120
+    },
+    "live": {
+     "words_pct": 69.16666666666667,
+     "right_pct": 74.16666666666667,
+     "n": 120
+    },
+    "rag2": {
+     "words_pct": 60.833333333333336,
+     "right_pct": 71.66666666666667,
+     "n": 120
+    },
+    "live+rag2": {
+     "words_pct": 73.33333333333333,
+     "right_pct": 75.83333333333333,
+     "n": 120
+    }
+   },
+   "author": {
+    "none": {
+     "words_pct": 78.125,
+     "right_pct": 68.75,
+     "n": 32
+    },
+    "static": {
+     "words_pct": 75.0,
+     "right_pct": 65.625,
+     "n": 32
+    },
+    "live": {
+     "words_pct": 81.25,
+     "right_pct": 71.875,
+     "n": 32
+    },
+    "rag2": {
+     "words_pct": 81.25,
+     "right_pct": 68.75,
+     "n": 32
+    },
+    "live+rag2": {
+     "words_pct": 81.25,
+     "right_pct": 71.875,
+     "n": 32
+    }
+   },
+   "like": {
+    "none": {
+     "words_pct": 75.0,
+     "right_pct": 75.0,
+     "n": 8
+    },
+    "static": {
+     "words_pct": 87.5,
+     "right_pct": 87.5,
+     "n": 8
+    },
+    "live": {
+     "words_pct": 75.0,
+     "right_pct": 62.5,
+     "n": 8
+    },
+    "rag2": {
+     "words_pct": 87.5,
+     "right_pct": 75.0,
+     "n": 8
+    },
+    "live+rag2": {
+     "words_pct": 87.5,
+     "right_pct": 75.0,
+     "n": 8
+    }
+   },
+   "all": {
+    "none": {
+     "words_pct": 56.25,
+     "right_pct": 68.125,
+     "n": 160
+    },
+    "static": {
+     "words_pct": 68.75,
+     "right_pct": 71.875,
+     "n": 160
+    },
+    "live": {
+     "words_pct": 71.875,
+     "right_pct": 73.125,
+     "n": 160
+    },
+    "rag2": {
+     "words_pct": 66.25,
+     "right_pct": 71.25,
+     "n": 160
+    },
+    "live+rag2": {
+     "words_pct": 75.625,
+     "right_pct": 75.0,
+     "n": 160
+    }
+   }
+  },
+  "oracle": [
+   156,
+   160
+  ],
+  "timing": {
+   "ms_median": {
+    "none": 164.54866697313264,
+    "static": 248.20887501118705,
+    "live": 185.38404098944739,
+    "rag2": 180.02458300907165,
+    "live+rag2": 205.04137501120567
+   },
+   "ms_p90": {
+    "none": 225.36279098130763,
+    "static": 357.9682079725899,
+    "live": 268.55799998156726,
+    "rag2": 418.22370706358925,
+    "live+rag2": 426.9180419505574
+   },
+   "live_final_after_end_ms": [
+    185.38404098944739,
+    268.55799998156726
+   ],
+   "partial_decode_ms": [
+    83.99566699517891,
+    126.28483399748802
+   ],
+   "catalog_lookup_ms": [
+    27.677666977979243,
+    39.549624954815954
+   ]
+  },
+  "rows": [
+   {
+    "clip": "01_Sam.wav",
+    "said": "read treasure island",
+    "exp": "title:treasure island|Stevenson",
+    "none": "read Treasure Island.",
+    "static": "Read Treasure Island.",
+    "live": "read Treasure Island.",
+    "rag2": "read Treasure Island.",
+    "live+rag2": "read Treasure Island.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "01_Dan.wav",
+    "said": "read treasure island",
+    "exp": "title:treasure island|Stevenson",
+    "none": "read Treasure Island.",
+    "static": "Reed Treasure Island.",
+    "live": "read Treasure Island.",
+    "rag2": "read Treasure Island.",
+    "live+rag2": "read Treasure Island.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "01_Flo.wav",
+    "said": "read treasure island",
+    "exp": "title:treasure island|Stevenson",
+    "none": "read Mr. Reinund.",
+    "static": "Read Treasure Island.",
+    "live": "read Richard Owen",
+    "rag2": "read Mary Ronald",
+    "live+rag2": "read Richard Olin",
+    "right": {
+     "none": false,
+     "static": true,
+     "live": false,
+     "rag2": false,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "01_Ama.wav",
+    "said": "read treasure island",
+    "exp": "title:treasure island|Stevenson",
+    "none": "read Trej Island.",
+    "static": "Read Trej Island.",
+    "live": "read Treasure Island.",
+    "rag2": "read Treasure Island.",
+    "live+rag2": "read Treasure Island.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "02_Sam.wav",
+    "said": "play sherlock holmes",
+    "exp": "title:sherlock holmes|Doyle",
+    "none": "place your lock-on's.",
+    "static": "Plays your lock hones.",
+    "live": "Play Sherlock Holmes.",
+    "rag2": "place your lock-on's.",
+    "live+rag2": "Play Sherlock Holmes.",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": true,
+     "rag2": false,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "02_Dan.wav",
+    "said": "play sherlock holmes",
+    "exp": "title:sherlock holmes|Doyle",
+    "none": "Please share my homes.",
+    "static": "play show of hormones",
+    "live": "Please share my home's",
+    "rag2": "Please share my homes.",
+    "live+rag2": "Please share my home's",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": false,
+     "rag2": false,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "02_Flo.wav",
+    "said": "play sherlock holmes",
+    "exp": "title:sherlock holmes|Doyle",
+    "none": "Make sure my clothes.",
+    "static": "Make sure my clothes.",
+    "live": "Make sure my clothes.",
+    "rag2": "Make sure my clothes.",
+    "live+rag2": "Make sure my clothes.",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": false,
+     "rag2": false,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "02_Ama.wav",
+    "said": "play sherlock holmes",
+    "exp": "title:sherlock holmes|Doyle",
+    "none": "Pierre Troy's term will be suggesting Paschimi, Afrikie, Randy, Randy, Yoni, Holmes.",
+    "static": "Your Tories Thermal B. Sir Hissing Pashchimi, a free keeper, and then a WNV on the hones.",
+    "live": "Pierre Troy's term will be suggesting Pashimi Afiki randomly only only Holmes.",
+    "rag2": "Pierre Troy's term will be suggesting Paschimi, Afrikie, Randy, Randy, Yoni, Holmes.",
+    "live+rag2": "Pierre Troy's term will be suggesting Pashimi Afiki randomly only only Holmes.",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": false,
+     "rag2": false,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "03_Sam.wav",
+    "said": "read moby dick",
+    "exp": "title:moby dick|Melville",
+    "none": "Read Moby Dick.",
+    "static": "Read Moby Dick.",
+    "live": "Read Mobi Dick.",
+    "rag2": "Read Moby Dick.",
+    "live+rag2": "Read Mobi Dick.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "03_Dan.wav",
+    "said": "read moby dick",
+    "exp": "title:moby dick|Melville",
+    "none": "read Moby Dick.",
+    "static": "Read Moby Dick.",
+    "live": "read Moby Dick.",
+    "rag2": "read Moby Dick.",
+    "live+rag2": "read Moby Dick.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "03_Flo.wav",
+    "said": "read moby dick",
+    "exp": "title:moby dick|Melville",
+    "none": "read Moby Dick.",
+    "static": "Read Moby Dick.",
+    "live": "read Moby Dick",
+    "rag2": "read Moby Dick.",
+    "live+rag2": "read Moby Dick",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "03_Ama.wav",
+    "said": "read moby dick",
+    "exp": "title:moby dick|Melville",
+    "none": "read Moby Dick.",
+    "static": "Read Moby Dick.",
+    "live": "read Moby Dick.",
+    "rag2": "read Moby Dick.",
+    "live+rag2": "read Moby Dick.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "04_Sam.wav",
+    "said": "read pride and prejudice",
+    "exp": "title:pride prejudice|Austen",
+    "none": "read Pride and Prejudice.",
+    "static": "Read Pride and Prejudice.",
+    "live": "read Pride and Prejudice,",
+    "rag2": "read Pride and Prejudice.",
+    "live+rag2": "read Pride and Prejudice,",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "04_Dan.wav",
+    "said": "read pride and prejudice",
+    "exp": "title:pride prejudice|Austen",
+    "none": "read Grindon prejudice.",
+    "static": "Read Grindon prejudice.",
+    "live": "read Brandon Prejudice",
+    "rag2": "read Grindon prejudice.",
+    "live+rag2": "read Brandon Prejudice",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "04_Flo.wav",
+    "said": "read pride and prejudice",
+    "exp": "title:pride prejudice|Austen",
+    "none": "reply to the prejudice.",
+    "static": "Replay the book of the book of the book of the book book of the book of the book of",
+    "live": "reply to the prejudice",
+    "rag2": "reply to the prejudice.",
+    "live+rag2": "reply to the prejudice",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": false,
+     "rag2": false,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "04_Ama.wav",
+    "said": "read pride and prejudice",
+    "exp": "title:pride prejudice|Austen",
+    "none": "Read Pride, Polak will be opposed to men and might in our prejudice.",
+    "static": "Reed Pride, Polak will be opposed to men and might in a prejudice.",
+    "live": "Reed Pride, Polak will be opposed to men and might in our prejudice.",
+    "rag2": "Read Pride, Polak will be opposed to men and might in our prejudice.",
+    "live+rag2": "Reed Pride, Polak will be opposed to men and might in our prejudice.",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": false,
+     "rag2": false,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "05_Sam.wav",
+    "said": "read frankenstein",
+    "exp": "title:frankenstein|Shelley",
+    "none": "read Frank and Stein.",
+    "static": "Read Frankenstein.",
+    "live": "Reed Frankenstein",
+    "rag2": "Read Frankenstein.",
+    "live+rag2": "Reed Frankenstein",
+    "right": {
+     "none": false,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "05_Dan.wav",
+    "said": "read frankenstein",
+    "exp": "title:frankenstein|Shelley",
+    "none": "read Frank and Stein.",
+    "static": "Read Frankenstein.",
+    "live": "read Frankenstein",
+    "rag2": "read Frankenstein",
+    "live+rag2": "read Frankenstein",
+    "right": {
+     "none": false,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "05_Flo.wav",
+    "said": "read frankenstein",
+    "exp": "title:frankenstein|Shelley",
+    "none": "read Frankenstein",
+    "static": "read Frankenstein",
+    "live": "read Men and Stone",
+    "rag2": "read Frankenstein",
+    "live+rag2": "read Men and Stone",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": false,
+     "rag2": true,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "05_Ama.wav",
+    "said": "read frankenstein",
+    "exp": "title:frankenstein|Shelley",
+    "none": "read",
+    "static": "Read the",
+    "live": "read",
+    "rag2": "read",
+    "live+rag2": "read",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": false,
+     "rag2": false,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "06_Sam.wav",
+    "said": "read alice in wonderland",
+    "exp": "title:alice wonderland|Carroll",
+    "none": "read Allison Wonderland.",
+    "static": "Read Allison Wonderland.",
+    "live": "read Alice in Wonderland,",
+    "rag2": "read Allison Wonderland.",
+    "live+rag2": "read Alice in Wonderland,",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": false,
+     "rag2": false,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "06_Dan.wav",
+    "said": "read alice in wonderland",
+    "exp": "title:alice wonderland|Carroll",
+    "none": "Read Alison Wonderland.",
+    "static": "Read Alice in Wonderland.",
+    "live": "read Alice in Wonderland,",
+    "rag2": "Read Alison Wonderland.",
+    "live+rag2": "read Alice in Wonderland,",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": false,
+     "rag2": false,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "06_Flo.wav",
+    "said": "read alice in wonderland",
+    "exp": "title:alice wonderland|Carroll",
+    "none": "Three diamonds in one demand.",
+    "static": "read Alice in Wonderland",
+    "live": "read Auntie's in one's on Aunt.",
+    "rag2": "Three diamonds in one demand.",
+    "live+rag2": "read Alyssa in 1 to 10.",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": false,
+     "rag2": false,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "06_Ama.wav",
+    "said": "read alice in wonderland",
+    "exp": "title:alice wonderland|Carroll",
+    "none": "Read Alice in one land.",
+    "static": "Read Alice in Wonderland.",
+    "live": "read Alice in one land.",
+    "rag2": "Read Alice in one land.",
+    "live+rag2": "read Alice in one land.",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": false,
+     "rag2": false,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "07_Sam.wav",
+    "said": "read the great gatsby",
+    "exp": "title:gatsby|Fitzgerald",
+    "none": "Read the great Gatsby.",
+    "static": "Read the Great Gatsby.",
+    "live": "read The Great Gatsby.",
+    "rag2": "Read the great Gatsby.",
+    "live+rag2": "read The Great Gatsby.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "07_Dan.wav",
+    "said": "read the great gatsby",
+    "exp": "title:gatsby|Fitzgerald",
+    "none": "read the great gansby",
+    "static": "Read the Great Gatsby.",
+    "live": "read the Great Gatsby.",
+    "rag2": "read the great gansby",
+    "live+rag2": "read the Great Gatsby.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "07_Flo.wav",
+    "said": "read the great gatsby",
+    "exp": "title:gatsby|Fitzgerald",
+    "none": "read a great gadget",
+    "static": "Read the book of the book.",
+    "live": "read a great ghost name",
+    "rag2": "read a great gadget",
+    "live+rag2": "read a great ghost name",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": false,
+     "rag2": false,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "07_Ama.wav",
+    "said": "read the great gatsby",
+    "exp": "title:gatsby|Fitzgerald",
+    "none": "Read the great Gatsby.",
+    "static": "Read the Great Gatsby.",
+    "live": "Read the great Gatsby.",
+    "rag2": "Read the great Gatsby.",
+    "live+rag2": "Read the great Gatsby.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "08_Sam.wav",
+    "said": "read dracula",
+    "exp": "title:dracula|Stoker",
+    "none": "read Dracula",
+    "static": "Reed Dracula",
+    "live": "read Dracula",
+    "rag2": "read Dracula",
+    "live+rag2": "read Dracula",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "08_Dan.wav",
+    "said": "read dracula",
+    "exp": "title:dracula|Stoker",
+    "none": "read Dracula.",
+    "static": "Read Dracula.",
+    "live": "read Dracula.",
+    "rag2": "read Dracula.",
+    "live+rag2": "read Dracula.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "08_Flo.wav",
+    "said": "read dracula",
+    "exp": "title:dracula|Stoker",
+    "none": "red rack in the",
+    "static": "Rejecting the",
+    "live": "Rejecting a",
+    "rag2": "red rack in the",
+    "live+rag2": "Rejecting a",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": false,
+     "rag2": false,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "08_Ama.wav",
+    "said": "read dracula",
+    "exp": "title:dracula|Stoker",
+    "none": "read Drake",
+    "static": "Read Dracula.",
+    "live": "Reed Dracula.",
+    "rag2": "read Drake",
+    "live+rag2": "Reed Dracula.",
+    "right": {
+     "none": false,
+     "static": true,
+     "live": true,
+     "rag2": false,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "09_Sam.wav",
+    "said": "read the time machine",
+    "exp": "title:time machine|Wells",
+    "none": "read the time machine.",
+    "static": "Read the time machine.",
+    "live": "Read the time machine.",
+    "rag2": "read the time machine.",
+    "live+rag2": "Read the time machine.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "09_Dan.wav",
+    "said": "read the time machine",
+    "exp": "title:time machine|Wells",
+    "none": "read the time machine.",
+    "static": "Read the time machine.",
+    "live": "read the time machine.",
+    "rag2": "read the time machine.",
+    "live+rag2": "read the time machine.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "09_Flo.wav",
+    "said": "read the time machine",
+    "exp": "title:time machine|Wells",
+    "none": "read the time machine",
+    "static": "read the time machine",
+    "live": "read the time machine",
+    "rag2": "read the time machine",
+    "live+rag2": "read the time machine",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "09_Ama.wav",
+    "said": "read the time machine",
+    "exp": "title:time machine|Wells",
+    "none": "Read the time machine.",
+    "static": "Read the time machine.",
+    "live": "Read the time machine.",
+    "rag2": "Read the time machine.",
+    "live+rag2": "Read the time machine.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "10_Sam.wav",
+    "said": "read war and peace",
+    "exp": "title:war peace|Tolstoy",
+    "none": "Three more MPs.",
+    "static": "Read more and please.",
+    "live": "Red War and Peas.",
+    "rag2": "Three more MPs.",
+    "live+rag2": "Red War and Peas.",
+    "right": {
+     "none": false,
+     "static": true,
+     "live": true,
+     "rag2": false,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "10_Dan.wav",
+    "said": "read war and peace",
+    "exp": "title:war peace|Tolstoy",
+    "none": "read Warren Pace.",
+    "static": "Read war and peace.",
+    "live": "read Warren peace.",
+    "rag2": "read War and Peace.",
+    "live+rag2": "read War and Peace.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "10_Flo.wav",
+    "said": "read war and peace",
+    "exp": "title:war peace|Tolstoy",
+    "none": "Read more on Peace.",
+    "static": "Read more on Peace.",
+    "live": "read War and Peace.",
+    "rag2": "read War and Peace.",
+    "live+rag2": "read War and Peace.",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "10_Ama.wav",
+    "said": "read war and peace",
+    "exp": "title:war peace|Tolstoy",
+    "none": "read war and peace.",
+    "static": "Read War and Peace.",
+    "live": "read War and Peace.",
+    "rag2": "read war and peace.",
+    "live+rag2": "read War and Peace.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "11_Sam.wav",
+    "said": "read jane eyre",
+    "exp": "title:jane eyre|Bront\u00eb",
+    "none": "read Jane Eyre",
+    "static": "read Jane Eyre",
+    "live": "read Jane Eyre",
+    "rag2": "read Jane Eyre",
+    "live+rag2": "read Jane Eyre",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "11_Dan.wav",
+    "said": "read jane eyre",
+    "exp": "title:jane eyre|Bront\u00eb",
+    "none": "read Jayna.",
+    "static": "Reject that.",
+    "live": "read J. M.",
+    "rag2": "read Jayna.",
+    "live+rag2": "read Jama.",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": false,
+     "rag2": false,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "11_Flo.wav",
+    "said": "read jane eyre",
+    "exp": "title:jane eyre|Bront\u00eb",
+    "none": "read jingle.",
+    "static": "Read Jane Hood.",
+    "live": "read J. News.",
+    "rag2": "read jingle.",
+    "live+rag2": "read J. News.",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": false,
+     "rag2": false,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "11_Ama.wav",
+    "said": "read jane eyre",
+    "exp": "title:jane eyre|Bront\u00eb",
+    "none": "read Jane Ayer.",
+    "static": "Read Jane Eyre",
+    "live": "read J. Nair.",
+    "rag2": "read Jane Eyre",
+    "live+rag2": "read Jane Eyre",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": false,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "12_Sam.wav",
+    "said": "read wuthering heights",
+    "exp": "title:wuthering heights|Bront\u00eb",
+    "none": "Read Wuthering Heights.",
+    "static": "Read Wuthering Heights.",
+    "live": "read Wuthering Heights",
+    "rag2": "Read Wuthering Heights.",
+    "live+rag2": "read Wuthering Heights",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "12_Dan.wav",
+    "said": "read wuthering heights",
+    "exp": "title:wuthering heights|Bront\u00eb",
+    "none": "read Wuthering Heights.",
+    "static": "Read Wuthering Heights.",
+    "live": "read Wuthering Heights.",
+    "rag2": "read Wuthering Heights.",
+    "live+rag2": "read Wuthering Heights.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "12_Flo.wav",
+    "said": "read wuthering heights",
+    "exp": "title:wuthering heights|Bront\u00eb",
+    "none": "read what's in the house",
+    "static": "read Wuthering Heights.",
+    "live": "read Wuthering Heights",
+    "rag2": "read Wuthering House.",
+    "live+rag2": "read Wuthering Heights",
+    "right": {
+     "none": false,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "12_Ama.wav",
+    "said": "read wuthering heights",
+    "exp": "title:wuthering heights|Bront\u00eb",
+    "none": "Reed weathering heights.",
+    "static": "Read Wuthering Heights.",
+    "live": "read Wuthering Heights",
+    "rag2": "Reed weathering heights.",
+    "live+rag2": "read Wuthering Heights",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "13_Sam.wav",
+    "said": "read great expectations",
+    "exp": "title:great expectations|Dickens",
+    "none": "Read great expectations.",
+    "static": "Read Great Expectations.",
+    "live": "Read Great Expectations.",
+    "rag2": "Read great expectations.",
+    "live+rag2": "Read Great Expectations.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "13_Dan.wav",
+    "said": "read great expectations",
+    "exp": "title:great expectations|Dickens",
+    "none": "Read great expectations.",
+    "static": "Read Great Expectations.",
+    "live": "Read Great Expectations.",
+    "rag2": "Read great expectations.",
+    "live+rag2": "Read Great Expectations.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "13_Flo.wav",
+    "said": "read great expectations",
+    "exp": "title:great expectations|Dickens",
+    "none": "read great expectations",
+    "static": "Read Great Expectations.",
+    "live": "read Great Expectations",
+    "rag2": "read great expectations",
+    "live+rag2": "read Great Expectations",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "13_Ama.wav",
+    "said": "read great expectations",
+    "exp": "title:great expectations|Dickens",
+    "none": "read great expectations.",
+    "static": "Read Great Expectations.",
+    "live": "read Great Expectations.",
+    "rag2": "read great expectations.",
+    "live+rag2": "read Great Expectations.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "14_Sam.wav",
+    "said": "play a tale of two cities",
+    "exp": "title:tale two cities|Dickens",
+    "none": "play a tale of two cities.",
+    "static": "play a tale of two cities.",
+    "live": "play A Tale of Two Cities.",
+    "rag2": "play a tale of two cities.",
+    "live+rag2": "play A Tale of Two Cities.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "14_Dan.wav",
+    "said": "play a tale of two cities",
+    "exp": "title:tale two cities|Dickens",
+    "none": "play a tale of two cities.",
+    "static": "play a tale of two cities",
+    "live": "play A Tale of Two Cities",
+    "rag2": "play a tale of two cities.",
+    "live+rag2": "play A Tale of Two Cities",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "14_Flo.wav",
+    "said": "play a tale of two cities",
+    "exp": "title:tale two cities|Dickens",
+    "none": "May I tell you about two cities?",
+    "static": "May I tell you about two cities?",
+    "live": "May I tell you about two Cities?",
+    "rag2": "May I tell you about two cities?",
+    "live+rag2": "May I tell you about two Cities?",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": false,
+     "rag2": false,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "14_Ama.wav",
+    "said": "play a tale of two cities",
+    "exp": "title:tale two cities|Dickens",
+    "none": "play a tale of two cities.",
+    "static": "play a tale of two cities.",
+    "live": "play a tale of two cities.",
+    "rag2": "play a tale of two cities.",
+    "live+rag2": "play a tale of two cities.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "15_Sam.wav",
+    "said": "read the call of the wild",
+    "exp": "title:call wild|London",
+    "none": "read the call of the wild.",
+    "static": "Read the call of the wild.",
+    "live": "read The Call of the Wild.",
+    "rag2": "read the call of the wild.",
+    "live+rag2": "read The Call of the Wild.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "15_Dan.wav",
+    "said": "read the call of the wild",
+    "exp": "title:call wild|London",
+    "none": "read the call of the wild.",
+    "static": "Read the call of the wild.",
+    "live": "read The Call of the Wild.",
+    "rag2": "read the call of the wild.",
+    "live+rag2": "read The Call of the Wild.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "15_Flo.wav",
+    "said": "read the call of the wild",
+    "exp": "title:call wild|London",
+    "none": "read her call on the wild.",
+    "static": "Read the call of the wild.",
+    "live": "read her call of the wild",
+    "rag2": "read her call on the wild.",
+    "live+rag2": "read her call of the wild",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "15_Ama.wav",
+    "said": "read the call of the wild",
+    "exp": "title:call wild|London",
+    "none": "Read the call of the wild.",
+    "static": "Read the call of the wild.",
+    "live": "read The Call of the Wild.",
+    "rag2": "Read the call of the wild.",
+    "live+rag2": "read The Call of the Wild.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "16_Sam.wav",
+    "said": "read little women",
+    "exp": "title:little women|Alcott",
+    "none": "read Lego women.",
+    "static": "Read Little Women.",
+    "live": "Read Legal Women.",
+    "rag2": "read Lego women.",
+    "live+rag2": "read Little Women.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "16_Dan.wav",
+    "said": "read little women",
+    "exp": "title:little women|Alcott",
+    "none": "Read little women.",
+    "static": "Read little women.",
+    "live": "read Little Women.",
+    "rag2": "Read little women.",
+    "live+rag2": "read Little Women.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "16_Flo.wav",
+    "said": "read little women",
+    "exp": "title:little women|Alcott",
+    "none": "read with all women.",
+    "static": "Read with all women.",
+    "live": "read Little Women.",
+    "rag2": "read Little Women.",
+    "live+rag2": "read Little Women.",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "16_Ama.wav",
+    "said": "read little women",
+    "exp": "title:little women|Alcott",
+    "none": "Read little women.",
+    "static": "Read Little Women.",
+    "live": "read Little Women.",
+    "rag2": "Read little women.",
+    "live+rag2": "read Little Women.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "17_Sam.wav",
+    "said": "read peter pan",
+    "exp": "title:peter pan|Barrie",
+    "none": "read Peter Pan.",
+    "static": "Read Peter Pan.",
+    "live": "read Peter Pan.",
+    "rag2": "read Peter Pan.",
+    "live+rag2": "read Peter Pan.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "17_Dan.wav",
+    "said": "read peter pan",
+    "exp": "title:peter pan|Barrie",
+    "none": "read Peter Pan",
+    "static": "Read Peter Pan",
+    "live": "read Peter Pan",
+    "rag2": "read Peter Pan",
+    "live+rag2": "read Peter Pan",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "17_Flo.wav",
+    "said": "read peter pan",
+    "exp": "title:peter pan|Barrie",
+    "none": "repeat your plan.",
+    "static": "Repeat the plan.",
+    "live": "repeat your plan.",
+    "rag2": "repeat your plan.",
+    "live+rag2": "repeat your plan.",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": false,
+     "rag2": false,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "17_Ama.wav",
+    "said": "read peter pan",
+    "exp": "title:peter pan|Barrie",
+    "none": "Read Peter Pan.",
+    "static": "Read Peter Pan.",
+    "live": "read Peter Pan.",
+    "rag2": "Read Peter Pan.",
+    "live+rag2": "read Peter Pan.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "18_Sam.wav",
+    "said": "read the picture of dorian gray",
+    "exp": "title:dorian gray|Wilde",
+    "none": "read the picture of Dorian Gray.",
+    "static": "Read the picture of Dorian Gray.",
+    "live": "read the picture of Dorian Gray.",
+    "rag2": "read the picture of Dorian Gray.",
+    "live+rag2": "read the picture of Dorian Gray.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "18_Dan.wav",
+    "said": "read the picture of dorian gray",
+    "exp": "title:dorian gray|Wilde",
+    "none": "read the picture of Dorian Gray.",
+    "static": "Read the picture of Dorian Gray.",
+    "live": "read the picture of Dorian Gray.",
+    "rag2": "read the picture of Dorian Gray.",
+    "live+rag2": "read the picture of Dorian Gray.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "18_Flo.wav",
+    "said": "read the picture of dorian gray",
+    "exp": "title:dorian gray|Wilde",
+    "none": "read a picture of Dorian Gray.",
+    "static": "Read the picture of Dorian Gray.",
+    "live": "read a picture of Dorian Gray.",
+    "rag2": "read a picture of Dorian Gray.",
+    "live+rag2": "read a picture of Dorian Gray.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "18_Ama.wav",
+    "said": "read the picture of dorian gray",
+    "exp": "title:dorian gray|Wilde",
+    "none": "Read the picture clear to West Hamel pizza hissing Pashchimi, a freaky rind in a VND only.",
+    "static": "Read the picture of the earth lover's thermal pizza hissing pashchimi, a freaky land in a V and D only.",
+    "live": "Read the picture clear to West Hamel Pizza Hissing Pashchimi, a freaky rind in a VND only.",
+    "rag2": "Read the picture clear to West Hamel pizza hissing Pashchimi, a freaky rind in a VND only.",
+    "live+rag2": "Read the picture clear to West Hamel Pizza Hissing Pashchimi, a freaky rind in a VND only.",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": false,
+     "rag2": false,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "19_Sam.wav",
+    "said": "read the count of monte cristo",
+    "exp": "title:monte cristo|Dumas",
+    "none": "Read the account of Monty Christo.",
+    "static": "Read the count of Monte Christo.",
+    "live": "read The Count of Monte-Cristo.",
+    "rag2": "Read the account of Monty Christo.",
+    "live+rag2": "read The Count of Monte-Cristo.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "19_Dan.wav",
+    "said": "read the count of monte cristo",
+    "exp": "title:monte cristo|Dumas",
+    "none": "Rebound of Monty Christo.",
+    "static": "Rebound count of Monte Christo.",
+    "live": "read the account of Monte Cristo",
+    "rag2": "Rebound of Monty Christo.",
+    "live+rag2": "read the account of Monte Cristo",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": true,
+     "rag2": false,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "19_Flo.wav",
+    "said": "read the count of monte cristo",
+    "exp": "title:monte cristo|Dumas",
+    "none": "Read the account of Monty Christo.",
+    "static": "Read the account of Monte Cristo.",
+    "live": "Read the account of Monte Cristo.",
+    "rag2": "Read the account of Monty Christo.",
+    "live+rag2": "Read the account of Monte Cristo.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "19_Ama.wav",
+    "said": "read the count of monte cristo",
+    "exp": "title:monte cristo|Dumas",
+    "none": "Read the account of Monte Christo.",
+    "static": "Read the count of Monte Christo.",
+    "live": "Read the account of Monte Christo.",
+    "rag2": "Read the account of Monte Christo.",
+    "live+rag2": "Read the account of Monte Christo.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "20_Sam.wav",
+    "said": "read the hound of the baskervilles",
+    "exp": "title:baskervilles|Doyle",
+    "none": "read the hound of the Vesca bills.",
+    "static": "Read the hound of the Baskervilles.",
+    "live": "read The Hound of the Baskervilles.",
+    "rag2": "read The Hound of the Baskervilles.",
+    "live+rag2": "read The Hound of the Baskervilles.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "20_Dan.wav",
+    "said": "read the hound of the baskervilles",
+    "exp": "title:baskervilles|Doyle",
+    "none": "read the hound of the basketball",
+    "static": "Read the hound of the basketball.",
+    "live": "Rebound of the Baskervilles.",
+    "rag2": "read the hound of the basketball",
+    "live+rag2": "Rebound of the Baskervilles.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": false,
+     "rag2": true,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "20_Flo.wav",
+    "said": "read the hound of the baskervilles",
+    "exp": "title:baskervilles|Doyle",
+    "none": "read her hand on her post emails",
+    "static": "Read the hand of the Oscar Mills.",
+    "live": "read her hand on her post emails.",
+    "rag2": "read her hand on her post emails",
+    "live+rag2": "read her hand on her post emails.",
+    "right": {
+     "none": false,
+     "static": true,
+     "live": false,
+     "rag2": false,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "20_Ama.wav",
+    "said": "read the hound of the baskervilles",
+    "exp": "title:baskervilles|Doyle",
+    "none": "Read Hayward off base kavils.",
+    "static": "Read Hayward of Space Kavils.",
+    "live": "Read Haven off base kavils.",
+    "rag2": "Read Hayward off Baskervilles.",
+    "live+rag2": "Read Hayward off Baskervilles.",
+    "right": {
+     "none": true,
+     "static": false,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "21_Sam.wav",
+    "said": "read heart of darkness",
+    "exp": "title:heart darkness|Conrad",
+    "none": "We've heard of darkness.",
+    "static": "Rehard of darkness.",
+    "live": "Red heart of darkness.",
+    "rag2": "We've heard of darkness.",
+    "live+rag2": "Red heart of darkness.",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": true,
+     "rag2": false,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "21_Dan.wav",
+    "said": "read heart of darkness",
+    "exp": "title:heart darkness|Conrad",
+    "none": "read heart of darkness.",
+    "static": "Reed Hodg of Darkness.",
+    "live": "Reed Hunt of darkness.",
+    "rag2": "read heart of darkness.",
+    "live+rag2": "Reed Hunt of darkness.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "21_Flo.wav",
+    "said": "read heart of darkness",
+    "exp": "title:heart darkness|Conrad",
+    "none": "read out of darkness",
+    "static": "Read out of darkness.",
+    "live": "read Out of Darkness.",
+    "rag2": "read out of darkness",
+    "live+rag2": "read Out of Darkness.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "21_Ama.wav",
+    "said": "read heart of darkness",
+    "exp": "title:heart darkness|Conrad",
+    "none": "Read hard of darkness.",
+    "static": "Read hard of darkness.",
+    "live": "Reed Heart of Darkness",
+    "rag2": "Read hard of darkness.",
+    "live+rag2": "Reed Heart of Darkness",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "22_Sam.wav",
+    "said": "read the jungle book",
+    "exp": "title:jungle book|Kipling",
+    "none": "Read the jungle book.",
+    "static": "Read the Jungle Book.",
+    "live": "Read the jungle book.",
+    "rag2": "Read the jungle book.",
+    "live+rag2": "Read the jungle book.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "22_Dan.wav",
+    "said": "read the jungle book",
+    "exp": "title:jungle book|Kipling",
+    "none": "Read the jungle book.",
+    "static": "Read the jungle book.",
+    "live": "read the Jungle Book.",
+    "rag2": "Read the jungle book.",
+    "live+rag2": "read the Jungle Book.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "22_Flo.wav",
+    "said": "read the jungle book",
+    "exp": "title:jungle book|Kipling",
+    "none": "Read the jungle book.",
+    "static": "Read the jungle book.",
+    "live": "read the jungle book",
+    "rag2": "Read the jungle book.",
+    "live+rag2": "read the jungle book",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "22_Ama.wav",
+    "said": "read the jungle book",
+    "exp": "title:jungle book|Kipling",
+    "none": "Read the jungle book.",
+    "static": "Read the jungle book.",
+    "live": "Read the jungle book.",
+    "rag2": "Read the jungle book.",
+    "live+rag2": "Read the jungle book.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "23_Sam.wav",
+    "said": "read anne of green gables",
+    "exp": "title:green gables|Montgomery",
+    "none": "read on the green gables.",
+    "static": "Read on the Green Gables.",
+    "live": "read on the Green Gables.",
+    "rag2": "read on the green gables.",
+    "live+rag2": "read on the Green Gables.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "23_Dan.wav",
+    "said": "read anne of green gables",
+    "exp": "title:green gables|Montgomery",
+    "none": "Three ban of green gables.",
+    "static": "We've had a green gables.",
+    "live": "read Anna Green Gables.",
+    "rag2": "Three ban of green gables.",
+    "live+rag2": "read Anna Green Gables.",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": true,
+     "rag2": false,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "23_Flo.wav",
+    "said": "read anne of green gables",
+    "exp": "title:green gables|Montgomery",
+    "none": "read out of green goobles",
+    "static": "Read out of Green Goebbels.",
+    "live": "read Anne of Green Gables.",
+    "rag2": "read Anne of Green Gables.",
+    "live+rag2": "read Anne of Green Gables.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "23_Ama.wav",
+    "said": "read anne of green gables",
+    "exp": "title:green gables|Montgomery",
+    "none": "read alum green gables",
+    "static": "Read and of green gables.",
+    "live": "Read alum green gables.",
+    "rag2": "read alum green gables",
+    "live+rag2": "Read alum green gables.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "24_Sam.wav",
+    "said": "read the secret garden",
+    "exp": "title:secret garden|Burnett",
+    "none": "read the secret garden.",
+    "static": "Read the Secret Garden.",
+    "live": "read the Secret Garden.",
+    "rag2": "read the secret garden.",
+    "live+rag2": "read the Secret Garden.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "24_Dan.wav",
+    "said": "read the secret garden",
+    "exp": "title:secret garden|Burnett",
+    "none": "Reba Sikro and Gardin.",
+    "static": "We the Secret Garden.",
+    "live": "Reba C. Garnan.",
+    "rag2": "Reba Sikro and Gardin.",
+    "live+rag2": "Reba C. Garnan.",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": false,
+     "rag2": false,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "24_Flo.wav",
+    "said": "read the secret garden",
+    "exp": "title:secret garden|Burnett",
+    "none": "Read the secret garden.",
+    "static": "Read the Secret Garden.",
+    "live": "read the secret garden",
+    "rag2": "Read the secret garden.",
+    "live+rag2": "read the secret garden",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "24_Ama.wav",
+    "said": "read the secret garden",
+    "exp": "title:secret garden|Burnett",
+    "none": "Read the secret garden.",
+    "static": "Read the Secret Garden.",
+    "live": "read the Secret Garden.",
+    "rag2": "Read the secret garden.",
+    "live+rag2": "read the Secret Garden.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "25_Sam.wav",
+    "said": "read gulliver's travels",
+    "exp": "title:gulliver|Swift",
+    "none": "read Gulliver's travels.",
+    "static": "Read Gulliver's Travels.",
+    "live": "Re- Gulliver's Travels",
+    "rag2": "read Gulliver's travels.",
+    "live+rag2": "Re- Gulliver's Travels",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": false,
+     "rag2": true,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "25_Dan.wav",
+    "said": "read gulliver's travels",
+    "exp": "title:gulliver|Swift",
+    "none": "read Gulliver's travels.",
+    "static": "Read Gulliver's Travels.",
+    "live": "read Gulliver's Travels.",
+    "rag2": "read Gulliver's travels.",
+    "live+rag2": "read Gulliver's Travels.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "25_Flo.wav",
+    "said": "read gulliver's travels",
+    "exp": "title:gulliver|Swift",
+    "none": "read gummy whistleblowers.",
+    "static": "Read Gummy Wish Revels.",
+    "live": "read Gummywa's travels.",
+    "rag2": "read Gummy Waters travels.",
+    "live+rag2": "read Gulliver's Travels",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": false,
+     "rag2": false,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "25_Ama.wav",
+    "said": "read gulliver's travels",
+    "exp": "title:gulliver|Swift",
+    "none": "read Travelers.",
+    "static": "Read travels.",
+    "live": "read Travelers.",
+    "rag2": "read Travelers.",
+    "live+rag2": "read Travelers.",
+    "right": {
+     "none": false,
+     "static": true,
+     "live": false,
+     "rag2": false,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "26_Sam.wav",
+    "said": "read don quixote",
+    "exp": "title:quixote|Cervantes",
+    "none": "Read Donkey Hotel.",
+    "static": "Read Don Quixote.",
+    "live": "Read Donkey Hotel.",
+    "rag2": "Read Donkey Hote.",
+    "live+rag2": "Read Donkey Hote.",
+    "right": {
+     "none": false,
+     "static": true,
+     "live": false,
+     "rag2": false,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "26_Dan.wav",
+    "said": "read don quixote",
+    "exp": "title:quixote|Cervantes",
+    "none": "Read Don Quixante.",
+    "static": "Read Don Quixote.",
+    "live": "read Don Quixante.",
+    "rag2": "Read Don Quixante.",
+    "live+rag2": "read Don Quixante.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "26_Flo.wav",
+    "said": "read don quixote",
+    "exp": "title:quixote|Cervantes",
+    "none": "read Don Quixot.",
+    "static": "Read Don Quixote.",
+    "live": "read Don Quixote",
+    "rag2": "read Don Quixot.",
+    "live+rag2": "read Don Quixote",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "26_Ama.wav",
+    "said": "read don quixote",
+    "exp": "title:quixote|Cervantes",
+    "none": "read Don Quick so it",
+    "static": "Read Don Quixote.",
+    "live": "Read Don Quixote",
+    "rag2": "Read Don Quixote",
+    "live+rag2": "Read Don Quixote",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "27_Sam.wav",
+    "said": "read les miserables",
+    "exp": "title:mis\u00e9rables|Hugo",
+    "none": "Reed Lane is a robber.",
+    "static": "Reed Lane is a Rob Wells.",
+    "live": "Reed Lane is Robloo.",
+    "rag2": "Reed Lane is a robber.",
+    "live+rag2": "Reed Lane is Robloo.",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": true,
+     "rag2": false,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "27_Dan.wav",
+    "said": "read les miserables",
+    "exp": "title:mis\u00e9rables|Hugo",
+    "none": "Reed lame is Iran.",
+    "static": "Read Lame Is Around.",
+    "live": "read Lame as Iran.",
+    "rag2": "Reed lame is Iran.",
+    "live+rag2": "read Lame as Iran.",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": false,
+     "rag2": false,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "27_Flo.wav",
+    "said": "read les miserables",
+    "exp": "title:mis\u00e9rables|Hugo",
+    "none": "read mismeasables.",
+    "static": "Read Mr. Ms. of the book.",
+    "live": "read mismeasurables.",
+    "rag2": "read Miss Miserables.",
+    "live+rag2": "read Miss Miserables",
+    "right": {
+     "none": true,
+     "static": false,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "27_Ama.wav",
+    "said": "read les miserables",
+    "exp": "title:mis\u00e9rables|Hugo",
+    "none": "read less me syllables.",
+    "static": "Read Leslie Sullivan's",
+    "live": "read Les Mis\u00e9rables,",
+    "rag2": "read Les Mis\u00e9rables",
+    "live+rag2": "read Les Mis\u00e9rables,",
+    "right": {
+     "none": true,
+     "static": false,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "28_Sam.wav",
+    "said": "read the adventures of tom sawyer",
+    "exp": "title:tom sawyer|Twain",
+    "none": "read the adventures of Tom Sawyer.",
+    "static": "read The Adventures of Tom Sawyer,",
+    "live": "read The Adventures of Tom Sawyer,",
+    "rag2": "read the adventures of Tom Sawyer.",
+    "live+rag2": "read The Adventures of Tom Sawyer,",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "28_Dan.wav",
+    "said": "read the adventures of tom sawyer",
+    "exp": "title:tom sawyer|Twain",
+    "none": "Rebe, adventures of Tom Sawyer.",
+    "static": "We be adventurers of Tom Sawyer.",
+    "live": "The Adventures of Tom Sawyer.",
+    "rag2": "Rebe, adventures of Tom Sawyer.",
+    "live+rag2": "The Adventures of Tom Sawyer.",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": false,
+     "rag2": false,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "28_Flo.wav",
+    "said": "read the adventures of tom sawyer",
+    "exp": "title:tom sawyer|Twain",
+    "none": "reading a mention of Tom Sawyer.",
+    "static": "reading a mention of Tom Sawyer.",
+    "live": "read the adventures of Tom Sawyer,",
+    "rag2": "reading a mention of Tom Sawyer.",
+    "live+rag2": "read the adventures of Tom Sawyer,",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": true,
+     "rag2": false,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "28_Ama.wav",
+    "said": "read the adventures of tom sawyer",
+    "exp": "title:tom sawyer|Twain",
+    "none": "read and wages off.",
+    "static": "Read and wages of",
+    "live": "Reed and Reins is off.",
+    "rag2": "read and wages off.",
+    "live+rag2": "read Andrew S. off",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": false,
+     "rag2": false,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "29_Sam.wav",
+    "said": "read the strange case of doctor jekyll and mister hyde",
+    "exp": "title:jekyll hyde|Stevenson",
+    "none": "read the strange case of Dr. Jekyll and Mr. High.",
+    "static": "Read the strange case of Dr. Jekyll and Mr. Hyde.",
+    "live": "read The strange case of Dr. Jekyll and Mr. Hyde.",
+    "rag2": "read the strange case of Dr. Jekyll and Mr. High.",
+    "live+rag2": "read The strange case of Dr. Jekyll and Mr. Hyde.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "29_Dan.wav",
+    "said": "read the strange case of doctor jekyll and mister hyde",
+    "exp": "title:jekyll hyde|Stevenson",
+    "none": "read the strange case of Dr. Jekyll and Mr.",
+    "static": "Read the strange case of Dr. Jekyll and Mr.",
+    "live": "read the strange case of Dr. Jekyll and Mr. Hyde.",
+    "rag2": "read the strange case of Dr. Jekyll and Mr.",
+    "live+rag2": "read the strange case of Dr. Jekyll and Mr. Hyde.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "29_Flo.wav",
+    "said": "read the strange case of doctor jekyll and mister hyde",
+    "exp": "title:jekyll hyde|Stevenson",
+    "none": "read the strange case of Michael Jackson on Mr. Hyde.",
+    "static": "Read the strange case of Michael Jekyll and Mr. Hyde.",
+    "live": "read the strange case of Michael Jekyll and Mr. Hyde.",
+    "rag2": "read the strange case of Michael Jekyll and Mr. Hyde.",
+    "live+rag2": "read the strange case of Michael Jekyll and Mr. Hyde.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "29_Ama.wav",
+    "said": "read the strange case of doctor jekyll and mister hyde",
+    "exp": "title:jekyll hyde|Stevenson",
+    "none": "Read strange case of doctor Jekyll and Mr. Hyde.",
+    "static": "Read Strange Case of Dr. Jacob and Mr. Hyde.",
+    "live": "Read Strange Case of Dr. Jekyll and Mr. Hyde.",
+    "rag2": "Read strange case of doctor Jekyll and Mr. Hyde.",
+    "live+rag2": "Read Strange Case of Dr. Jekyll and Mr. Hyde.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "30_Sam.wav",
+    "said": "read the war of the worlds",
+    "exp": "title:war worlds|Wells",
+    "none": "read the war of the worlds.",
+    "static": "Read the war of the worlds.",
+    "live": "The war of the worlds.",
+    "rag2": "read the war of the worlds.",
+    "live+rag2": "The war of the worlds.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": false,
+     "rag2": true,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "30_Dan.wav",
+    "said": "read the war of the worlds",
+    "exp": "title:war worlds|Wells",
+    "none": "read the war of the worlds.",
+    "static": "Read the war of the worlds.",
+    "live": "read the war of the worlds",
+    "rag2": "read the war of the worlds.",
+    "live+rag2": "read the war of the worlds",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "30_Flo.wav",
+    "said": "read the war of the worlds",
+    "exp": "title:war worlds|Wells",
+    "none": "read the war of the world.",
+    "static": "Read the world of the world.",
+    "live": "read the war of the world.",
+    "rag2": "read the war of the world.",
+    "live+rag2": "read the war of the world.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "30_Ama.wav",
+    "said": "read the war of the worlds",
+    "exp": "title:war worlds|Wells",
+    "none": "read the word of the world's",
+    "static": "Read the world of the worlds.",
+    "live": "read the word of the world's",
+    "rag2": "read the word of the world's",
+    "live+rag2": "read the word of the world's",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "31_Sam.wav",
+    "said": "play something by jane austen",
+    "exp": "author:Austen",
+    "none": "place something by Jane Austen.",
+    "static": "Plays something by Jane Austen.",
+    "live": "place something by Jane Austen.",
+    "rag2": "place something by Jane Austen.",
+    "live+rag2": "place something by Jane Austen.",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": false,
+     "rag2": false,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "31_Dan.wav",
+    "said": "play something by jane austen",
+    "exp": "author:Austen",
+    "none": "Play something by Jane Austen.",
+    "static": "Play something by Jane Austen.",
+    "live": "Play something by Jane Austen.",
+    "rag2": "Play something by Jane Austen.",
+    "live+rag2": "Play something by Jane Austen.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "31_Flo.wav",
+    "said": "play something by jane austen",
+    "exp": "author:Austen",
+    "none": "play something by Jake Austin.",
+    "static": "play something by Jake Austin.",
+    "live": "Play something by Jane Mottin.",
+    "rag2": "play something by Jake Austin.",
+    "live+rag2": "Play something by Jane Mottin.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": false,
+     "rag2": true,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "31_Ama.wav",
+    "said": "play something by jane austen",
+    "exp": "author:Austen",
+    "none": "Play something by Jane Austen.",
+    "static": "Play something by Jane Austen.",
+    "live": "Play something by Jane Austen.",
+    "rag2": "Play something by Jane Austen.",
+    "live+rag2": "Play something by Jane Austen.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "32_Sam.wav",
+    "said": "books by mark twain",
+    "exp": "author:Twain",
+    "none": "books by Mark Twain.",
+    "static": "Books by Mark Twain.",
+    "live": "books by Mark Twain.",
+    "rag2": "books by Mark Twain.",
+    "live+rag2": "books by Mark Twain.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "32_Dan.wav",
+    "said": "books by mark twain",
+    "exp": "author:Twain",
+    "none": "books by Mark Twain.",
+    "static": "Books by Mark Twain.",
+    "live": "books by Mark Twain.",
+    "rag2": "books by Mark Twain.",
+    "live+rag2": "books by Mark Twain.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "32_Flo.wav",
+    "said": "books by mark twain",
+    "exp": "author:Twain",
+    "none": "What's my mother twins?",
+    "static": "What's the time of the train?",
+    "live": "What's my mother twins?",
+    "rag2": "What's my mother twins?",
+    "live+rag2": "What's my mother twins?",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": false,
+     "rag2": false,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "32_Ama.wav",
+    "said": "books by mark twain",
+    "exp": "author:Twain",
+    "none": "books by Mark Twain.",
+    "static": "Books by Mark Twain.",
+    "live": "books by Mark Tween.",
+    "rag2": "books by Mark Twain.",
+    "live+rag2": "books by Mark Tween.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "33_Sam.wav",
+    "said": "show me books by charles dickens",
+    "exp": "author:Dickens",
+    "none": "Show me books by Charles Dickens.",
+    "static": "Show me books by Charles Dickens.",
+    "live": "Show me books by Charles Dickens.",
+    "rag2": "Show me books by Charles Dickens.",
+    "live+rag2": "Show me books by Charles Dickens.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "33_Dan.wav",
+    "said": "show me books by charles dickens",
+    "exp": "author:Dickens",
+    "none": "Show me books by Charles Dickens.",
+    "static": "Show me books by Charles Dickens.",
+    "live": "Show me books by Charles Dickens.",
+    "rag2": "Show me books by Charles Dickens.",
+    "live+rag2": "Show me books by Charles Dickens.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "33_Flo.wav",
+    "said": "show me books by charles dickens",
+    "exp": "author:Dickens",
+    "none": "Show me books by Charles Dickens.",
+    "static": "Show me bookstore charms bookings.",
+    "live": "Show me books by Charles Dickens.",
+    "rag2": "Show me books by Charles Dickens.",
+    "live+rag2": "Show me books by Charles Dickens.",
+    "right": {
+     "none": true,
+     "static": false,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "33_Ama.wav",
+    "said": "show me books by charles dickens",
+    "exp": "author:Dickens",
+    "none": "Show me books by Charles Dickens.",
+    "static": "Show me books by Charles Dickens.",
+    "live": "Show me books by Charles Dickens.",
+    "rag2": "Show me books by Charles Dickens.",
+    "live+rag2": "Show me books by Charles Dickens.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "34_Sam.wav",
+    "said": "what did oscar wilde write",
+    "exp": "author:Wilde",
+    "none": "what did Oscar Wilde write?",
+    "static": "What did Oscar Wilde write?",
+    "live": "What did Oscar Wilde write?",
+    "rag2": "what did Oscar Wilde write?",
+    "live+rag2": "What did Oscar Wilde write?",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "34_Dan.wav",
+    "said": "what did oscar wilde write",
+    "exp": "author:Wilde",
+    "none": "What did Oscar Wilde write?",
+    "static": "What did Oscar Wilde write?",
+    "live": "What did Oscar Wilde write?",
+    "rag2": "What did Oscar Wilde write?",
+    "live+rag2": "What did Oscar Wilde write?",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "34_Flo.wav",
+    "said": "what did oscar wilde write",
+    "exp": "author:Wilde",
+    "none": "What did Oscar Wilde write?",
+    "static": "What do you touch the wild light?",
+    "live": "What did Oscar Wilde write?",
+    "rag2": "What did Oscar Wilde write?",
+    "live+rag2": "What did Oscar Wilde write?",
+    "right": {
+     "none": true,
+     "static": false,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "34_Ama.wav",
+    "said": "what did oscar wilde write",
+    "exp": "author:Wilde",
+    "none": "What did Oscar?",
+    "static": "What did Oscar",
+    "live": "What did Oscar?",
+    "rag2": "What did Oscar?",
+    "live+rag2": "What did Oscar?",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": false,
+     "rag2": false,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "35_Sam.wav",
+    "said": "books by arthur conan doyle",
+    "exp": "author:Doyle",
+    "none": "books by Arthur Cohen and Doyle.",
+    "static": "Books by Arthur Conan Doyle.",
+    "live": "books by Arthur Conan Doyle.",
+    "rag2": "books by Arthur Cohen and Doyle.",
+    "live+rag2": "books by Arthur Conan Doyle.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "35_Dan.wav",
+    "said": "books by arthur conan doyle",
+    "exp": "author:Doyle",
+    "none": "books by Arthur Cohen and Diallo.",
+    "static": "Books by Arthur Conan Doyle",
+    "live": "books by Arthur Conan Doyle",
+    "rag2": "books by Arthur Conan Doyle",
+    "live+rag2": "books by Arthur Conan Doyle",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "35_Flo.wav",
+    "said": "books by arthur conan doyle",
+    "exp": "author:Doyle",
+    "none": "What's my offer currently in New York?",
+    "static": "What's my offer come and do it?",
+    "live": "Books by Arthur Cohen and Doyle.",
+    "rag2": "What's my offer currently in New York?",
+    "live+rag2": "Books by Arthur Cohen and Doyle.",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": true,
+     "rag2": false,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "35_Ama.wav",
+    "said": "books by arthur conan doyle",
+    "exp": "author:Doyle",
+    "none": "Books by Arthur Cole and Doyle.",
+    "static": "Books by Arthur Colin Doyle",
+    "live": "Books by Arthur Colin Doyle",
+    "rag2": "Books by Arthur Cole and Doyle.",
+    "live+rag2": "Books by Arthur Colin Doyle",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "36_Sam.wav",
+    "said": "play something by edgar allan poe",
+    "exp": "author:Poe",
+    "none": "place something by a girl in Poe.",
+    "static": "place something by a girl and pearl and pearl.",
+    "live": "place something by a girl in Poe.",
+    "rag2": "place something by a girl in Poe.",
+    "live+rag2": "place something by a girl in Poe.",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": false,
+     "rag2": false,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "36_Dan.wav",
+    "said": "play something by edgar allan poe",
+    "exp": "author:Poe",
+    "none": "Play something by Edgar Allan Poe.",
+    "static": "Play something by Edgar Allan Poe.",
+    "live": "play something by Edgar Allan Poe",
+    "rag2": "Play something by Edgar Allan Poe.",
+    "live+rag2": "play something by Edgar Allan Poe",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "36_Flo.wav",
+    "said": "play something by edgar allan poe",
+    "exp": "author:Poe",
+    "none": "play something mike garam on top",
+    "static": "play something mike around on the post",
+    "live": "Play something Mayakaran on top.",
+    "rag2": "play something mike garam on top",
+    "live+rag2": "Play something Mayakaran on top.",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": false,
+     "rag2": false,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "36_Ama.wav",
+    "said": "play something by edgar allan poe",
+    "exp": "author:Poe",
+    "none": "play something by Alan Bo.",
+    "static": "play something by Dylan Poe.",
+    "live": "play something by Alan Paul",
+    "rag2": "play something by Alan Bo.",
+    "live+rag2": "play something by Alan Paul",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": false,
+     "rag2": false,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "37_Sam.wav",
+    "said": "books by jack london",
+    "exp": "author:London",
+    "none": "books by Jack London.",
+    "static": "Books by Jack London.",
+    "live": "books by Jack London.",
+    "rag2": "books by Jack London.",
+    "live+rag2": "books by Jack London.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "37_Dan.wav",
+    "said": "books by jack london",
+    "exp": "author:London",
+    "none": "Bugs by Jack London.",
+    "static": "Books by Jack London.",
+    "live": "books by Jack London.",
+    "rag2": "Bugs by Jack London.",
+    "live+rag2": "books by Jack London.",
+    "right": {
+     "none": false,
+     "static": true,
+     "live": true,
+     "rag2": false,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "37_Flo.wav",
+    "said": "books by jack london",
+    "exp": "author:London",
+    "none": "What's my joke, London?",
+    "static": "What's my joke, London?",
+    "live": "What's my joke, London?",
+    "rag2": "What's my joke, London?",
+    "live+rag2": "What's my joke, London?",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": false,
+     "rag2": false,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "37_Ama.wav",
+    "said": "books by jack london",
+    "exp": "author:London",
+    "none": "Books by Jack London.",
+    "static": "Books by Jack London.",
+    "live": "Books by Jack London.",
+    "rag2": "Books by Jack London.",
+    "live+rag2": "Books by Jack London.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "38_Sam.wav",
+    "said": "books by agatha christie",
+    "exp": "author:Christie",
+    "none": "books by Agatha Christie.",
+    "static": "Books by Agatha Christie.",
+    "live": "books by Agamemnon Christie.",
+    "rag2": "books by Agatha Christie.",
+    "live+rag2": "books by Agatha Christie.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "38_Dan.wav",
+    "said": "books by agatha christie",
+    "exp": "author:Christie",
+    "none": "books by Agatha Christie.",
+    "static": "Books by Agatha Christie.",
+    "live": "books by Agatha Christie.",
+    "rag2": "books by Agatha Christie.",
+    "live+rag2": "books by Agatha Christie.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "38_Flo.wav",
+    "said": "books by agatha christie",
+    "exp": "author:Christie",
+    "none": "What's my irguson, Christie?",
+    "static": "What's my I guess of Christie?",
+    "live": "What's my eye as a Christie?",
+    "rag2": "What's my irguson, Christie?",
+    "live+rag2": "What's my eye as a Christie?",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": false,
+     "rag2": false,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "38_Ama.wav",
+    "said": "books by agatha christie",
+    "exp": "author:Christie",
+    "none": "books by Agatha Christie.",
+    "static": "Books by Agatha Christie.",
+    "live": "books by Agatha Christie.",
+    "rag2": "books by Agatha Christie.",
+    "live+rag2": "books by Agatha Christie.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "49_Sam.wav",
+    "said": "something like treasure island",
+    "exp": "like:120|treasure island",
+    "none": "Something like Treasure Island.",
+    "static": "Something like Treasure Island.",
+    "live": "Something like Treasure Island.",
+    "rag2": "Something like Treasure Island.",
+    "live+rag2": "Something like Treasure Island.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "49_Dan.wav",
+    "said": "something like treasure island",
+    "exp": "like:120|treasure island",
+    "none": "Something like Treasure Island.",
+    "static": "Something like Treasure Island.",
+    "live": "Something like Treasure Island.",
+    "rag2": "Something like Treasure Island.",
+    "live+rag2": "Something like Treasure Island.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "49_Flo.wav",
+    "said": "something like treasure island",
+    "exp": "like:120|treasure island",
+    "none": "Something like Treasure Island.",
+    "static": "Something like Treasure Island.",
+    "live": "Something like Treasure Island.",
+    "rag2": "Something like Treasure Island.",
+    "live+rag2": "Something like Treasure Island.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "49_Ama.wav",
+    "said": "something like treasure island",
+    "exp": "like:120|treasure island",
+    "none": "Something like Trejo Island.",
+    "static": "Something like Treasure Island.",
+    "live": "Something like Treasure Island.",
+    "rag2": "Something like Treasure Island.",
+    "live+rag2": "Something like Treasure Island.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "50_Sam.wav",
+    "said": "books similar to sherlock holmes",
+    "exp": "like:1661|sherlock holmes",
+    "none": "look similar to Sherlock Holmes.",
+    "static": "book similar to Sherlock Holmes.",
+    "live": "look similar to Sherlock Holmes.",
+    "rag2": "look similar to Sherlock Holmes.",
+    "live+rag2": "look similar to Sherlock Holmes.",
+    "right": {
+     "none": false,
+     "static": true,
+     "live": false,
+     "rag2": false,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "50_Dan.wav",
+    "said": "books similar to sherlock holmes",
+    "exp": "like:1661|sherlock holmes",
+    "none": "book similar to Sherlock Holmes.",
+    "static": "book similar to Sherlock Holmes.",
+    "live": "book similar to Shelley, Holmes.",
+    "rag2": "book similar to Sherlock Holmes.",
+    "live+rag2": "book similar to Sherlock Holmes.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": false,
+     "rag2": true,
+     "live+rag2": true
+    }
+   },
+   {
+    "clip": "50_Flo.wav",
+    "said": "books similar to sherlock holmes",
+    "exp": "like:1661|sherlock holmes",
+    "none": "what's seeming what I share in my comms",
+    "static": "What's the seam in my cushion of my clothes?",
+    "live": "What's the same in what I share in my terms?",
+    "rag2": "what's seeming what I share in my comms",
+    "live+rag2": "What's the same in what I share in my terms?",
+    "right": {
+     "none": false,
+     "static": false,
+     "live": false,
+     "rag2": false,
+     "live+rag2": false
+    }
+   },
+   {
+    "clip": "50_Ama.wav",
+    "said": "books similar to sherlock holmes",
+    "exp": "like:1661|sherlock holmes",
+    "none": "book similar to Sherlock Holmes.",
+    "static": "book similar to Sherlock Holmes.",
+    "live": "book similar to Sherlock Holmes.",
+    "rag2": "book similar to Sherlock Holmes.",
+    "live+rag2": "book similar to Sherlock Holmes.",
+    "right": {
+     "none": true,
+     "static": true,
+     "live": true,
+     "rag2": true,
+     "live+rag2": true
+    }
+   }
+  ]
+ },
+ "linker": {
+  "top 2000 titles as the list": {
+   "score": {
+    "title": {
+     "right": 23,
+     "n": 120,
+     "wrong_link": 7
+    },
+    "author": {
+     "right": 26,
+     "n": 32,
+     "wrong_link": 1
+    },
+    "all": {
+     "right": 49,
+     "n": 152,
+     "wrong_link": 8
+    }
+   },
+   "ms_median": 1899.601207987871,
+   "rows": [
+    {
+     "clip": "01_Sam.wav",
+     "exp": "title:treasure island|Stevenson",
+     "text": "Read Treasure Island.",
+     "linked": [
+      "Treasure Island"
+     ],
+     "ms": 1709.9802499869838
+    },
+    {
+     "clip": "01_Dan.wav",
+     "exp": "title:treasure island|Stevenson",
+     "text": "Reed Treasure Island.",
+     "linked": [],
+     "ms": 1762.993166979868
+    },
+    {
+     "clip": "01_Flo.wav",
+     "exp": "title:treasure island|Stevenson",
+     "text": "Read Treasure Island.",
+     "linked": [
+      "Treasure Island"
+     ],
+     "ms": 1676.074500021059
+    },
+    {
+     "clip": "01_Ama.wav",
+     "exp": "title:treasure island|Stevenson",
+     "text": "Read Trej Island.",
+     "linked": [],
+     "ms": 1960.5788749759085
+    },
+    {
+     "clip": "02_Sam.wav",
+     "exp": "title:sherlock holmes|Doyle",
+     "text": "Play Sherlock Holmes.",
+     "linked": [
+      "T. Rice Holmes"
+     ],
+     "ms": 1804.831749992445
+    },
+    {
+     "clip": "02_Dan.wav",
+     "exp": "title:sherlock holmes|Doyle",
+     "text": "Play Sherlock Holmes.",
+     "linked": [],
+     "ms": 1863.8002499938011
+    },
+    {
+     "clip": "02_Flo.wav",
+     "exp": "title:sherlock holmes|Doyle",
+     "text": "Make sure my clothes.",
+     "linked": [],
+     "ms": 1766.2949580117129
+    },
+    {
+     "clip": "02_Ama.wav",
+     "exp": "title:sherlock holmes|Doyle",
+     "text": "Your Tories Thermal B. Sir Hissing Pashchimi, a free keeper, and then a WNV on the hones.",
+     "linked": [],
+     "ms": 2141.631667036563
+    },
+    {
+     "clip": "03_Sam.wav",
+     "exp": "title:moby dick|Melville",
+     "text": "Read Moby Dick.",
+     "linked": [
+      "Moby Dick"
+     ],
+     "ms": 1802.0462919957936
+    },
+    {
+     "clip": "03_Dan.wav",
+     "exp": "title:moby dick|Melville",
+     "text": "Read Moby Dick.",
+     "linked": [
+      "Moby Dick"
+     ],
+     "ms": 1896.0883340332657
+    },
+    {
+     "clip": "03_Flo.wav",
+     "exp": "title:moby dick|Melville",
+     "text": "Read Moby Dick.",
+     "linked": [
+      "Moby Dick"
+     ],
+     "ms": 1899.601207987871
+    },
+    {
+     "clip": "03_Ama.wav",
+     "exp": "title:moby dick|Melville",
+     "text": "Read Moby Dick.",
+     "linked": [
+      "Moby Dick"
+     ],
+     "ms": 1814.0284169930965
+    },
+    {
+     "clip": "04_Sam.wav",
+     "exp": "title:pride prejudice|Austen",
+     "text": "Read Pride and Prejudice.",
+     "linked": [],
+     "ms": 1766.683167021256
+    },
+    {
+     "clip": "04_Dan.wav",
+     "exp": "title:pride prejudice|Austen",
+     "text": "Read Grindon prejudice.",
+     "linked": [],
+     "ms": 1891.8761670356616
+    },
+    {
+     "clip": "04_Flo.wav",
+     "exp": "title:pride prejudice|Austen",
+     "text": "Replay the book of the book of the book of the book book of the book of the book of",
+     "linked": [],
+     "ms": 1936.2832920160145
+    },
+    {
+     "clip": "04_Ama.wav",
+     "exp": "title:pride prejudice|Austen",
+     "text": "Reed Pride, Polak will be opposed to men and white and unprejudiced.",
+     "linked": [],
+     "ms": 1901.693082996644
+    },
+    {
+     "clip": "05_Sam.wav",
+     "exp": "title:frankenstein|Shelley",
+     "text": "Read Frankenstein.",
+     "linked": [],
+     "ms": 1634.0229999623261
+    },
+    {
+     "clip": "05_Dan.wav",
+     "exp": "title:frankenstein|Shelley",
+     "text": "Read Frankenstein.",
+     "linked": [],
+     "ms": 1699.278875021264
+    },
+    {
+     "clip": "05_Flo.wav",
+     "exp": "title:frankenstein|Shelley",
+     "text": "read Frankenstein",
+     "linked": [
+      "Frankenstein"
+     ],
+     "ms": 2263.997833011672
+    },
+    {
+     "clip": "05_Ama.wav",
+     "exp": "title:frankenstein|Shelley",
+     "text": "Read the",
+     "linked": [],
+     "ms": 1867.214916041121
+    },
+    {
+     "clip": "06_Sam.wav",
+     "exp": "title:alice wonderland|Carroll",
+     "text": "Read Allison Wonderland.",
+     "linked": [],
+     "ms": 1946.3745409739204
+    },
+    {
+     "clip": "06_Dan.wav",
+     "exp": "title:alice wonderland|Carroll",
+     "text": "Read Alice in Wonderland.",
+     "linked": [],
+     "ms": 2459.3246249714866
+    },
+    {
+     "clip": "06_Flo.wav",
+     "exp": "title:alice wonderland|Carroll",
+     "text": "Red diamonds and wands on that.",
+     "linked": [],
+     "ms": 2016.757749952376
+    },
+    {
+     "clip": "06_Ama.wav",
+     "exp": "title:alice wonderland|Carroll",
+     "text": "Read Alice in Wonderland.",
+     "linked": [],
+     "ms": 2266.657124971971
+    },
+    {
+     "clip": "07_Sam.wav",
+     "exp": "title:gatsby|Fitzgerald",
+     "text": "Read the Great Gatsby.",
+     "linked": [],
+     "ms": 2207.601916976273
+    },
+    {
+     "clip": "07_Dan.wav",
+     "exp": "title:gatsby|Fitzgerald",
+     "text": "Read the Great Gatsby.",
+     "linked": [],
+     "ms": 2134.1310419957153
+    },
+    {
+     "clip": "07_Flo.wav",
+     "exp": "title:gatsby|Fitzgerald",
+     "text": "Read the book of the book.",
+     "linked": [],
+     "ms": 1916.0142079927027
+    },
+    {
+     "clip": "07_Ama.wav",
+     "exp": "title:gatsby|Fitzgerald",
+     "text": "Read the Great Gatsby.",
+     "linked": [],
+     "ms": 1965.616375033278
+    },
+    {
+     "clip": "08_Sam.wav",
+     "exp": "title:dracula|Stoker",
+     "text": "Reed Dracula",
+     "linked": [],
+     "ms": 1909.6864170278423
+    },
+    {
+     "clip": "08_Dan.wav",
+     "exp": "title:dracula|Stoker",
+     "text": "Read Dracula.",
+     "linked": [
+      "Dracula"
+     ],
+     "ms": 1815.8485000021756
+    },
+    {
+     "clip": "08_Flo.wav",
+     "exp": "title:dracula|Stoker",
+     "text": "Rejecting the",
+     "linked": [],
+     "ms": 2042.5712500000373
+    },
+    {
+     "clip": "08_Ama.wav",
+     "exp": "title:dracula|Stoker",
+     "text": "Read Dracula.",
+     "linked": [
+      "Dracula"
+     ],
+     "ms": 1919.552500010468
+    },
+    {
+     "clip": "09_Sam.wav",
+     "exp": "title:time machine|Wells",
+     "text": "Read the time machine.",
+     "linked": [],
+     "ms": 1989.2734999884851
+    },
+    {
+     "clip": "09_Dan.wav",
+     "exp": "title:time machine|Wells",
+     "text": "Read the time machine.",
+     "linked": [],
+     "ms": 1908.8625840377063
+    },
+    {
+     "clip": "09_Flo.wav",
+     "exp": "title:time machine|Wells",
+     "text": "read the time machine",
+     "linked": [],
+     "ms": 1817.0217500301078
+    },
+    {
+     "clip": "09_Ama.wav",
+     "exp": "title:time machine|Wells",
+     "text": "Read the time machine.",
+     "linked": [],
+     "ms": 1841.8177500134334
+    },
+    {
+     "clip": "10_Sam.wav",
+     "exp": "title:war peace|Tolstoy",
+     "text": "Read more and please.",
+     "linked": [],
+     "ms": 1663.4599579847418
+    },
+    {
+     "clip": "10_Dan.wav",
+     "exp": "title:war peace|Tolstoy",
+     "text": "Read war and peace.",
+     "linked": [],
+     "ms": 1635.0342910154723
+    },
+    {
+     "clip": "10_Flo.wav",
+     "exp": "title:war peace|Tolstoy",
+     "text": "Read war and peace.",
+     "linked": [],
+     "ms": 1758.921874978114
+    },
+    {
+     "clip": "10_Ama.wav",
+     "exp": "title:war peace|Tolstoy",
+     "text": "Read war and peace.",
+     "linked": [],
+     "ms": 1967.3273750231601
+    },
+    {
+     "clip": "11_Sam.wav",
+     "exp": "title:jane eyre|Bront\u00eb",
+     "text": "read Jane Eyre",
+     "linked": [
+      "Jane Eyre"
+     ],
+     "ms": 1803.789041005075
+    },
+    {
+     "clip": "11_Dan.wav",
+     "exp": "title:jane eyre|Bront\u00eb",
+     "text": "Reject that.",
+     "linked": [],
+     "ms": 1792.7754590054974
+    },
+    {
+     "clip": "11_Flo.wav",
+     "exp": "title:jane eyre|Bront\u00eb",
+     "text": "Read Jane Hood.",
+     "linked": [
+      "Jane Austen"
+     ],
+     "ms": 1643.4367499896325
+    },
+    {
+     "clip": "11_Ama.wav",
+     "exp": "title:jane eyre|Bront\u00eb",
+     "text": "Read Jane Eyre",
+     "linked": [
+      "Jane Eyre"
+     ],
+     "ms": 1843.0419160285965
+    },
+    {
+     "clip": "12_Sam.wav",
+     "exp": "title:wuthering heights|Bront\u00eb",
+     "text": "Read Wuthering Heights.",
+     "linked": [
+      "Wuthering Heights"
+     ],
+     "ms": 1850.7024169666693
+    },
+    {
+     "clip": "12_Dan.wav",
+     "exp": "title:wuthering heights|Bront\u00eb",
+     "text": "Read Wuthering Heights.",
+     "linked": [
+      "Wuthering Heights"
+     ],
+     "ms": 1994.5194590254687
+    },
+    {
+     "clip": "12_Flo.wav",
+     "exp": "title:wuthering heights|Bront\u00eb",
+     "text": "read Wuthering Heights.",
+     "linked": [
+      "Wuthering Heights"
+     ],
+     "ms": 1928.7498340127058
+    },
+    {
+     "clip": "12_Ama.wav",
+     "exp": "title:wuthering heights|Bront\u00eb",
+     "text": "Read Wuthering Heights.",
+     "linked": [
+      "Wuthering Heights"
+     ],
+     "ms": 1901.642917015124
+    },
+    {
+     "clip": "13_Sam.wav",
+     "exp": "title:great expectations|Dickens",
+     "text": "Read Great Expectations.",
+     "linked": [],
+     "ms": 1852.9850830091164
+    },
+    {
+     "clip": "13_Dan.wav",
+     "exp": "title:great expectations|Dickens",
+     "text": "Read Great Expectations.",
+     "linked": [],
+     "ms": 1736.5581670310348
+    },
+    {
+     "clip": "13_Flo.wav",
+     "exp": "title:great expectations|Dickens",
+     "text": "Read Great Expectations.",
+     "linked": [],
+     "ms": 1905.9801670373417
+    },
+    {
+     "clip": "13_Ama.wav",
+     "exp": "title:great expectations|Dickens",
+     "text": "Read Great Expectations.",
+     "linked": [],
+     "ms": 1971.7428750009276
+    },
+    {
+     "clip": "14_Sam.wav",
+     "exp": "title:tale two cities|Dickens",
+     "text": "Play a tale of two cities.",
+     "linked": [],
+     "ms": 2282.238082960248
+    },
+    {
+     "clip": "14_Dan.wav",
+     "exp": "title:tale two cities|Dickens",
+     "text": "Play a tale of two cities.",
+     "linked": [],
+     "ms": 2525.943416985683
+    },
+    {
+     "clip": "14_Flo.wav",
+     "exp": "title:tale two cities|Dickens",
+     "text": "Play the tale of Tuesday Tuesday.",
+     "linked": [],
+     "ms": 2251.853374997154
+    },
+    {
+     "clip": "14_Ama.wav",
+     "exp": "title:tale two cities|Dickens",
+     "text": "play a tale of two cities",
+     "linked": [],
+     "ms": 2274.5188749977387
+    },
+    {
+     "clip": "15_Sam.wav",
+     "exp": "title:call wild|London",
+     "text": "Read the call of the wild.",
+     "linked": [],
+     "ms": 1716.4559160009958
+    },
+    {
+     "clip": "15_Dan.wav",
+     "exp": "title:call wild|London",
+     "text": "Read the call of the wild.",
+     "linked": [],
+     "ms": 1700.2443329547532
+    },
+    {
+     "clip": "15_Flo.wav",
+     "exp": "title:call wild|London",
+     "text": "read the call of the wild",
+     "linked": [],
+     "ms": 1778.4020420513116
+    },
+    {
+     "clip": "15_Ama.wav",
+     "exp": "title:call wild|London",
+     "text": "Read the call of the wild.",
+     "linked": [],
+     "ms": 1664.0195840154774
+    },
+    {
+     "clip": "16_Sam.wav",
+     "exp": "title:little women|Alcott",
+     "text": "Read Lego women.",
+     "linked": [],
+     "ms": 1791.5575840161182
+    },
+    {
+     "clip": "16_Dan.wav",
+     "exp": "title:little women|Alcott",
+     "text": "Read little women.",
+     "linked": [],
+     "ms": 1800.4965420113876
+    },
+    {
+     "clip": "16_Flo.wav",
+     "exp": "title:little women|Alcott",
+     "text": "Read with Owens.",
+     "linked": [
+      "John Algernon Owens"
+     ],
+     "ms": 1777.1815410233103
+    },
+    {
+     "clip": "16_Ama.wav",
+     "exp": "title:little women|Alcott",
+     "text": "Read Little Women.",
+     "linked": [],
+     "ms": 1775.0515000079758
+    },
+    {
+     "clip": "17_Sam.wav",
+     "exp": "title:peter pan|Barrie",
+     "text": "Read Peter Pan.",
+     "linked": [
+      "Peter Pan"
+     ],
+     "ms": 1738.2638750132173
+    },
+    {
+     "clip": "17_Dan.wav",
+     "exp": "title:peter pan|Barrie",
+     "text": "Read Peter Pan",
+     "linked": [
+      "Peter Pan"
+     ],
+     "ms": 2038.8597089913674
+    },
+    {
+     "clip": "17_Flo.wav",
+     "exp": "title:peter pan|Barrie",
+     "text": "Repeat the plan.",
+     "linked": [],
+     "ms": 1929.5699170324951
+    },
+    {
+     "clip": "17_Ama.wav",
+     "exp": "title:peter pan|Barrie",
+     "text": "Read Peter Pan.",
+     "linked": [
+      "Peter Pan"
+     ],
+     "ms": 2009.5742080011405
+    },
+    {
+     "clip": "18_Sam.wav",
+     "exp": "title:dorian gray|Wilde",
+     "text": "Read the picture of Dorian Gray.",
+     "linked": [
+      "Helen Gray Cone"
+     ],
+     "ms": 2402.442082995549
+    },
+    {
+     "clip": "18_Dan.wav",
+     "exp": "title:dorian gray|Wilde",
+     "text": "Read the picture of Dorian Gray.",
+     "linked": [
+      "Helen Gray Cone"
+     ],
+     "ms": 2064.308291999623
+    },
+    {
+     "clip": "18_Flo.wav",
+     "exp": "title:dorian gray|Wilde",
+     "text": "Read the picture of Dorian Gray.",
+     "linked": [
+      "Helen Gray Cone"
+     ],
+     "ms": 2122.729208029341
+    },
+    {
+     "clip": "18_Ama.wav",
+     "exp": "title:dorian gray|Wilde",
+     "text": "Read the picture of the earth lover's thermal pizza hissing pashchimi, a freaky land in a V and D only.",
+     "linked": [],
+     "ms": 2355.0427090376616
+    },
+    {
+     "clip": "19_Sam.wav",
+     "exp": "title:monte cristo|Dumas",
+     "text": "Read the count of Monte Christo.",
+     "linked": [],
+     "ms": 2115.4434999916703
+    },
+    {
+     "clip": "19_Dan.wav",
+     "exp": "title:monte cristo|Dumas",
+     "text": "Rebound count of Monte Christo.",
+     "linked": [
+      "Agatha Christie"
+     ],
+     "ms": 2124.9927079770714
+    },
+    {
+     "clip": "19_Flo.wav",
+     "exp": "title:monte cristo|Dumas",
+     "text": "Read the account of Monte Cristo.",
+     "linked": [],
+     "ms": 2037.467791000381
+    },
+    {
+     "clip": "19_Ama.wav",
+     "exp": "title:monte cristo|Dumas",
+     "text": "Read the count of Monte Christo.",
+     "linked": [],
+     "ms": 2186.656582984142
+    },
+    {
+     "clip": "20_Sam.wav",
+     "exp": "title:baskervilles|Doyle",
+     "text": "Read the hound of the Baskervilles.",
+     "linked": [],
+     "ms": 2231.2646670034155
+    },
+    {
+     "clip": "20_Dan.wav",
+     "exp": "title:baskervilles|Doyle",
+     "text": "Read the hound of the basketball.",
+     "linked": [],
+     "ms": 2277.5597919826396
+    },
+    {
+     "clip": "20_Flo.wav",
+     "exp": "title:baskervilles|Doyle",
+     "text": "Read the hand of the Oscar Mills.",
+     "linked": [],
+     "ms": 2723.305249994155
+    },
+    {
+     "clip": "20_Ama.wav",
+     "exp": "title:baskervilles|Doyle",
+     "text": "Read Hayward of Space Careers.",
+     "linked": [],
+     "ms": 2061.333333957009
+    },
+    {
+     "clip": "21_Sam.wav",
+     "exp": "title:heart darkness|Conrad",
+     "text": "Rehard of darkness.",
+     "linked": [],
+     "ms": 2098.510208015796
+    },
+    {
+     "clip": "21_Dan.wav",
+     "exp": "title:heart darkness|Conrad",
+     "text": "Reed Hodg of Darkness.",
+     "linked": [],
+     "ms": 1835.9972079633735
+    },
+    {
+     "clip": "21_Flo.wav",
+     "exp": "title:heart darkness|Conrad",
+     "text": "Read out of darkness.",
+     "linked": [],
+     "ms": 1941.7407920118421
+    },
+    {
+     "clip": "21_Ama.wav",
+     "exp": "title:heart darkness|Conrad",
+     "text": "Read hard of darkness.",
+     "linked": [],
+     "ms": 1743.2575410348363
+    },
+    {
+     "clip": "22_Sam.wav",
+     "exp": "title:jungle book|Kipling",
+     "text": "Read the Jungle Book.",
+     "linked": [],
+     "ms": 1710.937833006028
+    },
+    {
+     "clip": "22_Dan.wav",
+     "exp": "title:jungle book|Kipling",
+     "text": "Read the jungle book.",
+     "linked": [],
+     "ms": 1897.0197919989005
+    },
+    {
+     "clip": "22_Flo.wav",
+     "exp": "title:jungle book|Kipling",
+     "text": "Read the jungle book.",
+     "linked": [],
+     "ms": 1874.34854201274
+    },
+    {
+     "clip": "22_Ama.wav",
+     "exp": "title:jungle book|Kipling",
+     "text": "Read the jungle book.",
+     "linked": [],
+     "ms": 1750.0878339633346
+    },
+    {
+     "clip": "23_Sam.wav",
+     "exp": "title:green gables|Montgomery",
+     "text": "Read on the Green Gables.",
+     "linked": [],
+     "ms": 1708.144625008572
+    },
+    {
+     "clip": "23_Dan.wav",
+     "exp": "title:green gables|Montgomery",
+     "text": "Read and agreeing gables.",
+     "linked": [],
+     "ms": 1657.5909160310403
+    },
+    {
+     "clip": "23_Flo.wav",
+     "exp": "title:green gables|Montgomery",
+     "text": "Read out of Green Goebbels.",
+     "linked": [],
+     "ms": 1824.0894579794258
+    },
+    {
+     "clip": "23_Ama.wav",
+     "exp": "title:green gables|Montgomery",
+     "text": "Read and of green gables.",
+     "linked": [],
+     "ms": 1610.4991660104133
+    },
+    {
+     "clip": "24_Sam.wav",
+     "exp": "title:secret garden|Burnett",
+     "text": "Read the secret garden.",
+     "linked": [],
+     "ms": 1706.3574999920093
+    },
+    {
+     "clip": "24_Dan.wav",
+     "exp": "title:secret garden|Burnett",
+     "text": "We the Secret Garden.",
+     "linked": [
+      "The Secret Garden"
+     ],
+     "ms": 1706.6300839651376
+    },
+    {
+     "clip": "24_Flo.wav",
+     "exp": "title:secret garden|Burnett",
+     "text": "Read the secret garden.",
+     "linked": [],
+     "ms": 1804.1833330062218
+    },
+    {
+     "clip": "24_Ama.wav",
+     "exp": "title:secret garden|Burnett",
+     "text": "Read the secret garden.",
+     "linked": [],
+     "ms": 1674.3539579911157
+    },
+    {
+     "clip": "25_Sam.wav",
+     "exp": "title:gulliver|Swift",
+     "text": "Regullovers travels.",
+     "linked": [],
+     "ms": 1631.720083008986
+    },
+    {
+     "clip": "25_Dan.wav",
+     "exp": "title:gulliver|Swift",
+     "text": "Read Gulliver's Travels.",
+     "linked": [],
+     "ms": 1712.3845419846475
+    },
+    {
+     "clip": "25_Flo.wav",
+     "exp": "title:gulliver|Swift",
+     "text": "Read Gummy Witch medals.",
+     "linked": [],
+     "ms": 1668.116667016875
+    },
+    {
+     "clip": "25_Ama.wav",
+     "exp": "title:gulliver|Swift",
+     "text": "Read Travels.",
+     "linked": [],
+     "ms": 1743.8869579927996
+    },
+    {
+     "clip": "26_Sam.wav",
+     "exp": "title:quixote|Cervantes",
+     "text": "Read Don Quixote.",
+     "linked": [
+      "Don Quixote"
+     ],
+     "ms": 1720.9457499557175
+    },
+    {
+     "clip": "26_Dan.wav",
+     "exp": "title:quixote|Cervantes",
+     "text": "Read Don Quixote.",
+     "linked": [
+      "Don Quixote"
+     ],
+     "ms": 1726.1611660360359
+    },
+    {
+     "clip": "26_Flo.wav",
+     "exp": "title:quixote|Cervantes",
+     "text": "Read Don Quixote.",
+     "linked": [
+      "Don Quixote"
+     ],
+     "ms": 1782.422874995973
+    },
+    {
+     "clip": "26_Ama.wav",
+     "exp": "title:quixote|Cervantes",
+     "text": "Read Don Quixote.",
+     "linked": [
+      "Don Quixote"
+     ],
+     "ms": 1739.5563749596477
+    },
+    {
+     "clip": "27_Sam.wav",
+     "exp": "title:mis\u00e9rables|Hugo",
+     "text": "Reed Lane is a Rob Wells.",
+     "linked": [],
+     "ms": 2616.2776249693707
+    },
+    {
+     "clip": "27_Dan.wav",
+     "exp": "title:mis\u00e9rables|Hugo",
+     "text": "Read Lame Is Around.",
+     "linked": [],
+     "ms": 2110.978416982107
+    },
+    {
+     "clip": "27_Flo.wav",
+     "exp": "title:mis\u00e9rables|Hugo",
+     "text": "Read Mr. Ms. of the book.",
+     "linked": [],
+     "ms": 2015.1254170341417
+    },
+    {
+     "clip": "27_Ama.wav",
+     "exp": "title:mis\u00e9rables|Hugo",
+     "text": "Read Leslie Sullivan's",
+     "linked": [],
+     "ms": 2120.335209008772
+    },
+    {
+     "clip": "28_Sam.wav",
+     "exp": "title:tom sawyer|Twain",
+     "text": "Read the adventures of Tom Sawyer.",
+     "linked": [],
+     "ms": 1975.3911250154488
+    },
+    {
+     "clip": "28_Dan.wav",
+     "exp": "title:tom sawyer|Twain",
+     "text": "Really adventures of Tom Sawyer.",
+     "linked": [],
+     "ms": 2257.916583039332
+    },
+    {
+     "clip": "28_Flo.wav",
+     "exp": "title:tom sawyer|Twain",
+     "text": "Read the adventures of Tom Sawyer.",
+     "linked": [],
+     "ms": 2078.2286250032485
+    },
+    {
+     "clip": "28_Ama.wav",
+     "exp": "title:tom sawyer|Twain",
+     "text": "Read adventures of",
+     "linked": [],
+     "ms": 2036.0212919767946
+    },
+    {
+     "clip": "29_Sam.wav",
+     "exp": "title:jekyll hyde|Stevenson",
+     "text": "Read the strange case of Dr. Jekyll and Mr. High.",
+     "linked": [],
+     "ms": 2469.862958008889
+    },
+    {
+     "clip": "29_Dan.wav",
+     "exp": "title:jekyll hyde|Stevenson",
+     "text": "Read the strange case of Dr. Jekyll and Mr.",
+     "linked": [],
+     "ms": 2131.500459043309
+    },
+    {
+     "clip": "29_Flo.wav",
+     "exp": "title:jekyll hyde|Stevenson",
+     "text": "Read the strange case of Michael Jackson on Mr. Hyde.",
+     "linked": [],
+     "ms": 2141.3381670136005
+    },
+    {
+     "clip": "29_Ama.wav",
+     "exp": "title:jekyll hyde|Stevenson",
+     "text": "Read strange case of Dr. Jekyll and Mr. Hyde.",
+     "linked": [],
+     "ms": 2300.1648339559324
+    },
+    {
+     "clip": "30_Sam.wav",
+     "exp": "title:war worlds|Wells",
+     "text": "Read the war of the worlds.",
+     "linked": [],
+     "ms": 1964.1477090190165
+    },
+    {
+     "clip": "30_Dan.wav",
+     "exp": "title:war worlds|Wells",
+     "text": "Read the war of the worlds.",
+     "linked": [],
+     "ms": 1788.7605839641765
+    },
+    {
+     "clip": "30_Flo.wav",
+     "exp": "title:war worlds|Wells",
+     "text": "Read the war of the world.",
+     "linked": [],
+     "ms": 1689.0699160285294
+    },
+    {
+     "clip": "30_Ama.wav",
+     "exp": "title:war worlds|Wells",
+     "text": "Read the world of the worlds.",
+     "linked": [],
+     "ms": 1704.8425420070998
+    },
+    {
+     "clip": "31_Sam.wav",
+     "exp": "author:Austen",
+     "text": "Play something by Jane Austen.",
+     "linked": [
+      "Jane Austen"
+     ],
+     "ms": 1795.2948330203071
+    },
+    {
+     "clip": "31_Dan.wav",
+     "exp": "author:Austen",
+     "text": "Play something by Jane Austen.",
+     "linked": [
+      "Jane Austen"
+     ],
+     "ms": 2014.0904589788988
+    },
+    {
+     "clip": "31_Flo.wav",
+     "exp": "author:Austen",
+     "text": "Play something by Jane Austen.",
+     "linked": [
+      "Jane Austen"
+     ],
+     "ms": 2098.549875023309
+    },
+    {
+     "clip": "31_Ama.wav",
+     "exp": "author:Austen",
+     "text": "Play something by Jane Austen.",
+     "linked": [
+      "Jane Austen"
+     ],
+     "ms": 1922.3004159866832
+    },
+    {
+     "clip": "32_Sam.wav",
+     "exp": "author:Twain",
+     "text": "Books by Mark Twain.",
+     "linked": [
+      "Mark Twain"
+     ],
+     "ms": 2071.8250420177355
+    },
+    {
+     "clip": "32_Dan.wav",
+     "exp": "author:Twain",
+     "text": "Books by Mark Twain.",
+     "linked": [
+      "Mark Twain"
+     ],
+     "ms": 1995.5279160058126
+    },
+    {
+     "clip": "32_Flo.wav",
+     "exp": "author:Twain",
+     "text": "What's the time of the train?",
+     "linked": [],
+     "ms": 1964.5359580172226
+    },
+    {
+     "clip": "32_Ama.wav",
+     "exp": "author:Twain",
+     "text": "Books by Mark Twain.",
+     "linked": [
+      "Mark Twain"
+     ],
+     "ms": 1916.3958330173045
+    },
+    {
+     "clip": "33_Sam.wav",
+     "exp": "author:Dickens",
+     "text": "Show me books by Charles Dickens.",
+     "linked": [
+      "Charles Dickens"
+     ],
+     "ms": 1963.0650840117596
+    },
+    {
+     "clip": "33_Dan.wav",
+     "exp": "author:Dickens",
+     "text": "Show me books by Charles Dickens.",
+     "linked": [
+      "Charles Dickens"
+     ],
+     "ms": 2081.423374998849
+    },
+    {
+     "clip": "33_Flo.wav",
+     "exp": "author:Dickens",
+     "text": "Show me bookstore charms bookings.",
+     "linked": [],
+     "ms": 1977.7298330445774
+    },
+    {
+     "clip": "33_Ama.wav",
+     "exp": "author:Dickens",
+     "text": "Show me books by Charles Dickens.",
+     "linked": [
+      "Charles Dickens"
+     ],
+     "ms": 1936.0882909968495
+    },
+    {
+     "clip": "34_Sam.wav",
+     "exp": "author:Wilde",
+     "text": "What did Oscar Wilde write?",
+     "linked": [
+      "Oscar Wilde"
+     ],
+     "ms": 1980.8885420206934
+    },
+    {
+     "clip": "34_Dan.wav",
+     "exp": "author:Wilde",
+     "text": "What did Oscar Wilde write?",
+     "linked": [
+      "Oscar Wilde"
+     ],
+     "ms": 1839.3081670510583
+    },
+    {
+     "clip": "34_Flo.wav",
+     "exp": "author:Wilde",
+     "text": "What do you touch the wild light?",
+     "linked": [],
+     "ms": 1798.9407500135712
+    },
+    {
+     "clip": "34_Ama.wav",
+     "exp": "author:Wilde",
+     "text": "What did Oscar",
+     "linked": [
+      "Oscar Wilde"
+     ],
+     "ms": 1761.226624948904
+    },
+    {
+     "clip": "35_Sam.wav",
+     "exp": "author:Doyle",
+     "text": "Books by Arthur Conan Doyle.",
+     "linked": [
+      "Arthur Conan Doyle"
+     ],
+     "ms": 1863.3787920116447
+    },
+    {
+     "clip": "35_Dan.wav",
+     "exp": "author:Doyle",
+     "text": "Books by Arthur Conan Doyle",
+     "linked": [
+      "Arthur Conan Doyle"
+     ],
+     "ms": 1950.4472499829717
+    },
+    {
+     "clip": "35_Flo.wav",
+     "exp": "author:Doyle",
+     "text": "book spy off of Conan Doyle.",
+     "linked": [
+      "Arthur Conan Doyle"
+     ],
+     "ms": 1852.2301249904558
+    },
+    {
+     "clip": "35_Ama.wav",
+     "exp": "author:Doyle",
+     "text": "Books by Arthur Colin Doyle",
+     "linked": [
+      "Arthur Conan Doyle"
+     ],
+     "ms": 1841.6074170381762
+    },
+    {
+     "clip": "36_Sam.wav",
+     "exp": "author:Poe",
+     "text": "Place something by a girl and pearl and pearl.",
+     "linked": [],
+     "ms": 1872.826167033054
+    },
+    {
+     "clip": "36_Dan.wav",
+     "exp": "author:Poe",
+     "text": "Play something by Edgar Allan Poe.",
+     "linked": [
+      "Edgar Allan Poe"
+     ],
+     "ms": 1776.066249993164
+    },
+    {
+     "clip": "36_Flo.wav",
+     "exp": "author:Poe",
+     "text": "Play songs in my Aaron Monk book.",
+     "linked": [
+      "The Monk"
+     ],
+     "ms": 1957.0255839498714
+    },
+    {
+     "clip": "36_Ama.wav",
+     "exp": "author:Poe",
+     "text": "Play something by Aaron Poe.",
+     "linked": [
+      "Edgar Allan Poe"
+     ],
+     "ms": 1808.2382080028765
+    },
+    {
+     "clip": "37_Sam.wav",
+     "exp": "author:London",
+     "text": "Books by Jack London.",
+     "linked": [
+      "Jack London"
+     ],
+     "ms": 1885.586999997031
+    },
+    {
+     "clip": "37_Dan.wav",
+     "exp": "author:London",
+     "text": "Books by Jack London.",
+     "linked": [
+      "Jack London"
+     ],
+     "ms": 1779.443249979522
+    },
+    {
+     "clip": "37_Flo.wav",
+     "exp": "author:London",
+     "text": "What's my joke, London?",
+     "linked": [
+      "Jack London"
+     ],
+     "ms": 1875.3052499960177
+    },
+    {
+     "clip": "37_Ama.wav",
+     "exp": "author:London",
+     "text": "Books by Jack London.",
+     "linked": [
+      "Jack London"
+     ],
+     "ms": 2011.340958008077
+    },
+    {
+     "clip": "38_Sam.wav",
+     "exp": "author:Christie",
+     "text": "Books by Agatha Christie.",
+     "linked": [
+      "Agatha Christie"
+     ],
+     "ms": 2003.5424170200713
+    },
+    {
+     "clip": "38_Dan.wav",
+     "exp": "author:Christie",
+     "text": "Books by Agatha Christie.",
+     "linked": [
+      "Agatha Christie"
+     ],
+     "ms": 1854.6634590020403
+    },
+    {
+     "clip": "38_Flo.wav",
+     "exp": "author:Christie",
+     "text": "What's my I guess of Christie?",
+     "linked": [],
+     "ms": 1918.247083958704
+    },
+    {
+     "clip": "38_Ama.wav",
+     "exp": "author:Christie",
+     "text": "Books by Agatha Christie.",
+     "linked": [
+      "Agatha Christie"
+     ],
+     "ms": 1842.1819590148516
+    }
+   ]
+  },
+  "top 2000 titles + kb_snap": {
+   "score": {
+    "title": {
+     "right": 37,
+     "n": 120,
+     "wrong_link": 57
+    },
+    "author": {
+     "right": 15,
+     "n": 32,
+     "wrong_link": 13
+    },
+    "all": {
+     "right": 52,
+     "n": 152,
+     "wrong_link": 70
+    }
+   },
+   "ms_median": 1924.456958018709,
+   "rows": [
+    {
+     "clip": "01_Sam.wav",
+     "exp": "title:treasure island|Stevenson",
+     "text": "Read Treasure Island.",
+     "linked": [
+      "Treasure Island"
+     ],
+     "ms": 1973.5681660240516
+    },
+    {
+     "clip": "01_Dan.wav",
+     "exp": "title:treasure island|Stevenson",
+     "text": "Reed Treasure Island.",
+     "linked": [
+      "Treasure Island"
+     ],
+     "ms": 1981.8228750373237
+    },
+    {
+     "clip": "01_Flo.wav",
+     "exp": "title:treasure island|Stevenson",
+     "text": "Read Treasure Island.",
+     "linked": [
+      "Treasure Island"
+     ],
+     "ms": 1889.7773749777116
+    },
+    {
+     "clip": "01_Ama.wav",
+     "exp": "title:treasure island|Stevenson",
+     "text": "Read Trej Island.",
+     "linked": [],
+     "ms": 1924.456958018709
+    },
+    {
+     "clip": "02_Sam.wav",
+     "exp": "title:sherlock holmes|Doyle",
+     "text": "Play Sherlock Holmes.",
+     "linked": [
+      "T. Rice Holmes"
+     ],
+     "ms": 1798.5542499809526
+    },
+    {
+     "clip": "02_Dan.wav",
+     "exp": "title:sherlock holmes|Doyle",
+     "text": "Play Sherlock Holmes.",
+     "linked": [],
+     "ms": 2165.1117500150576
+    },
+    {
+     "clip": "02_Flo.wav",
+     "exp": "title:sherlock holmes|Doyle",
+     "text": "Make sure my clothes.",
+     "linked": [],
+     "ms": 1792.720958008431
+    },
+    {
+     "clip": "02_Ama.wav",
+     "exp": "title:sherlock holmes|Doyle",
+     "text": "Your Tories Thermal B. Sir Hissing Pashchimi, a free keeper, and then a WNV on the hones.",
+     "linked": [],
+     "ms": 2787.0224580401555
+    },
+    {
+     "clip": "03_Sam.wav",
+     "exp": "title:moby dick|Melville",
+     "text": "Read Moby Dick.",
+     "linked": [
+      "Moby Dick"
+     ],
+     "ms": 1781.3793339882977
+    },
+    {
+     "clip": "03_Dan.wav",
+     "exp": "title:moby dick|Melville",
+     "text": "Read Moby Dick.",
+     "linked": [
+      "Moby Dick"
+     ],
+     "ms": 1875.666000007186
+    },
+    {
+     "clip": "03_Flo.wav",
+     "exp": "title:moby dick|Melville",
+     "text": "Read Moby Dick.",
+     "linked": [
+      "Moby Dick"
+     ],
+     "ms": 1871.9896670081653
+    },
+    {
+     "clip": "03_Ama.wav",
+     "exp": "title:moby dick|Melville",
+     "text": "Read Moby Dick.",
+     "linked": [
+      "Moby Dick"
+     ],
+     "ms": 1987.1491250232793
+    },
+    {
+     "clip": "04_Sam.wav",
+     "exp": "title:pride prejudice|Austen",
+     "text": "Read Pride and Prejudice.",
+     "linked": [
+      "Pride and Prejudice"
+     ],
+     "ms": 2266.6812909883447
+    },
+    {
+     "clip": "04_Dan.wav",
+     "exp": "title:pride prejudice|Austen",
+     "text": "Read Grindon prejudice.",
+     "linked": [],
+     "ms": 2047.2673330223188
+    },
+    {
+     "clip": "04_Flo.wav",
+     "exp": "title:pride prejudice|Austen",
+     "text": "Replay the book of the book of the book of the book book of the book of the book of",
+     "linked": [],
+     "ms": 2305.619499995373
+    },
+    {
+     "clip": "04_Ama.wav",
+     "exp": "title:pride prejudice|Austen",
+     "text": "Reed Pride, Polak will be opposed to men and white and unprejudiced.",
+     "linked": [],
+     "ms": 2163.4772090474144
+    },
+    {
+     "clip": "05_Sam.wav",
+     "exp": "title:frankenstein|Shelley",
+     "text": "Read Frankenstein.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 2033.307874982711
+    },
+    {
+     "clip": "05_Dan.wav",
+     "exp": "title:frankenstein|Shelley",
+     "text": "Read Frankenstein.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 1942.2149170422927
+    },
+    {
+     "clip": "05_Flo.wav",
+     "exp": "title:frankenstein|Shelley",
+     "text": "read Frankenstein",
+     "linked": [
+      "Frankenstein"
+     ],
+     "ms": 1892.581166990567
+    },
+    {
+     "clip": "05_Ama.wav",
+     "exp": "title:frankenstein|Shelley",
+     "text": "Read the",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 1985.3162500075996
+    },
+    {
+     "clip": "06_Sam.wav",
+     "exp": "title:alice wonderland|Carroll",
+     "text": "Read Allison Wonderland.",
+     "linked": [],
+     "ms": 2143.008832994383
+    },
+    {
+     "clip": "06_Dan.wav",
+     "exp": "title:alice wonderland|Carroll",
+     "text": "Read Alice in Wonderland.",
+     "linked": [
+      "Alice in Wonderland"
+     ],
+     "ms": 2035.5872919899411
+    },
+    {
+     "clip": "06_Flo.wav",
+     "exp": "title:alice wonderland|Carroll",
+     "text": "Red diamonds and wands on that.",
+     "linked": [],
+     "ms": 2026.5196249820292
+    },
+    {
+     "clip": "06_Ama.wav",
+     "exp": "title:alice wonderland|Carroll",
+     "text": "Read Alice in Wonderland.",
+     "linked": [
+      "Alice in Wonderland"
+     ],
+     "ms": 1923.0244999635033
+    },
+    {
+     "clip": "07_Sam.wav",
+     "exp": "title:gatsby|Fitzgerald",
+     "text": "Read the Great Gatsby.",
+     "linked": [
+      "The Great Gatsby"
+     ],
+     "ms": 1784.4301669974811
+    },
+    {
+     "clip": "07_Dan.wav",
+     "exp": "title:gatsby|Fitzgerald",
+     "text": "Read the Great Gatsby.",
+     "linked": [
+      "The Great Gatsby"
+     ],
+     "ms": 1779.5825410285033
+    },
+    {
+     "clip": "07_Flo.wav",
+     "exp": "title:gatsby|Fitzgerald",
+     "text": "Read the book of the book.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 1895.1048330054618
+    },
+    {
+     "clip": "07_Ama.wav",
+     "exp": "title:gatsby|Fitzgerald",
+     "text": "Read the Great Gatsby.",
+     "linked": [
+      "The Great Gatsby"
+     ],
+     "ms": 1812.204040994402
+    },
+    {
+     "clip": "08_Sam.wav",
+     "exp": "title:dracula|Stoker",
+     "text": "Reed Dracula",
+     "linked": [
+      "Dracula"
+     ],
+     "ms": 1823.3387500513345
+    },
+    {
+     "clip": "08_Dan.wav",
+     "exp": "title:dracula|Stoker",
+     "text": "Read Dracula.",
+     "linked": [
+      "Dracula"
+     ],
+     "ms": 1782.5290000182576
+    },
+    {
+     "clip": "08_Flo.wav",
+     "exp": "title:dracula|Stoker",
+     "text": "Rejecting the",
+     "linked": [],
+     "ms": 1911.566374998074
+    },
+    {
+     "clip": "08_Ama.wav",
+     "exp": "title:dracula|Stoker",
+     "text": "Read Dracula.",
+     "linked": [
+      "Dracula"
+     ],
+     "ms": 1789.713541045785
+    },
+    {
+     "clip": "09_Sam.wav",
+     "exp": "title:time machine|Wells",
+     "text": "Read the time machine.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 1813.2641660049558
+    },
+    {
+     "clip": "09_Dan.wav",
+     "exp": "title:time machine|Wells",
+     "text": "Read the time machine.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 1813.892332953401
+    },
+    {
+     "clip": "09_Flo.wav",
+     "exp": "title:time machine|Wells",
+     "text": "read the time machine",
+     "linked": [],
+     "ms": 1642.9261249722913
+    },
+    {
+     "clip": "09_Ama.wav",
+     "exp": "title:time machine|Wells",
+     "text": "Read the time machine.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 1837.2084160218947
+    },
+    {
+     "clip": "10_Sam.wav",
+     "exp": "title:war peace|Tolstoy",
+     "text": "Read more and please.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 1795.995959022548
+    },
+    {
+     "clip": "10_Dan.wav",
+     "exp": "title:war peace|Tolstoy",
+     "text": "Read war and peace.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 1869.335959025193
+    },
+    {
+     "clip": "10_Flo.wav",
+     "exp": "title:war peace|Tolstoy",
+     "text": "Read war and peace.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 1787.6168750226498
+    },
+    {
+     "clip": "10_Ama.wav",
+     "exp": "title:war peace|Tolstoy",
+     "text": "Read war and peace.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 1819.959916989319
+    },
+    {
+     "clip": "11_Sam.wav",
+     "exp": "title:jane eyre|Bront\u00eb",
+     "text": "read Jane Eyre",
+     "linked": [
+      "Jane Eyre"
+     ],
+     "ms": 1839.5432499819435
+    },
+    {
+     "clip": "11_Dan.wav",
+     "exp": "title:jane eyre|Bront\u00eb",
+     "text": "Reject that.",
+     "linked": [],
+     "ms": 1900.895541999489
+    },
+    {
+     "clip": "11_Flo.wav",
+     "exp": "title:jane eyre|Bront\u00eb",
+     "text": "Read Jane Hood.",
+     "linked": [
+      "Jane Austen"
+     ],
+     "ms": 1812.4946250463836
+    },
+    {
+     "clip": "11_Ama.wav",
+     "exp": "title:jane eyre|Bront\u00eb",
+     "text": "Read Jane Eyre",
+     "linked": [
+      "Jane Eyre"
+     ],
+     "ms": 1825.4101250204258
+    },
+    {
+     "clip": "12_Sam.wav",
+     "exp": "title:wuthering heights|Bront\u00eb",
+     "text": "Read Wuthering Heights.",
+     "linked": [
+      "Wuthering Heights"
+     ],
+     "ms": 1857.5325410347432
+    },
+    {
+     "clip": "12_Dan.wav",
+     "exp": "title:wuthering heights|Bront\u00eb",
+     "text": "Read Wuthering Heights.",
+     "linked": [
+      "Wuthering Heights"
+     ],
+     "ms": 1954.2295419960283
+    },
+    {
+     "clip": "12_Flo.wav",
+     "exp": "title:wuthering heights|Bront\u00eb",
+     "text": "read Wuthering Heights.",
+     "linked": [
+      "Wuthering Heights"
+     ],
+     "ms": 1897.1149580320343
+    },
+    {
+     "clip": "12_Ama.wav",
+     "exp": "title:wuthering heights|Bront\u00eb",
+     "text": "Read Wuthering Heights.",
+     "linked": [
+      "Wuthering Heights"
+     ],
+     "ms": 1960.1584170013666
+    },
+    {
+     "clip": "13_Sam.wav",
+     "exp": "title:great expectations|Dickens",
+     "text": "Read Great Expectations.",
+     "linked": [
+      "Great Expectations"
+     ],
+     "ms": 1952.0034579909407
+    },
+    {
+     "clip": "13_Dan.wav",
+     "exp": "title:great expectations|Dickens",
+     "text": "Read Great Expectations.",
+     "linked": [
+      "Great Expectations"
+     ],
+     "ms": 1930.8930829865858
+    },
+    {
+     "clip": "13_Flo.wav",
+     "exp": "title:great expectations|Dickens",
+     "text": "Read Great Expectations.",
+     "linked": [
+      "Great Expectations"
+     ],
+     "ms": 1852.3310419986956
+    },
+    {
+     "clip": "13_Ama.wav",
+     "exp": "title:great expectations|Dickens",
+     "text": "Read Great Expectations.",
+     "linked": [
+      "Great Expectations"
+     ],
+     "ms": 1909.2295420123264
+    },
+    {
+     "clip": "14_Sam.wav",
+     "exp": "title:tale two cities|Dickens",
+     "text": "Play a tale of two cities.",
+     "linked": [],
+     "ms": 1872.5668750121258
+    },
+    {
+     "clip": "14_Dan.wav",
+     "exp": "title:tale two cities|Dickens",
+     "text": "Play a tale of two cities.",
+     "linked": [],
+     "ms": 1834.7742920159362
+    },
+    {
+     "clip": "14_Flo.wav",
+     "exp": "title:tale two cities|Dickens",
+     "text": "Play the tale of Tuesday Tuesday.",
+     "linked": [],
+     "ms": 2161.7123750038445
+    },
+    {
+     "clip": "14_Ama.wav",
+     "exp": "title:tale two cities|Dickens",
+     "text": "play a tale of two cities",
+     "linked": [],
+     "ms": 1820.4830840113573
+    },
+    {
+     "clip": "15_Sam.wav",
+     "exp": "title:call wild|London",
+     "text": "Read the call of the wild.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 2314.2262090113945
+    },
+    {
+     "clip": "15_Dan.wav",
+     "exp": "title:call wild|London",
+     "text": "Read the call of the wild.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 2007.8522089752369
+    },
+    {
+     "clip": "15_Flo.wav",
+     "exp": "title:call wild|London",
+     "text": "read the call of the wild",
+     "linked": [],
+     "ms": 1787.1498329914175
+    },
+    {
+     "clip": "15_Ama.wav",
+     "exp": "title:call wild|London",
+     "text": "Read the call of the wild.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 3318.9312500180677
+    },
+    {
+     "clip": "16_Sam.wav",
+     "exp": "title:little women|Alcott",
+     "text": "Read Lego women.",
+     "linked": [
+      "Group Psychology and The Analysis of The Ego"
+     ],
+     "ms": 4323.555332957767
+    },
+    {
+     "clip": "16_Dan.wav",
+     "exp": "title:little women|Alcott",
+     "text": "Read little women.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 3367.1005420037545
+    },
+    {
+     "clip": "16_Flo.wav",
+     "exp": "title:little women|Alcott",
+     "text": "Read with Owens.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read",
+      "John Algernon Owens"
+     ],
+     "ms": 5029.111999960151
+    },
+    {
+     "clip": "16_Ama.wav",
+     "exp": "title:little women|Alcott",
+     "text": "Read Little Women.",
+     "linked": [
+      "Little Women"
+     ],
+     "ms": 2759.343500016257
+    },
+    {
+     "clip": "17_Sam.wav",
+     "exp": "title:peter pan|Barrie",
+     "text": "Read Peter Pan.",
+     "linked": [
+      "Peter Pan"
+     ],
+     "ms": 2131.5097920014523
+    },
+    {
+     "clip": "17_Dan.wav",
+     "exp": "title:peter pan|Barrie",
+     "text": "Read Peter Pan",
+     "linked": [
+      "Peter Pan"
+     ],
+     "ms": 2077.0051250001416
+    },
+    {
+     "clip": "17_Flo.wav",
+     "exp": "title:peter pan|Barrie",
+     "text": "Repeat the plan.",
+     "linked": [],
+     "ms": 2046.2125840131193
+    },
+    {
+     "clip": "17_Ama.wav",
+     "exp": "title:peter pan|Barrie",
+     "text": "Read Peter Pan.",
+     "linked": [
+      "Peter Pan"
+     ],
+     "ms": 1934.4190830015577
+    },
+    {
+     "clip": "18_Sam.wav",
+     "exp": "title:dorian gray|Wilde",
+     "text": "Read the picture of Dorian Gray.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read",
+      "Helen Gray Cone"
+     ],
+     "ms": 2271.5714590158314
+    },
+    {
+     "clip": "18_Dan.wav",
+     "exp": "title:dorian gray|Wilde",
+     "text": "Read the picture of Dorian Gray.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read",
+      "Helen Gray Cone"
+     ],
+     "ms": 2064.3456659745425
+    },
+    {
+     "clip": "18_Flo.wav",
+     "exp": "title:dorian gray|Wilde",
+     "text": "Read the picture of Dorian Gray.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read",
+      "Helen Gray Cone"
+     ],
+     "ms": 2308.133957965765
+    },
+    {
+     "clip": "18_Ama.wav",
+     "exp": "title:dorian gray|Wilde",
+     "text": "Read the picture of the earth lover's thermal pizza hissing pashchimi, a freaky land in a V and D only.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 2869.1117910202593
+    },
+    {
+     "clip": "19_Sam.wav",
+     "exp": "title:monte cristo|Dumas",
+     "text": "Read the count of Monte Christo.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read",
+      "The Son of Monte-Cristo"
+     ],
+     "ms": 2299.2132919607684
+    },
+    {
+     "clip": "19_Dan.wav",
+     "exp": "title:monte cristo|Dumas",
+     "text": "Rebound count of Monte Christo.",
+     "linked": [
+      "Agatha Christie"
+     ],
+     "ms": 2235.559332999401
+    },
+    {
+     "clip": "19_Flo.wav",
+     "exp": "title:monte cristo|Dumas",
+     "text": "Read the account of Monte Cristo.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read",
+      "The Son of Monte-Cristo"
+     ],
+     "ms": 2230.7625410030596
+    },
+    {
+     "clip": "19_Ama.wav",
+     "exp": "title:monte cristo|Dumas",
+     "text": "Read the count of Monte Christo.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read",
+      "The Son of Monte-Cristo"
+     ],
+     "ms": 2320.492250029929
+    },
+    {
+     "clip": "20_Sam.wav",
+     "exp": "title:baskervilles|Doyle",
+     "text": "Read the hound of the Baskervilles.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read",
+      "The Hound of the Baskervilles"
+     ],
+     "ms": 2196.5016669710167
+    },
+    {
+     "clip": "20_Dan.wav",
+     "exp": "title:baskervilles|Doyle",
+     "text": "Read the hound of the basketball.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 2053.807958960533
+    },
+    {
+     "clip": "20_Flo.wav",
+     "exp": "title:baskervilles|Doyle",
+     "text": "Read the hand of the Oscar Mills.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 1960.0414999877103
+    },
+    {
+     "clip": "20_Ama.wav",
+     "exp": "title:baskervilles|Doyle",
+     "text": "Read Hayward of Space Careers.",
+     "linked": [
+      "Thomas Hardy"
+     ],
+     "ms": 2164.914582972415
+    },
+    {
+     "clip": "21_Sam.wav",
+     "exp": "title:heart darkness|Conrad",
+     "text": "Rehard of darkness.",
+     "linked": [],
+     "ms": 2066.2284159916453
+    },
+    {
+     "clip": "21_Dan.wav",
+     "exp": "title:heart darkness|Conrad",
+     "text": "Reed Hodg of Darkness.",
+     "linked": [],
+     "ms": 2121.5081670088693
+    },
+    {
+     "clip": "21_Flo.wav",
+     "exp": "title:heart darkness|Conrad",
+     "text": "Read out of darkness.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 2005.063541000709
+    },
+    {
+     "clip": "21_Ama.wav",
+     "exp": "title:heart darkness|Conrad",
+     "text": "Read hard of darkness.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 3682.3789999471046
+    },
+    {
+     "clip": "22_Sam.wav",
+     "exp": "title:jungle book|Kipling",
+     "text": "Read the Jungle Book.",
+     "linked": [
+      "The Jungle Book"
+     ],
+     "ms": 2593.0891250027344
+    },
+    {
+     "clip": "22_Dan.wav",
+     "exp": "title:jungle book|Kipling",
+     "text": "Read the jungle book.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 1871.3932090322487
+    },
+    {
+     "clip": "22_Flo.wav",
+     "exp": "title:jungle book|Kipling",
+     "text": "Read the jungle book.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 2041.8945830315351
+    },
+    {
+     "clip": "22_Ama.wav",
+     "exp": "title:jungle book|Kipling",
+     "text": "Read the jungle book.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 2103.2994160195813
+    },
+    {
+     "clip": "23_Sam.wav",
+     "exp": "title:green gables|Montgomery",
+     "text": "Read on the Green Gables.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 1906.2621250050142
+    },
+    {
+     "clip": "23_Dan.wav",
+     "exp": "title:green gables|Montgomery",
+     "text": "Read and agreeing gables.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 1995.044041017536
+    },
+    {
+     "clip": "23_Flo.wav",
+     "exp": "title:green gables|Montgomery",
+     "text": "Read out of Green Goebbels.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 1922.1792499884032
+    },
+    {
+     "clip": "23_Ama.wav",
+     "exp": "title:green gables|Montgomery",
+     "text": "Read and of green gables.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 1788.6627089465037
+    },
+    {
+     "clip": "24_Sam.wav",
+     "exp": "title:secret garden|Burnett",
+     "text": "Read the secret garden.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 1895.4792079748586
+    },
+    {
+     "clip": "24_Dan.wav",
+     "exp": "title:secret garden|Burnett",
+     "text": "We the Secret Garden.",
+     "linked": [
+      "The Secret Garden"
+     ],
+     "ms": 1798.0400830274448
+    },
+    {
+     "clip": "24_Flo.wav",
+     "exp": "title:secret garden|Burnett",
+     "text": "Read the secret garden.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 1978.973750025034
+    },
+    {
+     "clip": "24_Ama.wav",
+     "exp": "title:secret garden|Burnett",
+     "text": "Read the secret garden.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 1805.7553329854272
+    },
+    {
+     "clip": "25_Sam.wav",
+     "exp": "title:gulliver|Swift",
+     "text": "Regullovers travels.",
+     "linked": [],
+     "ms": 1871.7613330227323
+    },
+    {
+     "clip": "25_Dan.wav",
+     "exp": "title:gulliver|Swift",
+     "text": "Read Gulliver's Travels.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 1995.2190420008264
+    },
+    {
+     "clip": "25_Flo.wav",
+     "exp": "title:gulliver|Swift",
+     "text": "Read Gummy Witch medals.",
+     "linked": [],
+     "ms": 1868.8462909776717
+    },
+    {
+     "clip": "25_Ama.wav",
+     "exp": "title:gulliver|Swift",
+     "text": "Read Travels.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 1883.3701250259764
+    },
+    {
+     "clip": "26_Sam.wav",
+     "exp": "title:quixote|Cervantes",
+     "text": "Read Don Quixote.",
+     "linked": [
+      "Don Quixote"
+     ],
+     "ms": 1764.7606669925153
+    },
+    {
+     "clip": "26_Dan.wav",
+     "exp": "title:quixote|Cervantes",
+     "text": "Read Don Quixote.",
+     "linked": [
+      "Don Quixote"
+     ],
+     "ms": 1869.6909999707714
+    },
+    {
+     "clip": "26_Flo.wav",
+     "exp": "title:quixote|Cervantes",
+     "text": "Read Don Quixote.",
+     "linked": [
+      "Don Quixote"
+     ],
+     "ms": 1776.5533330384642
+    },
+    {
+     "clip": "26_Ama.wav",
+     "exp": "title:quixote|Cervantes",
+     "text": "Read Don Quixote.",
+     "linked": [
+      "Don Quixote"
+     ],
+     "ms": 1913.4277080302127
+    },
+    {
+     "clip": "27_Sam.wav",
+     "exp": "title:mis\u00e9rables|Hugo",
+     "text": "Reed Lane is a Rob Wells.",
+     "linked": [],
+     "ms": 2113.8634579838254
+    },
+    {
+     "clip": "27_Dan.wav",
+     "exp": "title:mis\u00e9rables|Hugo",
+     "text": "Read Lame Is Around.",
+     "linked": [],
+     "ms": 1844.8129579774104
+    },
+    {
+     "clip": "27_Flo.wav",
+     "exp": "title:mis\u00e9rables|Hugo",
+     "text": "Read Mr. Ms. of the book.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read",
+      "The Green Mouse"
+     ],
+     "ms": 1923.704084008932
+    },
+    {
+     "clip": "27_Ama.wav",
+     "exp": "title:mis\u00e9rables|Hugo",
+     "text": "Read Leslie Sullivan's",
+     "linked": [],
+     "ms": 1913.6928329826333
+    },
+    {
+     "clip": "28_Sam.wav",
+     "exp": "title:tom sawyer|Twain",
+     "text": "Read the adventures of Tom Sawyer.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 2074.1189580294304
+    },
+    {
+     "clip": "28_Dan.wav",
+     "exp": "title:tom sawyer|Twain",
+     "text": "Really adventures of Tom Sawyer.",
+     "linked": [],
+     "ms": 2076.2375409831293
+    },
+    {
+     "clip": "28_Flo.wav",
+     "exp": "title:tom sawyer|Twain",
+     "text": "Read the adventures of Tom Sawyer.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 2200.333792017773
+    },
+    {
+     "clip": "28_Ama.wav",
+     "exp": "title:tom sawyer|Twain",
+     "text": "Read adventures of",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 2273.149957996793
+    },
+    {
+     "clip": "29_Sam.wav",
+     "exp": "title:jekyll hyde|Stevenson",
+     "text": "Read the strange case of Dr. Jekyll and Mr. High.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 2407.790458004456
+    },
+    {
+     "clip": "29_Dan.wav",
+     "exp": "title:jekyll hyde|Stevenson",
+     "text": "Read the strange case of Dr. Jekyll and Mr.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 2419.1954170237295
+    },
+    {
+     "clip": "29_Flo.wav",
+     "exp": "title:jekyll hyde|Stevenson",
+     "text": "Read the strange case of Michael Jackson on Mr. Hyde.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read",
+      "The strange case of Dr. Jekyll and Mr. Hyde"
+     ],
+     "ms": 2207.3053340427577
+    },
+    {
+     "clip": "29_Ama.wav",
+     "exp": "title:jekyll hyde|Stevenson",
+     "text": "Read strange case of Dr. Jekyll and Mr. Hyde.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read",
+      "The strange case of Dr. Jekyll and Mr. Hyde"
+     ],
+     "ms": 2248.403999954462
+    },
+    {
+     "clip": "30_Sam.wav",
+     "exp": "title:war worlds|Wells",
+     "text": "Read the war of the worlds.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 1804.1688749799505
+    },
+    {
+     "clip": "30_Dan.wav",
+     "exp": "title:war worlds|Wells",
+     "text": "Read the war of the worlds.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 1861.4769169944339
+    },
+    {
+     "clip": "30_Flo.wav",
+     "exp": "title:war worlds|Wells",
+     "text": "Read the war of the world.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 1816.4236660231836
+    },
+    {
+     "clip": "30_Ama.wav",
+     "exp": "title:war worlds|Wells",
+     "text": "Read the world of the worlds.",
+     "linked": [
+      "The Pilgrim's Progress by John Bunyan Every Child Can Read"
+     ],
+     "ms": 1797.5570840062574
+    },
+    {
+     "clip": "31_Sam.wav",
+     "exp": "author:Austen",
+     "text": "Play something by Jane Austen.",
+     "linked": [
+      "Jane Austen"
+     ],
+     "ms": 1934.453708003275
+    },
+    {
+     "clip": "31_Dan.wav",
+     "exp": "author:Austen",
+     "text": "Play something by Jane Austen.",
+     "linked": [
+      "Jane Austen"
+     ],
+     "ms": 1904.2056250036694
+    },
+    {
+     "clip": "31_Flo.wav",
+     "exp": "author:Austen",
+     "text": "Play something by Jane Austen.",
+     "linked": [
+      "Jane Austen"
+     ],
+     "ms": 1981.4002920174971
+    },
+    {
+     "clip": "31_Ama.wav",
+     "exp": "author:Austen",
+     "text": "Play something by Jane Austen.",
+     "linked": [
+      "Jane Austen"
+     ],
+     "ms": 1886.032082955353
+    },
+    {
+     "clip": "32_Sam.wav",
+     "exp": "author:Twain",
+     "text": "Books by Mark Twain.",
+     "linked": [
+      "How to write Little Blue Books",
+      "Mark Twain"
+     ],
+     "ms": 1849.8075420502573
+    },
+    {
+     "clip": "32_Dan.wav",
+     "exp": "author:Twain",
+     "text": "Books by Mark Twain.",
+     "linked": [
+      "How to write Little Blue Books",
+      "Mark Twain"
+     ],
+     "ms": 1912.669499986805
+    },
+    {
+     "clip": "32_Flo.wav",
+     "exp": "author:Twain",
+     "text": "What's the time of the train?",
+     "linked": [],
+     "ms": 1888.8521250337362
+    },
+    {
+     "clip": "32_Ama.wav",
+     "exp": "author:Twain",
+     "text": "Books by Mark Twain.",
+     "linked": [
+      "How to write Little Blue Books",
+      "Mark Twain"
+     ],
+     "ms": 1823.9929580013268
+    },
+    {
+     "clip": "33_Sam.wav",
+     "exp": "author:Dickens",
+     "text": "Show me books by Charles Dickens.",
+     "linked": [
+      "Charles Dickens"
+     ],
+     "ms": 2002.881707972847
+    },
+    {
+     "clip": "33_Dan.wav",
+     "exp": "author:Dickens",
+     "text": "Show me books by Charles Dickens.",
+     "linked": [
+      "Charles Dickens"
+     ],
+     "ms": 2074.129084008746
+    },
+    {
+     "clip": "33_Flo.wav",
+     "exp": "author:Dickens",
+     "text": "Show me bookstore charms bookings.",
+     "linked": [],
+     "ms": 1821.457666985225
+    },
+    {
+     "clip": "33_Ama.wav",
+     "exp": "author:Dickens",
+     "text": "Show me books by Charles Dickens.",
+     "linked": [
+      "Charles Dickens"
+     ],
+     "ms": 1940.6540829804726
+    },
+    {
+     "clip": "34_Sam.wav",
+     "exp": "author:Wilde",
+     "text": "What did Oscar Wilde write?",
+     "linked": [
+      "Oscar Wilde"
+     ],
+     "ms": 1934.3307499657385
+    },
+    {
+     "clip": "34_Dan.wav",
+     "exp": "author:Wilde",
+     "text": "What did Oscar Wilde write?",
+     "linked": [
+      "Oscar Wilde"
+     ],
+     "ms": 1883.1596249947324
+    },
+    {
+     "clip": "34_Flo.wav",
+     "exp": "author:Wilde",
+     "text": "What do you touch the wild light?",
+     "linked": [],
+     "ms": 2348.2031250023283
+    },
+    {
+     "clip": "34_Ama.wav",
+     "exp": "author:Wilde",
+     "text": "What did Oscar",
+     "linked": [
+      "Oscar Wilde"
+     ],
+     "ms": 2070.1487920014188
+    },
+    {
+     "clip": "35_Sam.wav",
+     "exp": "author:Doyle",
+     "text": "Books by Arthur Conan Doyle.",
+     "linked": [
+      "How to write Little Blue Books",
+      "Arthur Conan Doyle"
+     ],
+     "ms": 2062.3245000024326
+    },
+    {
+     "clip": "35_Dan.wav",
+     "exp": "author:Doyle",
+     "text": "Books by Arthur Conan Doyle",
+     "linked": [
+      "How to write Little Blue Books",
+      "Arthur Conan Doyle"
+     ],
+     "ms": 1782.6842500362545
+    },
+    {
+     "clip": "35_Flo.wav",
+     "exp": "author:Doyle",
+     "text": "book spy off of Conan Doyle.",
+     "linked": [
+      "Arthur Conan Doyle"
+     ],
+     "ms": 1870.1457499992102
+    },
+    {
+     "clip": "35_Ama.wav",
+     "exp": "author:Doyle",
+     "text": "Books by Arthur Colin Doyle",
+     "linked": [
+      "How to write Little Blue Books",
+      "Arthur Conan Doyle"
+     ],
+     "ms": 1855.3995840484276
+    },
+    {
+     "clip": "36_Sam.wav",
+     "exp": "author:Poe",
+     "text": "Place something by a girl and pearl and pearl.",
+     "linked": [],
+     "ms": 1891.9497919850983
+    },
+    {
+     "clip": "36_Dan.wav",
+     "exp": "author:Poe",
+     "text": "Play something by Edgar Allan Poe.",
+     "linked": [
+      "Edgar Allan Poe"
+     ],
+     "ms": 1972.8289170307107
+    },
+    {
+     "clip": "36_Flo.wav",
+     "exp": "author:Poe",
+     "text": "Play songs in my Aaron Monk book.",
+     "linked": [
+      "The Monk"
+     ],
+     "ms": 1958.163124974817
+    },
+    {
+     "clip": "36_Ama.wav",
+     "exp": "author:Poe",
+     "text": "Play something by Aaron Poe.",
+     "linked": [
+      "Edgar Allan Poe"
+     ],
+     "ms": 1879.870333999861
+    },
+    {
+     "clip": "37_Sam.wav",
+     "exp": "author:London",
+     "text": "Books by Jack London.",
+     "linked": [
+      "How to write Little Blue Books",
+      "Jack London"
+     ],
+     "ms": 1745.7050420343876
+    },
+    {
+     "clip": "37_Dan.wav",
+     "exp": "author:London",
+     "text": "Books by Jack London.",
+     "linked": [
+      "How to write Little Blue Books",
+      "Jack London"
+     ],
+     "ms": 1733.6185830063187
+    },
+    {
+     "clip": "37_Flo.wav",
+     "exp": "author:London",
+     "text": "What's my joke, London?",
+     "linked": [
+      "Jack London"
+     ],
+     "ms": 2011.0457499977201
+    },
+    {
+     "clip": "37_Ama.wav",
+     "exp": "author:London",
+     "text": "Books by Jack London.",
+     "linked": [
+      "How to write Little Blue Books",
+      "Jack London"
+     ],
+     "ms": 1723.51354197599
+    },
+    {
+     "clip": "38_Sam.wav",
+     "exp": "author:Christie",
+     "text": "Books by Agatha Christie.",
+     "linked": [
+      "How to write Little Blue Books",
+      "Agatha Christie"
+     ],
+     "ms": 1860.2265000226907
+    },
+    {
+     "clip": "38_Dan.wav",
+     "exp": "author:Christie",
+     "text": "Books by Agatha Christie.",
+     "linked": [
+      "How to write Little Blue Books",
+      "Agatha Christie"
+     ],
+     "ms": 1776.5870410366915
+    },
+    {
+     "clip": "38_Flo.wav",
+     "exp": "author:Christie",
+     "text": "What's my I guess of Christie?",
+     "linked": [
+      "Agatha Christie"
+     ],
+     "ms": 2164.2052909592167
+    },
+    {
+     "clip": "38_Ama.wav",
+     "exp": "author:Christie",
+     "text": "Books by Agatha Christie.",
+     "linked": [
+      "How to write Little Blue Books",
+      "Agatha Christie"
+     ],
+     "ms": 1730.3463339922018
+    }
+   ]
+  },
+  "top 20 candidates (live RAG) as the list": {
+   "score": {
+    "title": {
+     "right": 55,
+     "n": 120,
+     "wrong_link": 11
+    },
+    "author": {
+     "right": 25,
+     "n": 32,
+     "wrong_link": 2
+    },
+    "all": {
+     "right": 80,
+     "n": 152,
+     "wrong_link": 13
+    }
+   },
+   "ms_median": 464.2511249985546,
+   "rows": [
+    {
+     "clip": "01_Sam.wav",
+     "exp": "title:treasure island|Stevenson",
+     "text": "read Treasure Island.",
+     "linked": [
+      "Treasure Island"
+     ],
+     "ms": 447.37054203869775
+    },
+    {
+     "clip": "01_Dan.wav",
+     "exp": "title:treasure island|Stevenson",
+     "text": "read Treasure Island.",
+     "linked": [
+      "Treasure Island"
+     ],
+     "ms": 525.9200420114212
+    },
+    {
+     "clip": "01_Flo.wav",
+     "exp": "title:treasure island|Stevenson",
+     "text": "read Mr. Reinund.",
+     "linked": [],
+     "ms": 532.0355410221964
+    },
+    {
+     "clip": "01_Ama.wav",
+     "exp": "title:treasure island|Stevenson",
+     "text": "read Trej Island.",
+     "linked": [
+      "The island"
+     ],
+     "ms": 489.51041704276577
+    },
+    {
+     "clip": "02_Sam.wav",
+     "exp": "title:sherlock holmes|Doyle",
+     "text": "Plays your lock homes.",
+     "linked": [],
+     "ms": 506.71554199652746
+    },
+    {
+     "clip": "02_Dan.wav",
+     "exp": "title:sherlock holmes|Doyle",
+     "text": "Please share my homes.",
+     "linked": [],
+     "ms": 302.77820804622024
+    },
+    {
+     "clip": "02_Flo.wav",
+     "exp": "title:sherlock holmes|Doyle",
+     "text": "Make sure my clothes.",
+     "linked": [],
+     "ms": 287.6214580028318
+    },
+    {
+     "clip": "02_Ama.wav",
+     "exp": "title:sherlock holmes|Doyle",
+     "text": "Peter Troy's term will be suggesting Pashchimi Afiki randomly only only Holmes.",
+     "linked": [],
+     "ms": 1065.3232079930604
+    },
+    {
+     "clip": "03_Sam.wav",
+     "exp": "title:moby dick|Melville",
+     "text": "Read Moby Dick.",
+     "linked": [
+      "Moby Dick"
+     ],
+     "ms": 354.6021669753827
+    },
+    {
+     "clip": "03_Dan.wav",
+     "exp": "title:moby dick|Melville",
+     "text": "read Moby Dick.",
+     "linked": [
+      "Moby Dick"
+     ],
+     "ms": 491.33462499594316
+    },
+    {
+     "clip": "03_Flo.wav",
+     "exp": "title:moby dick|Melville",
+     "text": "read Moby Dick.",
+     "linked": [
+      "Moby Dick"
+     ],
+     "ms": 541.5279159788042
+    },
+    {
+     "clip": "03_Ama.wav",
+     "exp": "title:moby dick|Melville",
+     "text": "read Moby Dick.",
+     "linked": [
+      "Moby Dick"
+     ],
+     "ms": 494.7151660453528
+    },
+    {
+     "clip": "04_Sam.wav",
+     "exp": "title:pride prejudice|Austen",
+     "text": "Reed Pride and Prejudice",
+     "linked": [
+      "Pride and Prejudice"
+     ],
+     "ms": 676.9678340060636
+    },
+    {
+     "clip": "04_Dan.wav",
+     "exp": "title:pride prejudice|Austen",
+     "text": "read Pride and Prejudice.",
+     "linked": [
+      "Pride and Prejudice"
+     ],
+     "ms": 564.0273749595508
+    },
+    {
+     "clip": "04_Flo.wav",
+     "exp": "title:pride prejudice|Austen",
+     "text": "Replay the prejudice.",
+     "linked": [],
+     "ms": 602.6627920218743
+    },
+    {
+     "clip": "04_Ama.wav",
+     "exp": "title:pride prejudice|Austen",
+     "text": "read pride Polak will be opposed to men and might in our prejudice.",
+     "linked": [],
+     "ms": 776.7554580350406
+    },
+    {
+     "clip": "05_Sam.wav",
+     "exp": "title:frankenstein|Shelley",
+     "text": "Read Frankenstein.",
+     "linked": [
+      "Frankenstein"
+     ],
+     "ms": 324.96837503276765
+    },
+    {
+     "clip": "05_Dan.wav",
+     "exp": "title:frankenstein|Shelley",
+     "text": "read Frankenstein",
+     "linked": [
+      "Frankenstein"
+     ],
+     "ms": 388.1396669894457
+    },
+    {
+     "clip": "05_Flo.wav",
+     "exp": "title:frankenstein|Shelley",
+     "text": "read Frankenstein",
+     "linked": [
+      "Frankenstein"
+     ],
+     "ms": 531.7100829561241
+    },
+    {
+     "clip": "05_Ama.wav",
+     "exp": "title:frankenstein|Shelley",
+     "text": "read",
+     "linked": [],
+     "ms": 279.48970801662654
+    },
+    {
+     "clip": "06_Sam.wav",
+     "exp": "title:alice wonderland|Carroll",
+     "text": "read Allison Wonderland.",
+     "linked": [
+      "Wonderland"
+     ],
+     "ms": 429.70283300383016
+    },
+    {
+     "clip": "06_Dan.wav",
+     "exp": "title:alice wonderland|Carroll",
+     "text": "Read Alison Wonderland.",
+     "linked": [
+      "Wonderland"
+     ],
+     "ms": 599.1398330079392
+    },
+    {
+     "clip": "06_Flo.wav",
+     "exp": "title:alice wonderland|Carroll",
+     "text": "Three diamonds in one demand.",
+     "linked": [],
+     "ms": 628.3328750287183
+    },
+    {
+     "clip": "06_Ama.wav",
+     "exp": "title:alice wonderland|Carroll",
+     "text": "read Alice in Wonderland.",
+     "linked": [
+      "Alice in Wonderland"
+     ],
+     "ms": 399.9185829889029
+    },
+    {
+     "clip": "07_Sam.wav",
+     "exp": "title:gatsby|Fitzgerald",
+     "text": "read The Great Gatsby.",
+     "linked": [
+      "The Great Gatsby"
+     ],
+     "ms": 512.7819160115905
+    },
+    {
+     "clip": "07_Dan.wav",
+     "exp": "title:gatsby|Fitzgerald",
+     "text": "read The Great Gatsby.",
+     "linked": [
+      "The Great Gatsby"
+     ],
+     "ms": 374.0230419789441
+    },
+    {
+     "clip": "07_Flo.wav",
+     "exp": "title:gatsby|Fitzgerald",
+     "text": "read a great god's name",
+     "linked": [],
+     "ms": 367.46924999170005
+    },
+    {
+     "clip": "07_Ama.wav",
+     "exp": "title:gatsby|Fitzgerald",
+     "text": "Read the great Gatsby.",
+     "linked": [
+      "The Great Gatsby"
+     ],
+     "ms": 351.9409170257859
+    },
+    {
+     "clip": "08_Sam.wav",
+     "exp": "title:dracula|Stoker",
+     "text": "read Dracula",
+     "linked": [
+      "Dracula"
+     ],
+     "ms": 294.5131660089828
+    },
+    {
+     "clip": "08_Dan.wav",
+     "exp": "title:dracula|Stoker",
+     "text": "read Dracula",
+     "linked": [
+      "Dracula"
+     ],
+     "ms": 403.17008300917223
+    },
+    {
+     "clip": "08_Flo.wav",
+     "exp": "title:dracula|Stoker",
+     "text": "red rack in the",
+     "linked": [],
+     "ms": 315.01754198689014
+    },
+    {
+     "clip": "08_Ama.wav",
+     "exp": "title:dracula|Stoker",
+     "text": "read Dracula.",
+     "linked": [
+      "Dracula"
+     ],
+     "ms": 382.1779160061851
+    },
+    {
+     "clip": "09_Sam.wav",
+     "exp": "title:time machine|Wells",
+     "text": "read the time machine",
+     "linked": [],
+     "ms": 409.80787499574944
+    },
+    {
+     "clip": "09_Dan.wav",
+     "exp": "title:time machine|Wells",
+     "text": "read the time machine",
+     "linked": [],
+     "ms": 296.6687090229243
+    },
+    {
+     "clip": "09_Flo.wav",
+     "exp": "title:time machine|Wells",
+     "text": "read the time machine",
+     "linked": [],
+     "ms": 301.98666697833687
+    },
+    {
+     "clip": "09_Ama.wav",
+     "exp": "title:time machine|Wells",
+     "text": "Read the time machine.",
+     "linked": [],
+     "ms": 441.4251249982044
+    },
+    {
+     "clip": "10_Sam.wav",
+     "exp": "title:war peace|Tolstoy",
+     "text": "Three more MPs.",
+     "linked": [],
+     "ms": 396.8240839894861
+    },
+    {
+     "clip": "10_Dan.wav",
+     "exp": "title:war peace|Tolstoy",
+     "text": "read War and Peace.",
+     "linked": [
+      "War and Peace"
+     ],
+     "ms": 486.6984999971464
+    },
+    {
+     "clip": "10_Flo.wav",
+     "exp": "title:war peace|Tolstoy",
+     "text": "read War and Peace.",
+     "linked": [
+      "War and Peace"
+     ],
+     "ms": 506.55741698574275
+    },
+    {
+     "clip": "10_Ama.wav",
+     "exp": "title:war peace|Tolstoy",
+     "text": "read War and Peace.",
+     "linked": [
+      "War and Peace"
+     ],
+     "ms": 502.9135409859009
+    },
+    {
+     "clip": "11_Sam.wav",
+     "exp": "title:jane eyre|Bront\u00eb",
+     "text": "read Jane Eyre",
+     "linked": [
+      "Jane Eyre"
+     ],
+     "ms": 646.2443330092356
+    },
+    {
+     "clip": "11_Dan.wav",
+     "exp": "title:jane eyre|Bront\u00eb",
+     "text": "read Jayna.",
+     "linked": [
+      "John Rae"
+     ],
+     "ms": 538.6786249582656
+    },
+    {
+     "clip": "11_Flo.wav",
+     "exp": "title:jane eyre|Bront\u00eb",
+     "text": "read Jingle.",
+     "linked": [
+      "Jingles"
+     ],
+     "ms": 340.11129202554
+    },
+    {
+     "clip": "11_Ama.wav",
+     "exp": "title:jane eyre|Bront\u00eb",
+     "text": "read Jane Eyre",
+     "linked": [
+      "Jane Eyre"
+     ],
+     "ms": 349.14812503848225
+    },
+    {
+     "clip": "12_Sam.wav",
+     "exp": "title:wuthering heights|Bront\u00eb",
+     "text": "Read Wuthering Heights.",
+     "linked": [
+      "Wuthering Heights"
+     ],
+     "ms": 524.9484579544514
+    },
+    {
+     "clip": "12_Dan.wav",
+     "exp": "title:wuthering heights|Bront\u00eb",
+     "text": "read Wuthering Heights.",
+     "linked": [
+      "Wuthering Heights"
+     ],
+     "ms": 564.1034580185078
+    },
+    {
+     "clip": "12_Flo.wav",
+     "exp": "title:wuthering heights|Bront\u00eb",
+     "text": "read Wuthering House.",
+     "linked": [],
+     "ms": 524.2002080194652
+    },
+    {
+     "clip": "12_Ama.wav",
+     "exp": "title:wuthering heights|Bront\u00eb",
+     "text": "Read Wuthering Heights.",
+     "linked": [
+      "Wuthering Heights"
+     ],
+     "ms": 345.0238750083372
+    },
+    {
+     "clip": "13_Sam.wav",
+     "exp": "title:great expectations|Dickens",
+     "text": "Read Great Expectations.",
+     "linked": [
+      "Great Expectations"
+     ],
+     "ms": 485.91175000183284
+    },
+    {
+     "clip": "13_Dan.wav",
+     "exp": "title:great expectations|Dickens",
+     "text": "Read Great Expectations.",
+     "linked": [
+      "Great Expectations"
+     ],
+     "ms": 303.5492079798132
+    },
+    {
+     "clip": "13_Flo.wav",
+     "exp": "title:great expectations|Dickens",
+     "text": "Read Great Expectations.",
+     "linked": [
+      "Great Expectations"
+     ],
+     "ms": 337.2107920004055
+    },
+    {
+     "clip": "13_Ama.wav",
+     "exp": "title:great expectations|Dickens",
+     "text": "read Great Expectations.",
+     "linked": [
+      "Great Expectations"
+     ],
+     "ms": 465.2779169846326
+    },
+    {
+     "clip": "14_Sam.wav",
+     "exp": "title:tale two cities|Dickens",
+     "text": "play a tale of two cities.",
+     "linked": [],
+     "ms": 388.4009159519337
+    },
+    {
+     "clip": "14_Dan.wav",
+     "exp": "title:tale two cities|Dickens",
+     "text": "play a tale of two cities.",
+     "linked": [],
+     "ms": 377.76354199741036
+    },
+    {
+     "clip": "14_Flo.wav",
+     "exp": "title:tale two cities|Dickens",
+     "text": "May I tell you about two cities?",
+     "linked": [],
+     "ms": 387.15670799138024
+    },
+    {
+     "clip": "14_Ama.wav",
+     "exp": "title:tale two cities|Dickens",
+     "text": "play a tale of two cities.",
+     "linked": [],
+     "ms": 343.3835409814492
+    },
+    {
+     "clip": "15_Sam.wav",
+     "exp": "title:call wild|London",
+     "text": "read The Call of the Wild.",
+     "linked": [
+      "The call of the wild"
+     ],
+     "ms": 324.1431670030579
+    },
+    {
+     "clip": "15_Dan.wav",
+     "exp": "title:call wild|London",
+     "text": "read The Call of the Wild.",
+     "linked": [
+      "The call of the wild"
+     ],
+     "ms": 331.2721669790335
+    },
+    {
+     "clip": "15_Flo.wav",
+     "exp": "title:call wild|London",
+     "text": "read her call on the wild.",
+     "linked": [],
+     "ms": 319.4293749984354
+    },
+    {
+     "clip": "15_Ama.wav",
+     "exp": "title:call wild|London",
+     "text": "read The Call of the Wild.",
+     "linked": [
+      "The call of the wild"
+     ],
+     "ms": 328.12087499769405
+    },
+    {
+     "clip": "16_Sam.wav",
+     "exp": "title:little women|Alcott",
+     "text": "read Lego women.",
+     "linked": [],
+     "ms": 338.9980000210926
+    },
+    {
+     "clip": "16_Dan.wav",
+     "exp": "title:little women|Alcott",
+     "text": "read Little Women.",
+     "linked": [
+      "Little Women"
+     ],
+     "ms": 267.64408400049433
+    },
+    {
+     "clip": "16_Flo.wav",
+     "exp": "title:little women|Alcott",
+     "text": "read Little Women.",
+     "linked": [
+      "Little Women"
+     ],
+     "ms": 275.25787497870624
+    },
+    {
+     "clip": "16_Ama.wav",
+     "exp": "title:little women|Alcott",
+     "text": "read Little Women.",
+     "linked": [
+      "Little Women"
+     ],
+     "ms": 249.33595804031938
+    },
+    {
+     "clip": "17_Sam.wav",
+     "exp": "title:peter pan|Barrie",
+     "text": "read Peter Pan.",
+     "linked": [
+      "Peter Pan"
+     ],
+     "ms": 328.6177919944748
+    },
+    {
+     "clip": "17_Dan.wav",
+     "exp": "title:peter pan|Barrie",
+     "text": "read Peter Pan",
+     "linked": [
+      "Peter Pan"
+     ],
+     "ms": 478.8643750362098
+    },
+    {
+     "clip": "17_Flo.wav",
+     "exp": "title:peter pan|Barrie",
+     "text": "repeat the plan",
+     "linked": [],
+     "ms": 479.11612497409806
+    },
+    {
+     "clip": "17_Ama.wav",
+     "exp": "title:peter pan|Barrie",
+     "text": "Read Peter Pan.",
+     "linked": [
+      "Peter Annet"
+     ],
+     "ms": 314.3494589603506
+    },
+    {
+     "clip": "18_Sam.wav",
+     "exp": "title:dorian gray|Wilde",
+     "text": "read the picture of Dorian Gray.",
+     "linked": [],
+     "ms": 570.4397080116905
+    },
+    {
+     "clip": "18_Dan.wav",
+     "exp": "title:dorian gray|Wilde",
+     "text": "read the picture of Dorian Gray.",
+     "linked": [],
+     "ms": 392.273917037528
+    },
+    {
+     "clip": "18_Flo.wav",
+     "exp": "title:dorian gray|Wilde",
+     "text": "read a picture of Doria Gray.",
+     "linked": [],
+     "ms": 448.40604200726375
+    },
+    {
+     "clip": "18_Ama.wav",
+     "exp": "title:dorian gray|Wilde",
+     "text": "Read the picture clear to West Hamel pizza hissing Pashchimi, a freaky rind in a VND only.",
+     "linked": [],
+     "ms": 1065.4112090123817
+    },
+    {
+     "clip": "19_Sam.wav",
+     "exp": "title:monte cristo|Dumas",
+     "text": "read The Count of Monte Christo.",
+     "linked": [],
+     "ms": 416.9197920127772
+    },
+    {
+     "clip": "19_Dan.wav",
+     "exp": "title:monte cristo|Dumas",
+     "text": "Rebound of Monty Christo.",
+     "linked": [
+      "The Son of Monte-Cristo"
+     ],
+     "ms": 415.2804170153104
+    },
+    {
+     "clip": "19_Flo.wav",
+     "exp": "title:monte cristo|Dumas",
+     "text": "Read the account of Monte Cristo.",
+     "linked": [
+      "The Son of Monte-Cristo"
+     ],
+     "ms": 570.9222920122556
+    },
+    {
+     "clip": "19_Ama.wav",
+     "exp": "title:monte cristo|Dumas",
+     "text": "Read the account of Monte Christo.",
+     "linked": [
+      "The Son of Monte-Cristo"
+     ],
+     "ms": 412.54008398391306
+    },
+    {
+     "clip": "20_Sam.wav",
+     "exp": "title:baskervilles|Doyle",
+     "text": "read The Hound of the Baskervilles.",
+     "linked": [
+      "The Hound of the Baskervilles"
+     ],
+     "ms": 464.2511249985546
+    },
+    {
+     "clip": "20_Dan.wav",
+     "exp": "title:baskervilles|Doyle",
+     "text": "read the hound of the Baskavils.",
+     "linked": [],
+     "ms": 430.2529590204358
+    },
+    {
+     "clip": "20_Flo.wav",
+     "exp": "title:baskervilles|Doyle",
+     "text": "read her hand on her post emails",
+     "linked": [],
+     "ms": 381.54570799088106
+    },
+    {
+     "clip": "20_Ama.wav",
+     "exp": "title:baskervilles|Doyle",
+     "text": "Read Hayward off Bays Kavils.",
+     "linked": [],
+     "ms": 479.7351249726489
+    },
+    {
+     "clip": "21_Sam.wav",
+     "exp": "title:heart darkness|Conrad",
+     "text": "We've heard of Darkness.",
+     "linked": [
+      "Heart of Darkness"
+     ],
+     "ms": 525.0901659601368
+    },
+    {
+     "clip": "21_Dan.wav",
+     "exp": "title:heart darkness|Conrad",
+     "text": "read Heart of Darkness.",
+     "linked": [
+      "Heart of Darkness"
+     ],
+     "ms": 374.8062080121599
+    },
+    {
+     "clip": "21_Flo.wav",
+     "exp": "title:heart darkness|Conrad",
+     "text": "read out of darkness",
+     "linked": [],
+     "ms": 293.66345796734095
+    },
+    {
+     "clip": "21_Ama.wav",
+     "exp": "title:heart darkness|Conrad",
+     "text": "read Heart of Darkness.",
+     "linked": [
+      "Heart of Darkness"
+     ],
+     "ms": 306.4578750054352
+    },
+    {
+     "clip": "22_Sam.wav",
+     "exp": "title:jungle book|Kipling",
+     "text": "Read the jungle book.",
+     "linked": [],
+     "ms": 325.80495794536546
+    },
+    {
+     "clip": "22_Dan.wav",
+     "exp": "title:jungle book|Kipling",
+     "text": "read the jungle book",
+     "linked": [],
+     "ms": 324.38241702038795
+    },
+    {
+     "clip": "22_Flo.wav",
+     "exp": "title:jungle book|Kipling",
+     "text": "read the jungle book",
+     "linked": [],
+     "ms": 341.8193749967031
+    },
+    {
+     "clip": "22_Ama.wav",
+     "exp": "title:jungle book|Kipling",
+     "text": "Read the jungle book.",
+     "linked": [],
+     "ms": 330.7809170219116
+    },
+    {
+     "clip": "23_Sam.wav",
+     "exp": "title:green gables|Montgomery",
+     "text": "read on the Green Gables.",
+     "linked": [],
+     "ms": 389.1447920468636
+    },
+    {
+     "clip": "23_Dan.wav",
+     "exp": "title:green gables|Montgomery",
+     "text": "read Anna Green Gables.",
+     "linked": [
+      "Anne of Green Gables"
+     ],
+     "ms": 539.1666670329869
+    },
+    {
+     "clip": "23_Flo.wav",
+     "exp": "title:green gables|Montgomery",
+     "text": "read out of green goobles",
+     "linked": [],
+     "ms": 504.6969589893706
+    },
+    {
+     "clip": "23_Ama.wav",
+     "exp": "title:green gables|Montgomery",
+     "text": "read alum green gables",
+     "linked": [],
+     "ms": 333.50954204797745
+    },
+    {
+     "clip": "24_Sam.wav",
+     "exp": "title:secret garden|Burnett",
+     "text": "Read the Secret Garden.",
+     "linked": [
+      "The Secret Garden"
+     ],
+     "ms": 341.1222500144504
+    },
+    {
+     "clip": "24_Dan.wav",
+     "exp": "title:secret garden|Burnett",
+     "text": "Reba C. Garnan.",
+     "linked": [],
+     "ms": 553.7742089945823
+    },
+    {
+     "clip": "24_Flo.wav",
+     "exp": "title:secret garden|Burnett",
+     "text": "Read the secret garden.",
+     "linked": [],
+     "ms": 655.1808329531923
+    },
+    {
+     "clip": "24_Ama.wav",
+     "exp": "title:secret garden|Burnett",
+     "text": "read the Secret Garden.",
+     "linked": [
+      "The Secret Garden"
+     ],
+     "ms": 311.81570899207145
+    },
+    {
+     "clip": "25_Sam.wav",
+     "exp": "title:gulliver|Swift",
+     "text": "read Gulliver's Travels.",
+     "linked": [],
+     "ms": 471.71312500722706
+    },
+    {
+     "clip": "25_Dan.wav",
+     "exp": "title:gulliver|Swift",
+     "text": "read Gulliver's Travels.",
+     "linked": [
+      "Gulliver's Travels"
+     ],
+     "ms": 648.9789169863798
+    },
+    {
+     "clip": "25_Flo.wav",
+     "exp": "title:gulliver|Swift",
+     "text": "read Gummy Wish medals.",
+     "linked": [],
+     "ms": 462.2776250471361
+    },
+    {
+     "clip": "25_Ama.wav",
+     "exp": "title:gulliver|Swift",
+     "text": "read Travelers.",
+     "linked": [
+      "The Travellers"
+     ],
+     "ms": 716.0610830178484
+    },
+    {
+     "clip": "26_Sam.wav",
+     "exp": "title:quixote|Cervantes",
+     "text": "read Donkey Hote.",
+     "linked": [
+      "Douglas Hyde"
+     ],
+     "ms": 513.3755000424571
+    },
+    {
+     "clip": "26_Dan.wav",
+     "exp": "title:quixote|Cervantes",
+     "text": "read Don Quixote",
+     "linked": [
+      "Don Quixote"
+     ],
+     "ms": 819.5064170286059
+    },
+    {
+     "clip": "26_Flo.wav",
+     "exp": "title:quixote|Cervantes",
+     "text": "read Don Quixote.",
+     "linked": [
+      "Don Quixote"
+     ],
+     "ms": 428.3305839635432
+    },
+    {
+     "clip": "26_Ama.wav",
+     "exp": "title:quixote|Cervantes",
+     "text": "Read Don Quixote.",
+     "linked": [
+      "Don Quixote"
+     ],
+     "ms": 491.8711250065826
+    },
+    {
+     "clip": "27_Sam.wav",
+     "exp": "title:mis\u00e9rables|Hugo",
+     "text": "Reed Lane is Rob Roblo.",
+     "linked": [
+      "John S. Robb"
+     ],
+     "ms": 711.0258749453351
+    },
+    {
+     "clip": "27_Dan.wav",
+     "exp": "title:mis\u00e9rables|Hugo",
+     "text": "Reed lame is Iran.",
+     "linked": [
+      "Wallace Irwin"
+     ],
+     "ms": 719.699583016336
+    },
+    {
+     "clip": "27_Flo.wav",
+     "exp": "title:mis\u00e9rables|Hugo",
+     "text": "read Miss Miserables.",
+     "linked": [],
+     "ms": 508.135125041008
+    },
+    {
+     "clip": "27_Ama.wav",
+     "exp": "title:mis\u00e9rables|Hugo",
+     "text": "read Leslie Sullivan's",
+     "linked": [
+      "William Lisle Bowles"
+     ],
+     "ms": 425.07066699909046
+    },
+    {
+     "clip": "28_Sam.wav",
+     "exp": "title:tom sawyer|Twain",
+     "text": "read The Adventures of Tom Sawyer,",
+     "linked": [],
+     "ms": 737.430667039007
+    },
+    {
+     "clip": "28_Dan.wav",
+     "exp": "title:tom sawyer|Twain",
+     "text": "Rebe, adventures of Tom Sawyer.",
+     "linked": [],
+     "ms": 538.3963749627583
+    },
+    {
+     "clip": "28_Flo.wav",
+     "exp": "title:tom sawyer|Twain",
+     "text": "reading a mention of Tom Sawyer.",
+     "linked": [],
+     "ms": 489.86433300888166
+    },
+    {
+     "clip": "28_Ama.wav",
+     "exp": "title:tom sawyer|Twain",
+     "text": "read and wages off.",
+     "linked": [],
+     "ms": 389.3793339957483
+    },
+    {
+     "clip": "29_Sam.wav",
+     "exp": "title:jekyll hyde|Stevenson",
+     "text": "read The strange case of Dr. Jekyll and Mr. Hyde.",
+     "linked": [
+      "The strange case of Dr. Jekyll and Mr. Hyde"
+     ],
+     "ms": 709.5529999933206
+    },
+    {
+     "clip": "29_Dan.wav",
+     "exp": "title:jekyll hyde|Stevenson",
+     "text": "read the strange case of Dr. Jekyll and Mr.",
+     "linked": [],
+     "ms": 790.2185409911908
+    },
+    {
+     "clip": "29_Flo.wav",
+     "exp": "title:jekyll hyde|Stevenson",
+     "text": "read the strange case of Michael Jackson on Mr. Hyde.",
+     "linked": [
+      "The strange case of Dr. Jekyll and Mr. Hyde"
+     ],
+     "ms": 1060.9274579910561
+    },
+    {
+     "clip": "29_Ama.wav",
+     "exp": "title:jekyll hyde|Stevenson",
+     "text": "Read Strange Case of Dr. Jekyll and Mr. Hyde.",
+     "linked": [
+      "The strange case of Dr. Jekyll and Mr. Hyde"
+     ],
+     "ms": 799.5778750046156
+    },
+    {
+     "clip": "30_Sam.wav",
+     "exp": "title:war worlds|Wells",
+     "text": "The war of the worlds.",
+     "linked": [],
+     "ms": 332.0075000519864
+    },
+    {
+     "clip": "30_Dan.wav",
+     "exp": "title:war worlds|Wells",
+     "text": "read the war of the worlds.",
+     "linked": [],
+     "ms": 345.09766701376066
+    },
+    {
+     "clip": "30_Flo.wav",
+     "exp": "title:war worlds|Wells",
+     "text": "read the world the world.",
+     "linked": [],
+     "ms": 326.30687503842637
+    },
+    {
+     "clip": "30_Ama.wav",
+     "exp": "title:war worlds|Wells",
+     "text": "Read the world of the worlds.",
+     "linked": [],
+     "ms": 341.1064999527298
+    },
+    {
+     "clip": "31_Sam.wav",
+     "exp": "author:Austen",
+     "text": "place something by Jane Austen.",
+     "linked": [],
+     "ms": 362.5466249650344
+    },
+    {
+     "clip": "31_Dan.wav",
+     "exp": "author:Austen",
+     "text": "Play something by Jane Austen.",
+     "linked": [
+      "Jane Austen"
+     ],
+     "ms": 571.3787500280887
+    },
+    {
+     "clip": "31_Flo.wav",
+     "exp": "author:Austen",
+     "text": "Play something by Jane Austen.",
+     "linked": [
+      "Jane Austen"
+     ],
+     "ms": 555.038999998942
+    },
+    {
+     "clip": "31_Ama.wav",
+     "exp": "author:Austen",
+     "text": "Play something by Jane Austen.",
+     "linked": [
+      "Jane Austen"
+     ],
+     "ms": 468.1682499940507
+    },
+    {
+     "clip": "32_Sam.wav",
+     "exp": "author:Twain",
+     "text": "books by Mark Twain.",
+     "linked": [
+      "Mark Twain"
+     ],
+     "ms": 504.02645900612697
+    },
+    {
+     "clip": "32_Dan.wav",
+     "exp": "author:Twain",
+     "text": "books by Mark Twain.",
+     "linked": [
+      "Mark Twain"
+     ],
+     "ms": 524.8183750081807
+    },
+    {
+     "clip": "32_Flo.wav",
+     "exp": "author:Twain",
+     "text": "What's my mother twins?",
+     "linked": [],
+     "ms": 525.6707079824992
+    },
+    {
+     "clip": "32_Ama.wav",
+     "exp": "author:Twain",
+     "text": "books by Mark Twain.",
+     "linked": [
+      "Mark Twain"
+     ],
+     "ms": 343.05595798650756
+    },
+    {
+     "clip": "33_Sam.wav",
+     "exp": "author:Dickens",
+     "text": "Show me books by Charles Dickens.",
+     "linked": [
+      "Charles Dickens"
+     ],
+     "ms": 618.5808749869466
+    },
+    {
+     "clip": "33_Dan.wav",
+     "exp": "author:Dickens",
+     "text": "Show me books by Charles Dickens.",
+     "linked": [
+      "Charles Dickens"
+     ],
+     "ms": 417.08637500414625
+    },
+    {
+     "clip": "33_Flo.wav",
+     "exp": "author:Dickens",
+     "text": "Show me books by Charles Dickens.",
+     "linked": [
+      "Charles Dickens"
+     ],
+     "ms": 426.8605000106618
+    },
+    {
+     "clip": "33_Ama.wav",
+     "exp": "author:Dickens",
+     "text": "Show me books by Charles Dickens.",
+     "linked": [
+      "Charles Dickens"
+     ],
+     "ms": 387.4072909820825
+    },
+    {
+     "clip": "34_Sam.wav",
+     "exp": "author:Wilde",
+     "text": "what did Oscar Wilde write?",
+     "linked": [
+      "Oscar Wilde"
+     ],
+     "ms": 376.85749999945983
+    },
+    {
+     "clip": "34_Dan.wav",
+     "exp": "author:Wilde",
+     "text": "What did Oscar Wilde write?",
+     "linked": [
+      "Oscar Wilde"
+     ],
+     "ms": 531.9672079640441
+    },
+    {
+     "clip": "34_Flo.wav",
+     "exp": "author:Wilde",
+     "text": "What did Oscar Wilde write?",
+     "linked": [
+      "Oscar Wilde"
+     ],
+     "ms": 534.0427919873036
+    },
+    {
+     "clip": "34_Ama.wav",
+     "exp": "author:Wilde",
+     "text": "What did Oscar",
+     "linked": [],
+     "ms": 524.1990839713253
+    },
+    {
+     "clip": "35_Sam.wav",
+     "exp": "author:Doyle",
+     "text": "books by Arthur Conan Doyle.",
+     "linked": [
+      "Arthur Conan Doyle"
+     ],
+     "ms": 582.0111249922775
+    },
+    {
+     "clip": "35_Dan.wav",
+     "exp": "author:Doyle",
+     "text": "books by Arthur Conan Doyle",
+     "linked": [
+      "Arthur Conan Doyle"
+     ],
+     "ms": 627.2761659929529
+    },
+    {
+     "clip": "35_Flo.wav",
+     "exp": "author:Doyle",
+     "text": "What's my offer currently in New York?",
+     "linked": [
+      "The Kentuckian in New-York"
+     ],
+     "ms": 616.4818749530241
+    },
+    {
+     "clip": "35_Ama.wav",
+     "exp": "author:Doyle",
+     "text": "Books by Arthur Cole and Doyle.",
+     "linked": [
+      "Arthur Conan Doyle",
+      "Arthur Conan Doyle"
+     ],
+     "ms": 399.41295800963417
+    },
+    {
+     "clip": "36_Sam.wav",
+     "exp": "author:Poe",
+     "text": "place something by a girl in Poe.",
+     "linked": [],
+     "ms": 612.2689169715159
+    },
+    {
+     "clip": "36_Dan.wav",
+     "exp": "author:Poe",
+     "text": "Play something by Edgar Allan Poe.",
+     "linked": [
+      "Edgar Allan Poe"
+     ],
+     "ms": 407.23312500631437
+    },
+    {
+     "clip": "36_Flo.wav",
+     "exp": "author:Poe",
+     "text": "play songs in my career on top",
+     "linked": [],
+     "ms": 577.9041670029983
+    },
+    {
+     "clip": "36_Ama.wav",
+     "exp": "author:Poe",
+     "text": "play something by Alan Bo.",
+     "linked": [
+      "Alone",
+      "Alan Bott"
+     ],
+     "ms": 630.3840830223635
+    },
+    {
+     "clip": "37_Sam.wav",
+     "exp": "author:London",
+     "text": "books by Jack London.",
+     "linked": [
+      "Jack London"
+     ],
+     "ms": 490.5664579709992
+    },
+    {
+     "clip": "37_Dan.wav",
+     "exp": "author:London",
+     "text": "Box by Jack London.",
+     "linked": [
+      "Jack London"
+     ],
+     "ms": 509.8249579896219
+    },
+    {
+     "clip": "37_Flo.wav",
+     "exp": "author:London",
+     "text": "What's my joke, London?",
+     "linked": [
+      "Jack London"
+     ],
+     "ms": 625.5387080018409
+    },
+    {
+     "clip": "37_Ama.wav",
+     "exp": "author:London",
+     "text": "Books by Jack London.",
+     "linked": [
+      "Jack London"
+     ],
+     "ms": 546.4463339885697
+    },
+    {
+     "clip": "38_Sam.wav",
+     "exp": "author:Christie",
+     "text": "books by Agatha Christie.",
+     "linked": [
+      "Agatha Christie"
+     ],
+     "ms": 563.1162080098875
+    },
+    {
+     "clip": "38_Dan.wav",
+     "exp": "author:Christie",
+     "text": "books by Agatha Christie.",
+     "linked": [
+      "Agatha Christie"
+     ],
+     "ms": 404.27324996562675
+    },
+    {
+     "clip": "38_Flo.wav",
+     "exp": "author:Christie",
+     "text": "What's my I guess of Christie?",
+     "linked": [
+      "William Harvey Christie"
+     ],
+     "ms": 468.1596659938805
+    },
+    {
+     "clip": "38_Ama.wav",
+     "exp": "author:Christie",
+     "text": "books by Agatha Christie.",
+     "linked": [
+      "Agatha Christie"
+     ],
+     "ms": 367.6807919982821
+    }
+   ]
+  }
+ }
+}

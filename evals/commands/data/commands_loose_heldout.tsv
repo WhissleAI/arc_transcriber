@@ -1,0 +1,51 @@
+# Held out: new phrasings written after the parser's loose stage, to score it honestly. kind<TAB>said
+LAST_MESSAGE	Has anybody texted?
+LAST_MESSAGE	What did the last text say?
+LAST_MESSAGE	Who was that message from?
+LAST_MESSAGE	Read the new message
+LAST_MESSAGE	What did Sam write?
+CATCH_UP	What have I missed?
+CATCH_UP	Fill me in
+CATCH_UP	Anything new since this morning?
+BATTERY	Battery?
+BATTERY	How's the charge?
+BATTERY	Am I low on battery?
+BATTERY	Should I plug in?
+CALENDAR	Anything on today?
+CALENDAR	What's my day look like?
+CALENDAR	Do I have a meeting soon?
+CALENDAR	Am I busy this afternoon?
+TIME	Time?
+TIME	Do you know what time it is?
+TIME	Is it late?
+DATE	What's the date?
+DATE	Is it Tuesday?
+REPEAT_LAST	Again please
+REPEAT_LAST	What did you just say?
+REPEAT_LAST	Come again?
+STOP	Stop it
+STOP	Quiet please
+STOP	That's enough for now
+PAUSE	Wait a moment
+PAUSE	Pause it
+RESUME	Go on then
+RESUME	Carry on reading
+FASTER	Speed it up
+SLOWER	Too fast, slow down
+NEXT	Skip ahead a bit
+BACK	Rewind a little
+TIME_LEFT	How much is left?
+TIME_LEFT	How long is left in this chapter?
+SLEEP	Turn off in 20 minutes
+SLEEP	Sleep in an hour
+SLEEP	Stop when the chapter ends
+REPLY	Tell him I'll be late
+REPLY	Reply with thanks
+MUTE	Mute Telegram
+MUTE	Stop reading Messages for an hour
+UNKNOWN	Text Maya that I'm running late
+UNKNOWN	What's the time in Tokyo?
+UNKNOWN	How long does it take to boil an egg?
+UNKNOWN	Who wrote Pride and Prejudice?
+UNKNOWN	Set an alarm for 7
+UNKNOWN	What's the battery life of an iPhone 16?

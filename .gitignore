@@ -8,3 +8,5 @@ dist/
 *.wav
 !examples/example_synth.wav
 out*/
+evals/_work/
+evals/*/results/raw/
