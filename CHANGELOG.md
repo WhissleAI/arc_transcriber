@@ -8,6 +8,40 @@ Package versions of `arc-transcriber` (this repository) and the model revisions 
 Code-only release: model revision stays `v1.2.0` (`arc_audio.MODEL_REVISION`; the package no longer derives the revision from its
 own version). Same weights, same golden outputs.
 
+Runtime and API fixes from the app findings (`evals/FINDINGS.md` items 1-4, 10, 12, 16, 17; `tests/test_app_findings.py`):
+
+- Short utterances close on a pause (#1): `UttSegmenter` closes an utterance shorter than `min_s` after `short_pause_s` (new, 0.8 s)
+  of silence; it used to stay open until `max_s` (15 s) or `flush()`. "Pause." in a stream with 20 s of trailing silence: final
+  14.6 s -> 0.8 s after the speech; utterances of 1 s and more still close after 0.4 s. `short_pause_s=None` gives the old rule;
+  `stream(segmenter=...)` / `predict(segmenter=...)` override the segmenter settings.
+- `Stream.end_turn()` / `finalize()` (#1): close the open utterance now and return its final (`wait=True`) without ending the stream.
+  `Stream.set_context()` takes `names`, `terms`, `topic`, `previous_text` like `Arc.set_context()`, applies to utterances that close
+  after the call (queued in order with the transcript jobs), and no longer raises `NameError` on a stream with a fallback.
+- `transcript_rewritten` (#2): the whole heard span of a linked name (linked words, entity words next to them, the rest of the
+  decoder's inline name tag, capitalised neighbours where entity words were not heard) is replaced, or none of it when the extra
+  heard words cannot stand for the missing entity words; never a mix ("Priya Raymond" with "Priya" linked to "Priya Raman": was
+  "Priya Raman Raymond", now "Priya Raman"). Removed a no-op filter.
+- `sys.setswitchinterval` is opt-in (#3): `stream(switch_interval_s=None)` by default leaves it alone (1.2.0 always set 0.5 ms while
+  a background stream ran). When set, it is reference-counted across streams and restored on `flush()`, `close()`, `with` exit,
+  garbage collection of the stream or interpreter exit. New `Stream.close()` and context-manager support. The background worker
+  holds only a weak reference to its stream, and is stopped at interpreter exit (an unflushed background stream crashed the process
+  at exit, in 1.2.0 too).
+- Device-directed (#4): README section on the two numbers (utterance tag vs head), their scales and which to use;
+  `transcript[].device_directed` adds `threshold`, `source: "head"` and `status`.
+- `kb_snap` (#10): command words and stopwords are never matched on their own and are trimmed from heard spans; an entry's last word
+  is no longer a match form when it is such a word ("Read Frankenstein" linked "Read" to a title ending in "Read"). Name records
+  carry `candidates` (the linker's ranked entries with `p`) and `p_not_in_list` (`name_candidates=5`, 0 = off); snap links carry
+  `snap_candidates`. `rescorer.score()` returns `ranked` and `p_new`.
+- Names (#12): before a record is left `not_in_list` / `abstain`, the heard text is checked against names, aliases and unique partial
+  names with case, punctuation and spacing ignored (`via` `alias` / `partial`, `linker_state` keeps the linker's decision;
+  `alias_link=False` to turn off). `stream(live_hold=...)` holds back low-confidence and very early name / number guesses in `live`.
+- `command_complete` hold-off (#16): `command_complete_hold_s` (stream and predict; default 0 = unchanged) releases the event only
+  after that much time without speech, so a trailing modifier delays it instead of producing an early one. "Set an alarm at nine
+  am, on next Sunday" (synthetic): two events (mid-command and end) at 0, one at the end with 0.6 s.
+- Per-domain output masks (#17): `masks="default"` leaves profanity (`safety.profanity.*`) and bio events (`bio_events`, `bio_ev.*`)
+  out of the `assistant` / `assistant_noisy` output, also with `include_experimental=True`; `masks=None` for the 1.2.0 output, or
+  a prefix list / per-domain table. `Arc.output_masks()`, `Arc.tags(masks=...)`.
+
 - Written form (`arc_audio/written.py`): `transcript_written` in `predict()` (per utterance `text` + `words`), `transcribe(written=True)`
   (`text_written`, `words_written`), stream results (`transcript_written` for new utterances; `flush()` adds `transcript_written_all`),
   `arc-transcribe --written` and a `written` field per JSON line. Built from Arc's own number tags and values: times ("2:30 p.m."),

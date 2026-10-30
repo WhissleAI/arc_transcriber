@@ -2,7 +2,7 @@ import re, time
 import numpy as np
 import torch
 SR, FR = (16000, 1600)
-DEFAULT = dict(pause_s=0.4, min_s=1.0, max_s=15.0, cut_lookback_s=3.0, min_voiced_s=0.3, pad_s=0.15, decode='reencode', tokens_per_s=7.0, partial_rollback_tokens=6, partial_lock_s=2.0)
+DEFAULT = dict(pause_s=0.4, min_s=1.0, short_pause_s=0.8, max_s=15.0, cut_lookback_s=3.0, min_voiced_s=0.3, pad_s=0.15, decode='reencode', tokens_per_s=7.0, partial_rollback_tokens=6, partial_lock_s=2.0)
 
 def _lkey(w):
     return re.sub("[^\\w']", '', w.lower())
@@ -40,6 +40,8 @@ class UttSegmenter:
         self.c = c
         self.pause_n = int(round(c['pause_s'] * 10))
         self.min_n = int(round(c['min_s'] * 10))
+        sp = c.get('short_pause_s', DEFAULT['short_pause_s'])
+        self.short_pause_n = None if sp is None else max(self.pause_n, int(round(float(sp) * 10)))
         self.max_n = int(round(c['max_s'] * 10))
         self.look = int(round(c['cut_lookback_s'] * 10))
         self.min_voiced = int(round(c['min_voiced_s'] * 10))
@@ -69,7 +71,7 @@ class UttSegmenter:
         self.cur.append((f, db, q))
         self.low_run = self.low_run + 1 if q else 0
         n = len(self.cur)
-        if self.low_run >= self.pause_n and n - self.low_run >= self.min_n:
+        if self.low_run >= self.pause_n and (n - self.low_run >= self.min_n or (self.short_pause_n is not None and self.low_run >= self.short_pause_n)):
             out = self._emit(self.cur, 'pause')
             self.cur = []
             self.low_run = 0
@@ -90,8 +92,8 @@ class UttSegmenter:
         v = [x[0] for x in self.cur if not x[2]]
         return (self.cur[0][0], v[-1]) if v else None
 
-    def flush(self):
-        out = self._emit(self.cur, 'end') if self.cur else []
+    def flush(self, reason='end'):
+        out = self._emit(self.cur, reason) if self.cur else []
         self.cur = []
         self.low_run = 0
         return out

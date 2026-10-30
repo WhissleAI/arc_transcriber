@@ -24,21 +24,26 @@ All speech is synthetic (Steer TTS or macOS voices). A real-voice session is sti
   - Close short utterances on a pause too: apply `min_s` when merging, not when closing, or close them after a longer pause.
   - Add `Stream.finalize()` / `end_turn()`, which closes the current utterance without tearing the stream down.
   - Add a public per-call context setter on a running stream.
-- **Still there in 1.2.1** (`UttSegmenter` unchanged). In Steer's live path, short clips also get no device-directed or intent
-  readout (#25).
+- **Fixed in 1.2.1:** short utterances close after `short_pause_s` (0.8 s) of silence ("Pause." final 14.6 s -> 0.8 s after the
+  speech, espeak voice, CPU); `Stream.end_turn()` / `finalize()`; `Stream.set_context()` on a running stream. In Steer's live path,
+  short clips also get no device-directed or intent readout (#25).
 
 ### 2. `transcript_rewritten` can duplicate a token
 - **Evidence (Py 1.1.1, Pipecat):** "Priya Raymond" was linked to "Priya Raman", but the linked span covered only "Priya". The rewrite gave "Priya Raman Raymond", so the service uses the plain transcript plus `names`.
 - **Rerun (`api_issues` #2):** not reproduced on macOS-voice renders of the same sentence. Three voices heard "Priya Raman" whole; the fourth heard "Queen Raymond", which wasn't linked. So the case needs a partial link to occur. The rewrite logic is `arc_audio/api.py` `rewrite()`.
 - **Ask:** rewrite the whole heard span of a linked name, or none of it.
+- **Fixed in 1.2.1:** whole span or none (the case above now gives "Priya Raman").
 
 ### 3. `Arc.stream()` sets the process-wide `sys.setswitchinterval`
 - **Evidence:** `arc_audio/api.py` sets it while the background worker runs and restores it on `flush()`. Rerun: 0.005 before, 0.0005 while a stream runs, 0.005 after `flush()`. An unflushed stream leaves it changed.
 - **Ask:** make it opt-in. In a host process such as Pipecat, every thread is affected.
+- **Fixed in 1.2.1:** opt-in (`switch_interval_s`), restored on `flush()` / `close()` / `with` / garbage collection / exit.
 
 ### 4. Two device-directed numbers per utterance
 - **Evidence:** `utterances[].tags['discourse.assistant.device_directed']` and `transcript[].device_directed.p` disagree on the same clip. "Sleep in twenty minutes.": tag 0.32, head 0.0006. Across the operating-room scene, the tag was 0.35–0.91 and the head 0.000–0.014. On the context-memory sessions, the head's fresh AUC was 0.529 against the tag's 0.440. With Samantha alone it was 0.842, so the head may carry signal on a different scale. libarc exposes one number, which behaves like the tag.
 - **Ask:** document which one apps should use and how each is calibrated, or merge them.
+- **1.2.1:** documented in the README ("Device-directed: which number"): use the utterance tag; the head is a raw score with its own
+  threshold. Neither is calibrated for always-listening use (#6).
 
 ### 5. Port the name linker and a frame-level API to C
 - libarc, Steer's C port, has no name linker. Speaker and item pooling aren't ported either.
@@ -118,6 +123,7 @@ All speech is synthetic (Steer TTS or macOS voices). A real-voice session is sti
   - Train the linker on titles (`work_product`) at catalog scale, tens of thousands of entries.
   - Make `kb_snap` ignore command words and stopwords.
   - Return a ranked candidate list with scores, not only the one link.
+- **1.2.1:** `kb_snap` ignores command words and stopwords; name records carry ranked `candidates` (and `snap_candidates`). Training the linker on titles is still open.
 
 ### 11. The live names prompt is the part that helps search
 - **Steer:**
@@ -138,6 +144,7 @@ All speech is synthetic (Steer TTS or macOS voices). A real-voice session is sti
   - Check the not-in-list decision against aliases and partial names.
   - Bound the confirmation lag.
   - Hold back low-confidence first guesses from the live view.
+- **1.2.1:** the list check (aliases, partial names, punctuation) runs before `not_in_list`; `stream(live_hold=...)` holds back low-confidence and very early guesses. The confirmation lag is not bounded yet.
 
 ## Recognition
 
@@ -178,6 +185,7 @@ All speech is synthetic (Steer TTS or macOS voices). A real-voice session is sti
 - **Ask:**
   - Calibrate against trailing modifiers ("…on next Sunday", "…for an hour").
   - Expose a hold-off parameter.
+- **1.2.1:** `command_complete_hold_s` (default 0). Calibration against trailing modifiers is still open.
 
 ### 17. Labels to mask or calibrate in the `assistant` domain
 - **Py 1.1.1 signal study, on clean synthetic speech:**
@@ -195,6 +203,7 @@ All speech is synthetic (Steer TTS or macOS voices). A real-voice session is sti
   - Mask profanity and bio events in `assistant`, or calibrate them.
   - Say whether the single-speaker diarization is expected in `assistant`.
   - Affect has no trained output in Mini. It is the most valuable missing signal for Steer's delivery.
+- **1.2.1:** masked in `assistant` / `assistant_noisy` by default (`masks`). Calibration is still open.
 
 ## Benchmarks, output format and runtime
 

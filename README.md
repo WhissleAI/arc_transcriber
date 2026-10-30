@@ -105,15 +105,15 @@ Live progress goes to stderr; the result goes to stdout or `-o`.
 
 | key | content |
 |---|---|
-| `transcript` | utterances `{start, end, text, words, tags, device_directed: {p, directed}}`: the text as spoken ("two thirty", "forty five dollars") |
+| `transcript` | utterances `{start, end, text, words, tags, device_directed: {p, directed, threshold, source, status}}`: the text as spoken ("two thirty", "forty five dollars"); `device_directed` is the raw head score (see [Device-directed](#device-directed-which-number)) |
 | `transcript_written` | the same utterances in written form, the text to show: numbers from Arc's number tags as digits ("2:30 p.m.", "$45", "€12.50", "March 3, 2024", "12.5%", "21st", "555-1234", "3–1" in sports domains) and linked names in your list's spelling. A rewritten span is one word `{text, start, end, written_from, kind}` |
 | `transcript_rewritten` | (older) linked names replaced by the full entity name; numbers unchanged |
-| `names` | `heard`, `tag`, `entity` (your list's spelling) or null, `state` (`linked` / `not_in_list` / `abstain`), `start`, `end`, `via` (`snap` = filled by the name-list snap) |
+| `names` | `heard`, `tag`, `entity` (your list's spelling) or null, `state` (`linked` / `not_in_list` / `abstain`), `start`, `end`, `via` (`snap` = filled by the name-list snap; `alias` / `partial` = linked by the list check, with the linker's own decision in `linker_state`), `candidates` (the linker's ranked list entries `[{entity, p}]`, best first, with `p_not_in_list`), `snap_candidates` (`[{entity, score}]` from the snap) |
 | `numbers` | `heard`, `kind`, `value` (+ `value2` for pairs), `unit`, `start`, `end`; dates also `date: {year, month, day}` and `iso` (`"--03-03"` for "March third", `"2024-03-03"`, `"2024"`) |
 | `speakers`, `diarization` | per-speaker role and tags; `{speaker, start, end}` segments |
 | `utterances`, `segments`, `spans`, `events` | per-utterance acts / intents, segment labels, word-span tags, instant events (speaker change, ...) |
 | `audio_events` | `{label, start, end, p, status}` (status `stable` / `beta` / `experimental`) |
-| `bio_events` | cough / throat clear / breath |
+| `bio_events` | cough / throat clear / breath (off in the `assistant` domains by default: see `masks`) |
 
 ## Python
 
@@ -134,9 +134,33 @@ wav = load_audio("game.wav")
 s = arc.stream(domain="nba", names=names)
 for i in range(0, len(wav), 1600):
     new = s.feed(wav[i:i + 1600])            # new transcript lines, names, numbers, audio_events, device_directed, ...
-s.set_context(kb=["Theo Brandt"], kb_type=["person"])         # context can change at any time
+s.set_context(names=["Theo Brandt"], previous_text="...")    # context can change at any time (utterances closed after the call)
 final = s.flush()
 ```
+
+Push-to-talk and voice-agent turns: keep one stream open and end each turn with `end_turn()` (alias `finalize()`). It closes the
+open utterance at once and (by default) waits for its final transcript, which is in the returned result; the stream stays open for
+the next turn, with the same keys as `feed()`. `end_turn(context=...)` sets the decoder context for the next turn.
+
+```python
+with arc.stream(domain="assistant", names=contacts) as s:      # close() on exit: stops the worker thread
+    for chunk in turn_audio:
+        s.feed(chunk)
+    out = s.end_turn()                                           # out["transcript"]: this turn's final(s)
+    s.set_context(previous_text=out["transcript"][-1]["text"])   # or end_turn(context=...)
+```
+
+- Utterances close on a 0.4 s pause; one shorter than `min_s` (1.0 s, e.g. "Pause.") closes after `short_pause_s` (0.8 s) of
+  silence. Before 1.2.1 it stayed open until `max_s` (15 s) or `flush()`. `arc.stream(segmenter=dict(short_pause_s=0.6))`
+  (or `pause_s`, `min_s`, `max_s`; `short_pause_s=None` restores the 1.2.0 rule); `predict(..., segmenter=...)` too.
+- `switch_interval_s`: the stream no longer changes the interpreter's `sys.setswitchinterval` unless asked
+  (`arc.stream(..., switch_interval_s=True)` uses the model's 0.5 ms; a float sets it). The old value comes back on `flush()`,
+  `close()`, the `with` block's end, garbage collection of the stream, or interpreter exit.
+- `live_hold=True` (or `dict(name_p=0.5, min_span_s=0.3)`): the `live` view holds back first guesses: a name guess with `p` under
+  `name_p`, and any name / number guess on a span open for less than `min_span_s`, show as `held: true` with no guess.
+- `command_complete_hold_s=0.5` (stream and `predict()`): a `discourse.assistant.command_complete` event is released only after that
+  much time with no speech; if the speaker goes on ("set an alarm at nine am | on next Sunday") it waits for the real end. The event
+  keeps `t` (when Arc fired) and adds `released_t` and `hold_off_s`. Default 0: released at once, as before.
 
 - `predict(...)["transcript_written"]` is the written form; `arc.transcribe(wav, written=True)` adds `text_written` / `words_written` to
   each utterance; each `stream.feed()` / `flush()` result has `transcript_written` for its new utterances (and `flush()` also
@@ -144,7 +168,35 @@ final = s.flush()
 - `device="auto"` picks cuda, then mps (Apple GPU), then cpu; `device="mps"` falls back to cpu with a warning when MPS is not there.
 - `predict(..., events="all")` turns on experimental event labels; `events=None` turns events off.
 - `predict(..., kb_snap=False)` turns off the name-list snap; `context=dict(kb=[...], kb_type=[...], dom=..., prev=...)` sets the
-  decoder context for one call.
+  decoder context for one call. The snap ignores command words and stopwords ("read", "play", "open", "the", ...): they are not
+  matched to a list entry on their own, and are trimmed from the edges of a heard span ("Read Frankenstein" is matched as
+  "Frankenstein").
+- Names: before a name is left `not_in_list` / `abstain`, it is checked against the list's names, aliases and partial names with
+  case, punctuation and spacing ignored ("DeMarco" = "De'Marco Hale", "Comets" = "Riverside Comets"); a partial name links
+  only when one entry has it and the entry's kind fits the span. `alias_link=False` turns this off. `name_candidates=5` sets how many
+  ranked candidates each record carries (0 = none).
+- `masks` (predict and stream): per-domain output masks. By default (`masks="default"`) the `assistant` and `assistant_noisy`
+  domains leave out profanity (`safety.profanity.*`, experimental) and bio events (`bio_events`, `bio_ev.*` audio events), even with
+  `include_experimental=True` / `events="all"`, because they fire on clean command speech. `masks=None` restores the 1.2.0
+  output; `masks=["bio."]` masks a list of tag prefixes in this call; `masks={"assistant": [...], "talk": [...]}` replaces the
+  table. `arc.output_masks(domain)` shows what is masked; `arc.tags(domain, masks=...)` lists the tags that remain. Raw `frames`
+  probability arrays for the bio head are not masked.
+
+### Device-directed: which number
+
+Arc gives two device-directed numbers. They come from different read-outs and are on different scales, so they disagree on the
+same clip and must not be compared with each other or mixed.
+
+| field | what it is | scale and threshold |
+|---|---|---|
+| `utterances[].tags["discourse.assistant.device_directed"]` (and `live["utt"]["device_directed"]` while the utterance is open) | an utterance tag from the Arc network, read over Arc's own utterance (closed after 0.5 s without speech) | a probability of the tag after the per-domain prior shift (`calibrated=True`); no separate fit on held-out data; no fixed threshold in the package |
+| `transcript[].device_directed` `{p, directed, threshold, source: "head", status}` | the device-directed head: a linear read-out of the speech features, averaged over the transcript utterance | raw score; `directed = p >= threshold` with the model's threshold (Arc Mini 0.5, status `beta`; Arc Transcriber 0.85, status `experimental`) |
+
+**Use the utterance tag** as the device-directed score: it is the same number on every runtime (the C library's `device_directed`;
+its `directed_head` is the head), it is in the live view before the utterance ends, and it is one of the model's shipped tags. Treat `transcript[].device_directed`
+as a raw auxiliary score. Neither number is calibrated as a probability for always-listening use, and on multi-talker speech (people
+talking to each other near the device) neither separates commands from other speech well; for now, require the device's name in
+the utterance as well as a score above your own threshold, chosen on your own recordings.
 ### Written form and benchmarks
 
 Arc's decoder writes numbers as they are spoken, and tags each one with its kind; the written form is built from those tags, not by a
@@ -178,6 +230,21 @@ message fixtures (`tests/test_asr_adapters.py`).
 
 ## What's new in 1.2.1
 
+- **Short commands are final after a pause**: an utterance under `min_s` (1.0 s) now closes after `short_pause_s` (0.8 s) of
+  silence. In a stream with 20 s of silence after it, "Pause." was final 14.6 s after the speech ended; now 0.8 s.
+- **`Stream.end_turn()`** (`finalize()`): close the open utterance and get its final without ending the stream; `Stream.set_context()`
+  takes the same arguments as `Arc.set_context()` and applies to the utterances that close after the call (it also no longer fails
+  on streams with a fallback).
+- **`transcript_rewritten`** replaces the whole heard span of a linked name, or none of it ("Priya" of "Priya Raymond" linked to
+  "Priya Raman" gave "Priya Raman Raymond"; now "Priya Raman").
+- **`sys.setswitchinterval` is opt-in** (`switch_interval_s`), restored by `flush()`, `close()`, `with`, garbage collection or exit.
+  A process that exited with an unflushed background stream could crash at exit; the worker is now stopped first.
+- **Names**: the list check before `not_in_list` (aliases, partial names, punctuation: "DeMarco", "Comets"); ranked
+  `candidates` per name record; the snap ignores command words ("Read Frankenstein" linked "Read" to a title ending in "Read").
+- **`live_hold`**, **`command_complete_hold_s`** and per-domain **`masks`** (profanity and bio events off in `assistant`).
+- **Device-directed**: which of the two numbers to use is documented ([Device-directed](#device-directed-which-number)); the head's
+  record now carries its `threshold`, `source` and `status`.
+
 - **Written form**: `transcript_written` in `predict()` and the stream, `transcribe(written=True)`, `arc-transcribe --written`.
   Numbers become digits from Arc's own number tags ("two thirty p.m." -> "2:30 p.m.", "forty five dollars" -> "$45", "March third"
   -> "March 3"); linked names take your list's spelling without adding words that were not said.
@@ -185,7 +252,7 @@ message fixtures (`tests/test_asr_adapters.py`).
   and `iso` `"--03-03"` (it was `heard` "third", value 3). `value` keeps its meaning (the day, or the year when only a year was said).
 - **Apple GPU**: `device="mps"` works for Arc Mini (same outputs as CPU: `tests/golden/mini.json` passes on MPS) and for Arc
   Transcriber's feature path (it failed with "Passed CPU tensor to MPS op"); `device="auto"` picks cuda > mps > cpu.
-- Model revision unchanged (`v1.2.0`); same weights, same golden outputs.
+- Model revision unchanged (`v1.2.0`); same weights, same golden outputs (`tests/golden/mini.json` and `full.json` pass unchanged).
 
 ## What's new in 1.2.0
 

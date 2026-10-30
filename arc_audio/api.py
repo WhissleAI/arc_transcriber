@@ -157,7 +157,27 @@ class Arc:
             self.dd_head.load_state_dict(dd)
             self.dd_head.to(self.dev).eval()
 
-    def event_tracker(self, events='default'):
+    # per-domain output masks (masks='default'): tag / event prefixes left out of the output in that domain. Profanity
+    # (experimental) and bio events fire on clean command speech in the assistant domains, so they are off there by default.
+    OUTPUT_MASKS = {'assistant': ('safety.profanity.', 'bio.', 'bio_ev.'), 'assistant_noisy': ('safety.profanity.', 'bio.', 'bio_ev.')}
+    ENGINE_OPTS = ('name_candidates', 'alias_link', 'live_hold', 'command_complete_hold_s')
+
+    def output_masks(self, domain='unknown', masks='default'):
+        """the tag / event prefixes masked in a domain. masks: 'default' (OUTPUT_MASKS plus the model config's output_masks),
+        None / 'none' (nothing masked: the 1.2.0 behaviour), a dict {domain: [prefixes]} (replaces the table), or a list of
+        prefixes for this call"""
+        if masks in (None, False, 'none', 'off'):
+            return ()
+        if masks == 'default':
+            tab = dict(self.OUTPUT_MASKS, **{k: tuple(v) for k, v in (self.cfg.get('output_masks') or {}).items()})
+            return tuple(tab.get(domain, ()))
+        if isinstance(masks, dict):
+            return tuple(masks.get(domain, ()))
+        if isinstance(masks, str):
+            return (masks,)
+        return tuple(masks)
+
+    def event_tracker(self, events='default', masked=()):
         if self.ev_head is None or events in (None, False, 'none', 'off'):
             return None
         from .events import EventTracker, LABELS
@@ -169,14 +189,19 @@ class Arc:
             on = {l for l in LABELS if st.get(l, 'experimental') in ('stable', 'beta')}
         else:
             on = set(events)
+        if masked:
+            on = {l for l in on if not l.startswith(tuple(masked))}
         return EventTracker(self.ev_head, ec.get('thresholds') or {}, st, on)
 
     def directed(self, X):
         if self.dd_head is None or X is None or len(X) == 0:
             return None
         p = self.dd_head.prob(torch.as_tensor(np.asarray(X, np.float32), device=self.dev))
-        thr = float((self.cfg.get('device_directed') or {}).get('threshold', 0.5))
-        return dict(p=round(p, 4), directed=bool(p >= thr))
+        dc = self.cfg.get('device_directed') or {}
+        thr = float(dc.get('threshold', 0.5))
+        # the device-directed head: a linear read-out of the speech features, averaged over the transcript utterance. A raw score on
+        # its own scale (not calibrated against the utterance tag discourse.assistant.device_directed); see README "Device-directed".
+        return dict(p=round(p, 4), directed=bool(p >= thr), threshold=thr, source='head', status=dc.get('status', 'experimental'))
 
     @torch.no_grad()
     def _feats(self, wav, tap=False):
@@ -269,9 +294,9 @@ class Arc:
     def features(self, wav):
         return self._feats(wav)[0]
 
-    def tags(self, domain=None, include_experimental=False):
+    def tags(self, domain=None, include_experimental=False, masks='default'):
         from .engine import Readout
-        R = Readout(self.net, self.cfg, domain_index(domain or 'unknown'), include_experimental)
+        R = Readout(self.net, self.cfg, domain_index(domain or 'unknown'), include_experimental, masked=self.output_masks(domain or 'unknown', masks))
         return [dict(self.table.describe(self.table.ids[i]), status=s) for i, s in sorted(R.status.items())]
 
     @staticmethod
@@ -366,7 +391,11 @@ class Arc:
         tr.always_types = ['player']
 
     @torch.no_grad()
-    def predict(self, audio, domain='unknown', delay_s=0.3, names=None, transcript='builtin', words=None, include_experimental=False, calibrated=True, diarization='auto', rescore=True, bias_names=None, return_frames=True, chunk_frames=3000, name_text=None, decoder=None, spans=None, name_source=None, word_channel=True, word_arrival='rule', word_source=None, fallback='auto', strict=False, text_layer=None, events='default', context=None, auto_prev=False, kb_snap=True):
+    def predict(self, audio, domain='unknown', delay_s=0.3, names=None, transcript='builtin', words=None, include_experimental=False, calibrated=True, diarization='auto', rescore=True, bias_names=None, return_frames=True, chunk_frames=3000, name_text=None, decoder=None, spans=None, name_source=None, word_channel=True, word_arrival='rule', word_source=None, fallback='auto', strict=False, text_layer=None, events='default', context=None, auto_prev=False, kb_snap=True, name_candidates=5, alias_link=True, command_complete_hold_s=0.0, masks='default', segmenter=None):
+        """the whole-file result. 1.2.1 options: name_candidates (k ranked list entries per name record, 0 = off), alias_link (check
+        a name against the list's names, aliases and unique partial names before leaving it unlinked), command_complete_hold_s
+        (release a command_complete event only after that much silence; 0 = at once), masks (per-domain output masks, see
+        output_masks()), segmenter (utterance segmenter overrides: pause_s, min_s, short_pause_s, max_s)."""
         t_start = time.time()
         wav = load_audio(audio)
         dom_i = domain_index(domain)
@@ -375,7 +404,7 @@ class Arc:
         utts = []
         nsrc = self.name_source(name_source, transcript, decoder, spans)
         if transcript in ('builtin', 'moonshine_release'):
-            utts = self.transcribe(wav, names, default_bias(bias_names, transcript), mode=transcript, decoder=decoder, context=context, auto_prev=auto_prev)
+            utts = self.transcribe(wav, names, default_bias(bias_names, transcript), cfg=segmenter, mode=transcript, decoder=decoder, context=context, auto_prev=auto_prev)
             for u in utts:
                 ws.add(u['words'], 'moonshine')
         elif transcript == 'parakeet':
@@ -392,11 +421,12 @@ class Arc:
         elif transcript != 'none':
             raise ValueError('transcript must be builtin | moonshine_release | parakeet | external | none')
         ws.mark_covered(len(wav) / SR + 10)
-        evt = self.event_tracker(events)
+        masked = self.output_masks(domain, masks)
+        evt = self.event_tracker(events, masked)
         x, xe, xt = self._feats(wav, tap=evt is not None)
         N = len(x)
         xs = np.concatenate([x[d:], np.repeat(x[-1:], min(d, N), 0)]) if N else x
-        eng = Engine(self.net, self.cfg, dom_i, d, ws, kb=self._kb(names), include_experimental=include_experimental, calibrated=calibrated, diarization=diarization, rescore=rescore, name_text=name_text, name_source=nsrc, word_channel=word_channel, pieces=self.pieces, word_arrival=word_arrival, word_source=word_source or ('builtin' if transcript in ('builtin', 'moonshine_release') else 'external'), text_layer=text_layer)
+        eng = Engine(self.net, self.cfg, dom_i, d, ws, kb=self._kb(names), include_experimental=include_experimental, calibrated=calibrated, diarization=diarization, rescore=rescore, name_text=name_text, name_source=nsrc, word_channel=word_channel, pieces=self.pieces, word_arrival=word_arrival, word_source=word_source or ('builtin' if transcript in ('builtin', 'moonshine_release') else 'external'), text_layer=text_layer, name_candidates=name_candidates, alias_link=alias_link, command_complete_hold_s=command_complete_hold_s, masked=masked)
         st = None
         dom = torch.tensor([dom_i], device=self.dev)
         dl = torch.tensor([d], device=self.dev)
@@ -477,8 +507,12 @@ class Arc:
             out['frames'] = dict(tags={q: R.out_ids[q] for q in R.out_ids if R.out_ids[q]}, probs={q: np.concatenate(v) if v else np.zeros((0, len(R.out_ids.get(q, [])))) for q, v in eng.frames.items() if q in R.out_ids and R.out_ids[q]}, bio=np.concatenate(eng.frames['bio']) if eng.frames['bio'] else None, bio_tags=['bio.cough', 'bio.throat_clear', 'bio.breath'], speaker_index=np.concatenate(eng.frames['speaker_index']) if eng.frames['speaker_index'] else None)
         return out
 
-    def stream(self, domain='unknown', delay_s=0.3, names=None, transcript='builtin', include_experimental=False, calibrated=True, diarization='auto', rescore=True, bias_names=None, partials=True, word_wait_s=None, partial_every_s=0.4, partial_window_s=7.0, background=True, worker_threads=None, live=True, name_text=None, decoder=None, name_source=None, early_commit=None, interim_source=None, word_channel=True, fallback='auto', strict=False, text_layer=None, events='default', context=None, auto_prev=False, kb_snap=True):
-        return Stream(self, domain, delay_s, names, transcript, include_experimental, calibrated, diarization, rescore, bias_names, partials, word_wait_s, partial_every_s=partial_every_s, partial_window_s=partial_window_s, background=background, worker_threads=worker_threads, live=live, name_text=name_text, decoder=decoder, name_source=name_source, early_commit=early_commit, interim_source=interim_source, word_channel=word_channel, fallback=fallback, strict=strict, text_layer=text_layer, events=events, context=context, auto_prev=auto_prev, kb_snap=kb_snap)
+    def stream(self, domain='unknown', delay_s=0.3, names=None, transcript='builtin', include_experimental=False, calibrated=True, diarization='auto', rescore=True, bias_names=None, partials=True, word_wait_s=None, partial_every_s=0.4, partial_window_s=7.0, background=True, worker_threads=None, live=True, name_text=None, decoder=None, name_source=None, early_commit=None, interim_source=None, word_channel=True, fallback='auto', strict=False, text_layer=None, events='default', context=None, auto_prev=False, kb_snap=True, switch_interval_s=None, segmenter=None, **opts):
+        """a live stream (feed 100 ms chunks of float32 16 kHz mono). switch_interval_s: None (default) leaves the interpreter's
+        sys.setswitchinterval alone; a float (or True for the model config's value) lowers it while the background transcript worker
+        runs, restored on flush() / close(). segmenter: overrides of the utterance segmenter (pause_s, min_s, short_pause_s, max_s).
+        Other options (name_candidates, alias_link, live_hold, command_complete_hold_s, masks): see predict()."""
+        return Stream(self, domain, delay_s, names, transcript, include_experimental, calibrated, diarization, rescore, bias_names, partials, word_wait_s, partial_every_s=partial_every_s, partial_window_s=partial_window_s, background=background, worker_threads=worker_threads, live=live, name_text=name_text, decoder=decoder, name_source=name_source, early_commit=early_commit, interim_source=interim_source, word_channel=word_channel, fallback=fallback, strict=strict, text_layer=text_layer, events=events, context=context, auto_prev=auto_prev, kb_snap=kb_snap, switch_interval_s=switch_interval_s, segmenter=segmenter, **opts)
 
     def early_policy(self, domain='unknown', transcript='builtin', early_commit=None, interim_source=None):
         if early_commit is False or transcript in ('none',):
@@ -606,7 +640,52 @@ def bias_forms(kb):
 def default_bias(bias_names, transcript):
     return transcript == 'builtin' if bias_names is None else bool(bias_names)
 
+def _name_span(ws, idx, ent, nz):
+    """the whole heard span of a linked name in one utterance's words: the linked words, the words around them that are entity
+    words, the rest of the decoder's inline name tag that holds them, and capitalised words next to them that sound like the entity
+    word not heard on that side ("Raymond" for "Raman"; not "Monday"). Returns (lo, hi), or None (no rewrite: a partial link whose other heard words do not
+    read as the rest of the entity)."""
+    from .engine import DISPLAY_STOP
+    from rapidfuzz.fuzz import ratio
+    toks = set(ent)
+    like = lambda k, e: ratio(nz(ws[k]['text']), e) >= 50
+    lo, hi = (min(idx), max(idx))
+    tag = lambda k: ws[k].get('tag') if str(ws[k].get('tag') or '').startswith('ENTITY_') else None
+    ends = lambda k: str(ws[k]['text']).rstrip().endswith(('.', ',', '?', '!', ';', ':'))
+    cap = lambda k: str(ws[k]['text']).lstrip('"\'(')[:1].isupper() and nz(ws[k]['text']) not in DISPLAY_STOP
+    pos = lambda: [ent.index(nz(ws[k]['text'])) for k in range(lo, hi + 1) if nz(ws[k]['text']) in toks]
+    n_cap = 0
+    while True:
+        grew = False
+        if lo > 0 and ws[lo - 1]['text'] and (not ends(lo - 1)) and (nz(ws[lo - 1]['text']) in toks or (tag(lo) and tag(lo - 1) == tag(lo) and (not ws[lo].get('tag_begin')))):
+            lo -= 1
+            grew = True
+        if hi + 1 < len(ws) and ws[hi + 1]['text'] and (not ends(hi)) and (nz(ws[hi + 1]['text']) in toks or (tag(hi) and tag(hi + 1) == tag(hi) and (not ws[hi + 1].get('tag_begin')))):
+            hi += 1
+            grew = True
+        if not grew:
+            P = pos()
+            if P and max(P) < len(ent) - 1 - n_cap and hi + 1 < len(ws) and ws[hi + 1]['text'] and (not ends(hi)) and cap(hi + 1) and like(hi + 1, ent[max(P) + 1 + n_cap]):
+                hi += 1
+                n_cap += 1
+                grew = True
+            elif P and min(P) > n_cap and lo > 1 and ws[lo - 1]['text'] and (not ends(lo - 1)) and (not ends(lo - 2)) and cap(lo - 1) and like(lo - 1, ent[min(P) - 1 - n_cap]):
+                lo -= 1
+                n_cap += 1
+                grew = True
+        if not grew:
+            break
+    if (lo, hi) == (min(idx), max(idx)):
+        return (lo, hi)
+    matched = {nz(ws[k]['text']) for k in range(lo, hi + 1)} & toks
+    extra = [k for k in range(lo, hi + 1) if nz(ws[k]['text']) not in toks]
+    # a partial link ("Priya" of "Priya Raymond" linked to "Priya Raman"): the other heard words must stand for the entity
+    # words that were not heard, one for one; otherwise leave the span as heard
+    return (lo, hi) if len(extra) <= len(toks - matched) else None
+
 def rewrite(transcript, names):
+    """transcript_rewritten: each linked name's whole heard span becomes the entity name, or (when only part of a heard name was
+    linked and the rest does not read as the entity) the span is left as heard; never a mix ("Priya Raman Raymond")."""
     import re
     nz = lambda t: re.sub("[^a-z0-9']", '', t.lower())
     out = []
@@ -614,16 +693,14 @@ def rewrite(transcript, names):
     for u in transcript:
         ws = [dict(w) for w in u.get('words', [])]
         for n in links:
-            idx = [k for k, w in enumerate(ws) if any((abs(w['start'] - x['start']) < 0.001 and w['text'] == x['w'] for x in n['words']))]
-            toks = {nz(t) for t in n['entity'].split()}
-            idx = [k for k in idx if nz(ws[k]['text']) in toks or len(idx) == 1 or True]
-            if not idx or any((NUMWORD_RE(ws[k]['text']) for k in idx)):
+            idx = [k for k, w in enumerate(ws) if w['text'] and any((abs(w['start'] - x['start']) < 0.001 and w['text'] == x['w'] for x in n['words']))]
+            ent = [x for x in (nz(t) for t in n['entity'].split()) if x]
+            if not idx or not ent or any((NUMWORD_RE(ws[k]['text']) for k in idx)):
                 continue
-            lo, hi = (min(idx), max(idx))
-            while lo > 0 and nz(ws[lo - 1]['text']) in toks and ws[lo - 1]['text']:
-                lo -= 1
-            while hi + 1 < len(ws) and nz(ws[hi + 1]['text']) in toks and ws[hi + 1]['text']:
-                hi += 1
+            sp = _name_span(ws, idx, ent, nz)
+            if sp is None:
+                continue
+            lo, hi = sp
             if any((NUMWORD_RE(ws[k]['text']) for k in range(lo, hi + 1))):
                 continue
             src = ' '.join((ws[k]['text'] for k in range(lo, hi + 1)))
@@ -640,11 +717,64 @@ def NUMWORD_RE(t):
     import re
     return bool(NUMWORD.match(re.sub('[^\\w:.\\-]', '', t)))
 
+class _SwitchInterval:
+    """opt-in process-wide sys.setswitchinterval while background streams run: counted across streams, restored when the last
+    one closes (flush / close / garbage collection / interpreter exit)"""
+    import threading as _th
+    lock = _th.Lock()
+    n = 0
+    orig = None
+
+    @classmethod
+    def acquire(cls, value):
+        import sys
+        with cls.lock:
+            if cls.n == 0:
+                cls.orig = sys.getswitchinterval()
+                sys.setswitchinterval(min(cls.orig, float(value)))
+            cls.n += 1
+
+    @classmethod
+    def release(cls):
+        import sys
+        with cls.lock:
+            if cls.n <= 0:
+                return
+            cls.n -= 1
+            if cls.n == 0 and cls.orig is not None:
+                sys.setswitchinterval(cls.orig)
+                cls.orig = None
+
+    @classmethod
+    def restore_all(cls):
+        import sys
+        with cls.lock:
+            if cls.n and cls.orig is not None:
+                sys.setswitchinterval(cls.orig)
+            cls.n, cls.orig = (0, None)
+
+import atexit as _atexit, weakref as _weakref
+_atexit.register(_SwitchInterval.restore_all)
+_WORKERS = _weakref.WeakSet()
+
+def _shutdown_workers():
+    # an unflushed background stream at interpreter exit: drop its queue and let the running job finish, so the worker thread is
+    # not inside a torch call while the interpreter shuts down (that crashed the process)
+    for w in list(_WORKERS):
+        w.abort()
+    for w in list(_WORKERS):
+        w.t.join(timeout=30)
+_atexit.register(_shutdown_workers)
+
 class _Worker:
 
     def __init__(self, run_job, threads):
-        import collections, threading
-        self.run_job, self.threads = (run_job, threads)
+        import collections, threading, weakref
+        try:
+            self._ref = weakref.WeakMethod(run_job)
+        except TypeError:
+            self._ref = lambda: run_job
+        self.threads = threads
         self.q = collections.deque()
         self.cv = threading.Condition()
         self.busy = False
@@ -653,6 +783,7 @@ class _Worker:
         self.err = None
         self.t = threading.Thread(target=self._loop, name='arc-transcript', daemon=True)
         self.t.start()
+        _WORKERS.add(self)
 
     def submit(self, job):
         with self.cv:
@@ -675,8 +806,12 @@ class _Worker:
                 del self.q[k]
                 self.busy = True
             try:
+                fn = self._ref()
+                if fn is None:
+                    return
                 with torch.no_grad():
-                    self.run_job(job)
+                    fn(job)
+                del fn
             except BaseException:
                 import traceback
                 self.err = traceback.format_exc()
@@ -697,6 +832,12 @@ class _Worker:
             self.stop = True
             self.cv.notify_all()
 
+    def abort(self):
+        with self.cv:
+            self.q.clear()
+            self.stop = True
+            self.cv.notify_all()
+
 def _slice(buf, lo, a, b):
     a = max(a, lo)
     b = min(b, lo + len(buf))
@@ -704,12 +845,20 @@ def _slice(buf, lo, a, b):
 
 class Stream:
 
-    def __init__(self, arc, domain, delay_s, names, transcript, include_experimental, calibrated, diarization, rescore, bias_names, partials, word_wait_s, partial_every_s=0.4, partial_window_s=7.0, background=True, worker_threads=None, live=True, name_text=None, decoder=None, name_source=None, early_commit=None, interim_source=None, word_channel=True, fallback=None, strict=False, text_layer=None, events='default', context=None, auto_prev=False, kb_snap=True):
+    def __init__(self, arc, domain, delay_s, names, transcript, include_experimental, calibrated, diarization, rescore, bias_names, partials, word_wait_s, partial_every_s=0.4, partial_window_s=7.0, background=True, worker_threads=None, live=True, name_text=None, decoder=None, name_source=None, early_commit=None, interim_source=None, word_channel=True, fallback=None, strict=False, text_layer=None, events='default', context=None, auto_prev=False, kb_snap=True, switch_interval_s=None, segmenter=None, **opts):
+        self._swi_on = False
+        self.worker = None
+        self.closed = False
         self.a = arc
         self.dom_i = domain_index(domain)
         self.domain = domain
         self.d = arc.delay_frames(delay_s)
         self.early = arc.early_policy(domain, transcript, early_commit, interim_source)
+        bad = set(opts) - set(Arc.ENGINE_OPTS) - {'masks'}
+        if bad:
+            raise TypeError(f'unknown stream option(s): {sorted(bad)}')
+        masked = arc.output_masks(domain, opts.get('masks', 'default'))
+        eopts = {k: opts[k] for k in Arc.ENGINE_OPTS if k in opts}
         self.mode = transcript
         self.decoder = decoder
         self.nsrc = arc.name_source(name_source, transcript, decoder)
@@ -717,8 +866,8 @@ class Stream:
         ww = dict({'builtin': 17.0, 'moonshine_release': 17.0, 'external': 6.0, 'verbit': 12.0}, **(arc.cfg.get('words') or {}).get('word_wait_s') or {})
         key = transcript if transcript in ('builtin', 'moonshine_release') else interim_source if interim_source in ww else 'external'
         wait = word_wait_s if word_wait_s is not None else float(ww.get(key, 6.0))
-        self.eng = Engine(arc.net, arc.cfg, self.dom_i, self.d, self.words, kb=Arc._kb(names), include_experimental=include_experimental, calibrated=calibrated, diarization=diarization, rescore=rescore, word_wait_s=wait, provisional='audio' if transcript == 'none' else 'words', name_text=name_text, name_source=self.nsrc, early=self.early, word_channel=word_channel, pieces=arc.pieces, word_arrival='live', word_source='builtin' if transcript in ('builtin', 'moonshine_release') else 'external', text_layer=text_layer)
-        self.evt = arc.event_tracker(events)
+        self.eng = Engine(arc.net, arc.cfg, self.dom_i, self.d, self.words, kb=Arc._kb(names), include_experimental=include_experimental, calibrated=calibrated, diarization=diarization, rescore=rescore, word_wait_s=wait, provisional='audio' if transcript == 'none' else 'words', name_text=name_text, name_source=self.nsrc, early=self.early, word_channel=word_channel, pieces=arc.pieces, word_arrival='live', word_source='builtin' if transcript in ('builtin', 'moonshine_release') else 'external', text_layer=text_layer, masked=masked, **eopts)
+        self.evt = arc.event_tracker(events, masked)
         self.src = None
         self.menc = None
         if arc.backbone == 'parakeet':
@@ -742,7 +891,7 @@ class Stream:
         self.emitted = []
         if transcript == 'external':
             from .transcribe import UttSegmenter
-            self.xseg = UttSegmenter(arc.cfg.get('transcription'))
+            self.xseg = UttSegmenter(dict(arc.cfg.get('transcription') or {}, **segmenter or {}))
         self.kb = None
         if kb_snap and names:
             from .kbsnap import KB
@@ -772,7 +921,7 @@ class Stream:
         if transcript in ('builtin', 'moonshine_release', 'parakeet'):
             from .transcribe import UttSegmenter
             tm = 'moonshine_release' if transcript == 'moonshine_release' else 'builtin'
-            self.tr = arc._transcriber(mode=tm, decoder=decoder if tm == 'builtin' else None)
+            self.tr = arc._transcriber(cfg=dict(segmenter or {}), mode=tm, decoder=decoder if tm == 'builtin' else None)
             arc._set_bias(self.tr, names, default_bias(bias_names, transcript))
             if context is not None or getattr(arc, '_ctx', None) or auto_prev:
                 c = context if context is not None else getattr(arc, '_ctx', None)
@@ -788,9 +937,10 @@ class Stream:
         self.worker = None
         if self.tr is not None and background:
             self.worker = _Worker(self._job, worker_threads or 1)
-            import sys
-            self._swi = sys.getswitchinterval()
-            sys.setswitchinterval(min(self._swi, float(arc.cfg.get('stream', {}).get('switch_interval_s', 0.0005))))
+            if switch_interval_s not in (None, False):
+                v = arc.cfg.get('stream', {}).get('switch_interval_s', 0.0005) if switch_interval_s is True else switch_interval_s
+                _SwitchInterval.acquire(float(v))
+                self._swi_on = True
             self.eng.cov_submitted = lambda: self.cov_sent
         self.sent = {k: 0 for k in ('spans', 'events', 'segments', 'utterances', 'names', 'numbers', 'diarization', 'bio_events', 'updates')}
         self.n_frames_out = 0
@@ -818,11 +968,79 @@ class Stream:
     def set_names(self, names):
         self.eng.set_names(Arc._kb(names))
 
-    def set_context(self, ctx=None, auto_prev=False, max_tokens=96, **kw):
+    def set_context(self, ctx=None, auto_prev=False, max_tokens=96, names=None, terms=None, topic=None, previous_text=None, **kw):
+        """decoder context on a running stream, for the utterances that close after this call (utterances already closed and
+        queued keep the context they were closed with). Same arguments as Arc.set_context (names, terms, topic, previous_text,
+        auto_prev) or the raw prompt dict (kb, kb_type, dom, prev); set_context() with no arguments clears it. The name list for
+        linking is separate: set_names()."""
+        c = context_dict(names, terms, topic, previous_text, dict(ctx or {}, **kw))
+        job = ('ctx', c or None, bool(auto_prev), int(max_tokens))
         if self.tr is not None:
-            self.tr.set_context(ctx, auto_prev=auto_prev, max_tokens=max_tokens, **kw)
+            self._submit(job)
         if self.fb is not None:
-            self.fb.set_names(names)
+            self.fb.set_context(c or None, auto_prev=auto_prev, max_tokens=max_tokens)
+
+    @torch.no_grad()
+    def end_turn(self, wait=True, context=None):
+        """close the open utterance now (end of a push-to-talk turn, or a VAD end of speech) without ending the stream: its
+        final transcript is decoded at once instead of after the pause rule. wait=True blocks until that final is decoded and
+        returns it in the result (same keys as feed()); wait=False returns at once and the final comes with a later feed().
+        context: optional decoder context (as for set_context) for the utterances after this turn. The stream stays open."""
+        t0 = time.perf_counter()
+        self._check_worker()
+        if self.xseg is not None:
+            self._xseg_step(final=False)
+            self.xspans += [(f0, f1) for f0, f1, _ in self.xseg.flush('end_turn')]
+        if self.seg is not None:
+            self._segment_step(final=False, close=True)
+        if context is not None:
+            self.set_context(context) if isinstance(context, dict) else self.set_context(previous_text=str(context))
+        if wait and self.worker is not None:
+            self.worker.wait()
+            self._check_worker()
+        self._join()
+        self._roles_step()
+        if self.fb is not None:
+            self.fb_q += [r for r in self.fb.end_turn(wait)['names'] if r.get('state') == 'linked']
+            self._fallback_step(final=False)
+        out = self._collect()
+        if self.live_on:
+            out['live'] = self.eng.live()
+        self.timing.append((0.0, time.perf_counter() - t0))
+        return out
+
+    finalize = end_turn
+
+    def _release_swi(self):
+        if getattr(self, '_swi_on', False):
+            self._swi_on = False
+            _SwitchInterval.release()
+
+    def close(self):
+        """stop the background worker and restore the switch interval without decoding what is left (flush() decodes it)"""
+        if getattr(self, 'closed', False):
+            return
+        self.closed = True
+        w = getattr(self, 'worker', None)
+        if w is not None:
+            w.close()
+        self._release_swi()
+        fb = getattr(self, 'fb', None)
+        if fb is not None:
+            fb.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+        return False
+
+    def __del__(self):
+        try:
+            self.close()
+        except Exception:
+            pass
 
     def fused_words(self):
         wf = self.eng.wfeed
@@ -913,8 +1131,7 @@ class Stream:
         if self.worker is not None:
             self.worker.wait()
             self.worker.close()
-            import sys
-            sys.setswitchinterval(self._swi)
+            self._release_swi()
             self._check_worker()
         self._join()
         self._xgroup(final=True)
@@ -1062,8 +1279,8 @@ class Stream:
         else:
             self._job(job)
 
-    def _segment_step(self, final):
-        nf = self.total // FR if not final else (self.total + FR - 1) // FR
+    def _segment_step(self, final, close=False):
+        nf = self.total // FR if not (final or close) else (self.total + FR - 1) // FR
         closed = []
         while self.fdb < nf:
             f = self.fdb
@@ -1071,6 +1288,8 @@ class Stream:
             self.fdb += 1
         if final:
             closed += self.seg.flush()
+        elif close:
+            closed += self.seg.flush('end_turn')
         pad = int(self.tr.c['pad_s'] * SR)
         for f0, f1, why in closed:
             self.closed_f1 = max(self.closed_f1, f1)
@@ -1101,7 +1320,10 @@ class Stream:
 
     def _job(self, job):
         kind = job[0]
-        if kind == 'cov':
+        if kind == 'ctx':
+            _, c, ap, mt = job
+            self.tr.set_context(c, auto_prev=ap, max_tokens=mt)
+        elif kind == 'cov':
             self.words.mark_covered(job[1])
         elif kind == 'final':
             _, f0, f1, why, lo, buf = job
