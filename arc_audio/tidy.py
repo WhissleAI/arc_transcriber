@@ -54,6 +54,9 @@ def tidy_name(r):
 def tidy_number(r):
     ws = str(r.get('heard') or '').split()
     num = [_numeric(w) for w in ws]
+    if r.get('kind') == 'date':
+        from .written import is_month
+        num = [n or is_month(w) for n, w in zip(num, ws)]
     if any(num):
         i, j = (num.index(True), len(num) - 1 - num[::-1].index(True))
         while j + 1 < len(ws) and clean_word(ws[j + 1]).lower() in UNIT_WORDS:

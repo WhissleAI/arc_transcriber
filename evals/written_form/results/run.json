@@ -1,0 +1,1258 @@
+{
+ "env": {
+  "date": "2026-10-30",
+  "arc_audio": "1.2.1",
+  "torch": "2.11.0",
+  "python": "3.11.9",
+  "platform": "macOS-26.2-arm64-arm-64bit",
+  "cpu": "Apple M3 Pro",
+  "device": "cpu",
+  "threads": 4,
+  "runtime": "Python reference (arc_audio)",
+  "model_dir": "<hf cache>/models--WhissleAI--arc-v1.1/snapshots/6f637153ea4953d81811e68168cd29572316d32b/mini/moonshine-streaming-tiny",
+  "backbone": "edge",
+  "model_snapshot": "6f637153ea49",
+  "model_revision": "v1.2.0"
+ },
+ "normalizer": "whisper EnglishTextNormalizer",
+ "numbers": {
+  "transcript": {
+   "wer": 27.21,
+   "digits": 22.2,
+   "digits_n": 135,
+   "exact": 18.3,
+   "n": 120
+  },
+  "written": {
+   "wer": 24.22,
+   "digits": 74.1,
+   "digits_n": 135,
+   "exact": 52.5,
+   "n": 120
+  },
+  "written_digits": {
+   "wer": 24.22,
+   "digits": 76.3,
+   "digits_n": 135,
+   "exact": 54.2,
+   "n": 120
+  }
+ },
+ "by_kind": {
+  "cardinal": {
+   "transcript": {
+    "wer": 19.79,
+    "digits": 33.3,
+    "digits_n": 18,
+    "exact": 33.3,
+    "n": 18
+   },
+   "written": {
+    "wer": 19.79,
+    "digits": 83.3,
+    "digits_n": 18,
+    "exact": 72.2,
+    "n": 18
+   },
+   "written_digits": {
+    "wer": 19.79,
+    "digits": 83.3,
+    "digits_n": 18,
+    "exact": 72.2,
+    "n": 18
+   }
+  },
+  "date": {
+   "transcript": {
+    "wer": 35.96,
+    "digits": 12.5,
+    "digits_n": 24,
+    "exact": 0.0,
+    "n": 18
+   },
+   "written": {
+    "wer": 33.33,
+    "digits": 58.3,
+    "digits_n": 24,
+    "exact": 33.3,
+    "n": 18
+   },
+   "written_digits": {
+    "wer": 33.33,
+    "digits": 58.3,
+    "digits_n": 24,
+    "exact": 33.3,
+    "n": 18
+   }
+  },
+  "duration": {
+   "transcript": {
+    "wer": 14.29,
+    "digits": 0.0,
+    "digits_n": 3,
+    "exact": 0.0,
+    "n": 3
+   },
+   "written": {
+    "wer": 14.29,
+    "digits": 66.7,
+    "digits_n": 3,
+    "exact": 66.7,
+    "n": 3
+   },
+   "written_digits": {
+    "wer": 14.29,
+    "digits": 66.7,
+    "digits_n": 3,
+    "exact": 66.7,
+    "n": 3
+   }
+  },
+  "id": {
+   "transcript": {
+    "wer": 13.33,
+    "digits": 50.0,
+    "digits_n": 6,
+    "exact": 50.0,
+    "n": 6
+   },
+   "written": {
+    "wer": 13.33,
+    "digits": 83.3,
+    "digits_n": 6,
+    "exact": 66.7,
+    "n": 6
+   },
+   "written_digits": {
+    "wer": 13.33,
+    "digits": 83.3,
+    "digits_n": 6,
+    "exact": 66.7,
+    "n": 6
+   }
+  },
+  "measure": {
+   "transcript": {
+    "wer": 19.05,
+    "digits": 20.0,
+    "digits_n": 15,
+    "exact": 20.0,
+    "n": 15
+   },
+   "written": {
+    "wer": 19.05,
+    "digits": 86.7,
+    "digits_n": 15,
+    "exact": 66.7,
+    "n": 15
+   },
+   "written_digits": {
+    "wer": 19.05,
+    "digits": 86.7,
+    "digits_n": 15,
+    "exact": 66.7,
+    "n": 15
+   }
+  },
+  "money": {
+   "transcript": {
+    "wer": 39.08,
+    "digits": 11.1,
+    "digits_n": 18,
+    "exact": 11.1,
+    "n": 18
+   },
+   "written": {
+    "wer": 39.08,
+    "digits": 72.2,
+    "digits_n": 18,
+    "exact": 50.0,
+    "n": 18
+   },
+   "written_digits": {
+    "wer": 39.08,
+    "digits": 72.2,
+    "digits_n": 18,
+    "exact": 50.0,
+    "n": 18
+   }
+  },
+  "ordinal": {
+   "transcript": {
+    "wer": 9.26,
+    "digits": 22.2,
+    "digits_n": 9,
+    "exact": 11.1,
+    "n": 9
+   },
+   "written": {
+    "wer": 9.26,
+    "digits": 66.7,
+    "digits_n": 9,
+    "exact": 44.4,
+    "n": 9
+   },
+   "written_digits": {
+    "wer": 9.26,
+    "digits": 100.0,
+    "digits_n": 9,
+    "exact": 66.7,
+    "n": 9
+   }
+  },
+  "percent": {
+   "transcript": {
+    "wer": 17.78,
+    "digits": 33.3,
+    "digits_n": 9,
+    "exact": 33.3,
+    "n": 9
+   },
+   "written": {
+    "wer": 17.78,
+    "digits": 88.9,
+    "digits_n": 9,
+    "exact": 55.6,
+    "n": 9
+   },
+   "written_digits": {
+    "wer": 17.78,
+    "digits": 88.9,
+    "digits_n": 9,
+    "exact": 55.6,
+    "n": 9
+   }
+  },
+  "score": {
+   "transcript": {
+    "wer": 25.0,
+    "digits": 50.0,
+    "digits_n": 12,
+    "exact": 33.3,
+    "n": 6
+   },
+   "written": {
+    "wer": 25.0,
+    "digits": 75.0,
+    "digits_n": 12,
+    "exact": 50.0,
+    "n": 6
+   },
+   "written_digits": {
+    "wer": 25.0,
+    "digits": 75.0,
+    "digits_n": 12,
+    "exact": 50.0,
+    "n": 6
+   }
+  },
+  "time": {
+   "transcript": {
+    "wer": 38.52,
+    "digits": 9.5,
+    "digits_n": 21,
+    "exact": 11.1,
+    "n": 18
+   },
+   "written": {
+    "wer": 25.19,
+    "digits": 71.4,
+    "digits_n": 21,
+    "exact": 38.9,
+    "n": 18
+   },
+   "written_digits": {
+    "wer": 25.19,
+    "digits": 71.4,
+    "digits_n": 21,
+    "exact": 38.9,
+    "n": 18
+   }
+  }
+ },
+ "librispeech": {
+  "transcript": {
+   "wer": 15.48,
+   "digits": 0.0,
+   "digits_n": 0,
+   "exact": 24.7,
+   "n": 73
+  },
+  "written": {
+   "wer": 15.48,
+   "digits": 0.0,
+   "digits_n": 0,
+   "exact": 23.3,
+   "n": 73
+  },
+  "written_digits": {
+   "wer": 15.48,
+   "digits": 0.0,
+   "digits_n": 0,
+   "exact": 21.9,
+   "n": 73
+  }
+ },
+ "rows": [
+  {
+   "transcript": "The meeting moved to two thirty p.m. on March third.",
+   "written": "The meeting moved to 2:30 p.m. on March 3.",
+   "written_digits": "The meeting moved to 2:30 p.m. on March 3.",
+   "voice": "Samantha",
+   "kind": "time",
+   "ref": "The meeting moved to 2:30 p.m. on March 3."
+  },
+  {
+   "transcript": "The ticket costs $45.",
+   "written": "The ticket costs $45.",
+   "written_digits": "The ticket costs $45.",
+   "voice": "Samantha",
+   "kind": "money",
+   "ref": "The ticket costs $45."
+  },
+  {
+   "transcript": "Revenue grew 12.5% last quarter.",
+   "written": "Revenue grew 12.5% last quarter.",
+   "written_digits": "Revenue grew 12.5% last quarter.",
+   "voice": "Samantha",
+   "kind": "percent",
+   "ref": "Revenue grew 12.5% last quarter."
+  },
+  {
+   "transcript": "She was born on July fourth, nineteen ninety.",
+   "written": "She was born on July 4, 1990.",
+   "written_digits": "She was born on July 4, 1990.",
+   "voice": "Samantha",
+   "kind": "date",
+   "ref": "She was born on July 4, 1990."
+  },
+  {
+   "transcript": "Call me at 915 tomorrow morning.",
+   "written": "Call me at 9:15 tomorrow morning.",
+   "written_digits": "Call me at 9:15 tomorrow morning.",
+   "voice": "Samantha",
+   "kind": "time",
+   "ref": "Call me at 9:15 tomorrow morning."
+  },
+  {
+   "transcript": "We have 352 participants registered.",
+   "written": "We have 352 participants registered.",
+   "written_digits": "We have 352 participants registered.",
+   "voice": "Samantha",
+   "kind": "cardinal",
+   "ref": "We have 352 participants registered."
+  },
+  {
+   "transcript": "The company has 2,400 employees.",
+   "written": "The company has 2,400 employees.",
+   "written_digits": "The company has 2,400 employees.",
+   "voice": "Samantha",
+   "kind": "cardinal",
+   "ref": "The company has 2,400 employees."
+  },
+  {
+   "transcript": "The gain ended 102 to 98.",
+   "written": "The gain ended 102 to 98.",
+   "written_digits": "The gain ended 102 to 98.",
+   "voice": "Samantha",
+   "kind": "score",
+   "ref": "The game ended 102 to 98."
+  },
+  {
+   "transcript": "Our flight leaves at six forty five a.m.",
+   "written": "Our flight leaves at 6:45 a.m.",
+   "written_digits": "Our flight leaves at 6:45 a.m.",
+   "voice": "Samantha",
+   "kind": "time",
+   "ref": "Our flight leaves at 6:45 a.m."
+  },
+  {
+   "transcript": "The rent is $1,250 a month.",
+   "written": "The rent is $1,250 a month.",
+   "written_digits": "The rent is $1,250 a month.",
+   "voice": "Samantha",
+   "kind": "money",
+   "ref": "The rent is $1,250 a month."
+  },
+  {
+   "transcript": "Interest rates rose to 5.25 percent.",
+   "written": "Interest rates rose to 5.25%.",
+   "written_digits": "Interest rates rose to 5.25%.",
+   "voice": "Samantha",
+   "kind": "percent",
+   "ref": "Interest rates rose to 5.25%."
+  },
+  {
+   "transcript": "The package weighs 2.5 kilograms.",
+   "written": "The package weighs 2.5 kilograms.",
+   "written_digits": "The package weighs 2.5 kilograms.",
+   "voice": "Samantha",
+   "kind": "measure",
+   "ref": "The package weighs 2.5 kilograms."
+  },
+  {
+   "transcript": "She lives on the third floor.",
+   "written": "She lives on the third floor.",
+   "written_digits": "She lives on the 3rd floor.",
+   "voice": "Samantha",
+   "kind": "ordinal",
+   "ref": "She lives on the 3rd floor."
+  },
+  {
+   "transcript": "He finished twenty first in the Marathon.",
+   "written": "He finished 21st in the Marathon.",
+   "written_digits": "He finished 21st in the Marathon.",
+   "voice": "Samantha",
+   "kind": "ordinal",
+   "ref": "He finished 21st in the marathon."
+  },
+  {
+   "transcript": "The deadline is October fifteenth.",
+   "written": "The deadline is October 15.",
+   "written_digits": "The deadline is October 15.",
+   "voice": "Samantha",
+   "kind": "date",
+   "ref": "The deadline is October 15."
+  },
+  {
+   "transcript": "Prices started twelve years and fifty cents.",
+   "written": "Prices started 12 years and 50 cents.",
+   "written_digits": "Prices started 12 years and 50 cents.",
+   "voice": "Samantha",
+   "kind": "money",
+   "ref": "Prices start at €12.50."
+  },
+  {
+   "transcript": "The city has eight million people.",
+   "written": "The city has 8 million people.",
+   "written_digits": "The city has 8 million people.",
+   "voice": "Samantha",
+   "kind": "cardinal",
+   "ref": "The city has 8 million people."
+  },
+  {
+   "transcript": "The concert is on the twelfth of December.",
+   "written": "The concert is on the 12th of December.",
+   "written_digits": "The concert is on the 12th of December.",
+   "voice": "Samantha",
+   "kind": "date",
+   "ref": "The concert is on the 12th of December."
+  },
+  {
+   "transcript": "Room 412 is on the left.",
+   "written": "Room 412 is on the left.",
+   "written_digits": "Room 412 is on the left.",
+   "voice": "Samantha",
+   "kind": "id",
+   "ref": "Room 412 is on the left."
+  },
+  {
+   "transcript": "I paid three dollars and ninety nine cents for the coffee.",
+   "written": "I paid $3.99 for the coffee.",
+   "written_digits": "I paid $3.99 for the coffee.",
+   "voice": "Samantha",
+   "kind": "money",
+   "ref": "I paid $3.99 for the coffee."
+  },
+  {
+   "transcript": "The train departs at 11 thirty.",
+   "written": "The train departs at 11:30.",
+   "written_digits": "The train departs at 11:30.",
+   "voice": "Samantha",
+   "kind": "time",
+   "ref": "The train departs at 11:30."
+  },
+  {
+   "transcript": "About seventy five percent of users agree.",
+   "written": "About 75% of users agree.",
+   "written_digits": "About 75% of users agree.",
+   "voice": "Samantha",
+   "kind": "percent",
+   "ref": "About 75% of users agreed."
+  },
+  {
+   "transcript": "The bridge is one thousand two hundred eighty meters long.",
+   "written": "The bridge is 1,280 meters long.",
+   "written_digits": "The bridge is 1,280 meters long.",
+   "voice": "Samantha",
+   "kind": "measure",
+   "ref": "The bridge is 1,280 meters long."
+  },
+  {
+   "transcript": "year 2024 was busy.",
+   "written": "year 2024 was busy.",
+   "written_digits": "year 2024 was busy.",
+   "voice": "Samantha",
+   "kind": "date",
+   "ref": "The year 2024 was busy."
+  },
+  {
+   "transcript": "He ran twenty six point two miles.",
+   "written": "He ran 26.2 miles.",
+   "written_digits": "He ran 26.2 miles.",
+   "voice": "Samantha",
+   "kind": "measure",
+   "ref": "He ran 26.2 miles."
+  },
+  {
+   "transcript": "There are 365 days in a year.",
+   "written": "There are 365 days in a year.",
+   "written_digits": "There are 365 days in a year.",
+   "voice": "Samantha",
+   "kind": "cardinal",
+   "ref": "There are 365 days in a year."
+  },
+  {
+   "transcript": "The budget is two million dollars.",
+   "written": "The budget is $2 million.",
+   "written_digits": "The budget is $2 million.",
+   "voice": "Samantha",
+   "kind": "money",
+   "ref": "The budget is $2 million."
+  },
+  {
+   "transcript": "We met on January 21st, 2023.",
+   "written": "We met on January 21st, 2023.",
+   "written_digits": "We met on January 21st, 2023.",
+   "voice": "Samantha",
+   "kind": "date",
+   "ref": "We met on January 21, 2023."
+  },
+  {
+   "transcript": "The temperature dropped to 15 degrees.",
+   "written": "The temperature dropped to 15 degrees.",
+   "written_digits": "The temperature dropped to 15 degrees.",
+   "voice": "Samantha",
+   "kind": "measure",
+   "ref": "The temperature dropped to 15 degrees."
+  },
+  {
+   "transcript": "Please arrive by eight pm.",
+   "written": "Please arrive by 8 pm.",
+   "written_digits": "Please arrive by 8 pm.",
+   "voice": "Samantha",
+   "kind": "time",
+   "ref": "Please arrive by 8 p.m."
+  },
+  {
+   "transcript": "The order has fifty eight thousand three hundred twenty one items.",
+   "written": "The order has 58,321 items.",
+   "written_digits": "The order has 58,321 items.",
+   "voice": "Samantha",
+   "kind": "cardinal",
+   "ref": "The order has 58,321 items."
+  },
+  {
+   "transcript": "turn to page 147",
+   "written": "turn to page 147",
+   "written_digits": "turn to page 147",
+   "voice": "Samantha",
+   "kind": "id",
+   "ref": "Turn to page 147."
+  },
+  {
+   "transcript": "The vote passed 52 to 48.",
+   "written": "The vote passed 52 to 48.",
+   "written_digits": "The vote passed 52 to 48.",
+   "voice": "Samantha",
+   "kind": "score",
+   "ref": "The vote passed 52 to 48."
+  },
+  {
+   "transcript": "It takes forty five minutes to get there.",
+   "written": "It takes 45 minutes to get there.",
+   "written_digits": "It takes 45 minutes to get there.",
+   "voice": "Samantha",
+   "kind": "duration",
+   "ref": "It takes 45 minutes to get there."
+  },
+  {
+   "transcript": "The recipe needs 250 grams of flour.",
+   "written": "The recipe needs 250 grams of flour.",
+   "written_digits": "The recipe needs 250 grams of flour.",
+   "voice": "Samantha",
+   "kind": "measure",
+   "ref": "The recipe needs 250 grams of flour."
+  },
+  {
+   "transcript": "sales hit five hundred and seventy eight thousand dollars in June.",
+   "written": "sales hit $578,000 in June.",
+   "written_digits": "sales hit $578,000 in June.",
+   "voice": "Samantha",
+   "kind": "money",
+   "ref": "Sales hit $578,000 in June."
+  },
+  {
+   "transcript": "Our 10th anniversary is next week.",
+   "written": "Our 10th anniversary is next week.",
+   "written_digits": "Our 10th anniversary is next week.",
+   "voice": "Samantha",
+   "kind": "ordinal",
+   "ref": "Our 10th anniversary is next week."
+  },
+  {
+   "transcript": "The store opens at 10 a.m.",
+   "written": "The store opens at 10 a.m.",
+   "written_digits": "The store opens at 10 a.m.",
+   "voice": "Samantha",
+   "kind": "time",
+   "ref": "The store opens at 10 a.m."
+  },
+  {
+   "transcript": "Only 13 students showed up.",
+   "written": "Only 13 students showed up.",
+   "written_digits": "Only 13 students showed up.",
+   "voice": "Samantha",
+   "kind": "cardinal",
+   "ref": "Only 13 students showed up."
+  },
+  {
+   "transcript": "The invoices do on May thirty first.",
+   "written": "The invoices do on May 31.",
+   "written_digits": "The invoices do on May 31.",
+   "voice": "Samantha",
+   "kind": "date",
+   "ref": "The invoice is due on May 31."
+  },
+  {
+   "transcript": "The meeting moved to two thirty p.m.",
+   "written": "The meeting moved to 2:30 p.m.",
+   "written_digits": "The meeting moved to 2:30 p.m.",
+   "voice": "Daniel",
+   "kind": "time",
+   "ref": "The meeting moved to 2:30 p.m. on March 3."
+  },
+  {
+   "transcript": "The ticket cost forty five dollars",
+   "written": "The ticket cost $45",
+   "written_digits": "The ticket cost $45",
+   "voice": "Daniel",
+   "kind": "money",
+   "ref": "The ticket costs $45."
+  },
+  {
+   "transcript": "Revenue grew 12.5% last quarter.",
+   "written": "Revenue grew 12.5% last quarter.",
+   "written_digits": "Revenue grew 12.5% last quarter.",
+   "voice": "Daniel",
+   "kind": "percent",
+   "ref": "Revenue grew 12.5% last quarter."
+  },
+  {
+   "transcript": "She was born on the fourth of July, nineteen ninety.",
+   "written": "She was born on the 4th of July, 1990.",
+   "written_digits": "She was born on the 4th of July, 1990.",
+   "voice": "Daniel",
+   "kind": "date",
+   "ref": "She was born on July 4, 1990."
+  },
+  {
+   "transcript": "Call me at nine fifteen tomorrow morning.",
+   "written": "Call me at 9:15 tomorrow morning.",
+   "written_digits": "Call me at 9:15 tomorrow morning.",
+   "voice": "Daniel",
+   "kind": "time",
+   "ref": "Call me at 9:15 tomorrow morning."
+  },
+  {
+   "transcript": "We have 352 participants registered.",
+   "written": "We have 352 participants registered.",
+   "written_digits": "We have 352 participants registered.",
+   "voice": "Daniel",
+   "kind": "cardinal",
+   "ref": "We have 352 participants registered."
+  },
+  {
+   "transcript": "The company has two thousand four hundred employees.",
+   "written": "The company has 2,400 employees.",
+   "written_digits": "The company has 2,400 employees.",
+   "voice": "Daniel",
+   "kind": "cardinal",
+   "ref": "The company has 2,400 employees."
+  },
+  {
+   "transcript": "The game ended one hundred and two to ninety eight.",
+   "written": "The game ended 102 to 98.",
+   "written_digits": "The game ended 102 to 98.",
+   "voice": "Daniel",
+   "kind": "score",
+   "ref": "The game ended 102 to 98."
+  },
+  {
+   "transcript": "The flight leaves at six forty five a.m.",
+   "written": "The flight leaves at 6:45 a.m.",
+   "written_digits": "The flight leaves at 6:45 a.m.",
+   "voice": "Daniel",
+   "kind": "time",
+   "ref": "Our flight leaves at 6:45 a.m."
+  },
+  {
+   "transcript": "The rent is one thousand two hundred and fifty dollars a month.",
+   "written": "The rent is $1,250 a month.",
+   "written_digits": "The rent is $1,250 a month.",
+   "voice": "Daniel",
+   "kind": "money",
+   "ref": "The rent is $1,250 a month."
+  },
+  {
+   "transcript": "interest rates rose to 5.25%.",
+   "written": "interest rates rose to 5.25%.",
+   "written_digits": "interest rates rose to 5.25%.",
+   "voice": "Daniel",
+   "kind": "percent",
+   "ref": "Interest rates rose to 5.25%."
+  },
+  {
+   "transcript": "The package weighs two point high kilograms.",
+   "written": "The package weighs two point high kilograms.",
+   "written_digits": "The package weighs 2 point high kilograms.",
+   "voice": "Daniel",
+   "kind": "measure",
+   "ref": "The package weighs 2.5 kilograms."
+  },
+  {
+   "transcript": "She lives on the third floor.",
+   "written": "She lives on the third floor.",
+   "written_digits": "She lives on the 3rd floor.",
+   "voice": "Daniel",
+   "kind": "ordinal",
+   "ref": "She lives on the 3rd floor."
+  },
+  {
+   "transcript": "He finished twenty first in the marathon.",
+   "written": "He finished 21st in the marathon.",
+   "written_digits": "He finished 21st in the marathon.",
+   "voice": "Daniel",
+   "kind": "ordinal",
+   "ref": "He finished 21st in the marathon."
+  },
+  {
+   "transcript": "The deadline is the 15th of October.",
+   "written": "The deadline is the 15th of October.",
+   "written_digits": "The deadline is the 15th of October.",
+   "voice": "Daniel",
+   "kind": "date",
+   "ref": "The deadline is October 15."
+  },
+  {
+   "transcript": "prices start at twelve Euros and fifty cent.",
+   "written": "prices start at €12.50.",
+   "written_digits": "prices start at €12.50.",
+   "voice": "Daniel",
+   "kind": "money",
+   "ref": "Prices start at €12.50."
+  },
+  {
+   "transcript": "The city has eight million people.",
+   "written": "The city has 8 million people.",
+   "written_digits": "The city has 8 million people.",
+   "voice": "Daniel",
+   "kind": "cardinal",
+   "ref": "The city has 8 million people."
+  },
+  {
+   "transcript": "The concert is on the twelfth of December.",
+   "written": "The concert is on the 12th of December.",
+   "written_digits": "The concert is on the 12th of December.",
+   "voice": "Daniel",
+   "kind": "date",
+   "ref": "The concert is on the 12th of December."
+  },
+  {
+   "transcript": "Room 412 is on the left.",
+   "written": "Room 412 is on the left.",
+   "written_digits": "Room 412 is on the left.",
+   "voice": "Daniel",
+   "kind": "id",
+   "ref": "Room 412 is on the left."
+  },
+  {
+   "transcript": "$5. $5.",
+   "written": "$5. $5.",
+   "written_digits": "$5. $5.",
+   "voice": "Daniel",
+   "kind": "money",
+   "ref": "I paid $3.99 for the coffee."
+  },
+  {
+   "transcript": "The train departs at 11.30.",
+   "written": "The train departs at 11.30.",
+   "written_digits": "The train departs at 11.30.",
+   "voice": "Daniel",
+   "kind": "time",
+   "ref": "The train departs at 11:30."
+  },
+  {
+   "transcript": "About seventy five percent of users agree.",
+   "written": "About 75% of users agree.",
+   "written_digits": "About 75% of users agree.",
+   "voice": "Daniel",
+   "kind": "percent",
+   "ref": "About 75% of users agreed."
+  },
+  {
+   "transcript": "The bridge is one thousand two hundred and eighty meters large.",
+   "written": "The bridge is 1,280 meters large.",
+   "written_digits": "The bridge is 1,280 meters large.",
+   "voice": "Daniel",
+   "kind": "measure",
+   "ref": "The bridge is 1,280 meters long."
+  },
+  {
+   "transcript": "Two thousand and twenty four was busy.",
+   "written": "2024 was busy.",
+   "written_digits": "2024 was busy.",
+   "voice": "Daniel",
+   "kind": "date",
+   "ref": "The year 2024 was busy."
+  },
+  {
+   "transcript": "He ran twenty six point two miles.",
+   "written": "He ran 26.2 miles.",
+   "written_digits": "He ran 26.2 miles.",
+   "voice": "Daniel",
+   "kind": "measure",
+   "ref": "He ran 26.2 miles."
+  },
+  {
+   "transcript": "There are three hundred and sixty five days in a year.",
+   "written": "There are 365 days in a year.",
+   "written_digits": "There are 365 days in a year.",
+   "voice": "Daniel",
+   "kind": "cardinal",
+   "ref": "There are 365 days in a year."
+  },
+  {
+   "transcript": "The budget is two million dollars.",
+   "written": "The budget is $2 million.",
+   "written_digits": "The budget is $2 million.",
+   "voice": "Daniel",
+   "kind": "money",
+   "ref": "The budget is $2 million."
+  },
+  {
+   "transcript": "We met on the twenty first of January two thousand and twenty three.",
+   "written": "We met on the 21st of January 2023.",
+   "written_digits": "We met on the 21st of January 2023.",
+   "voice": "Daniel",
+   "kind": "date",
+   "ref": "We met on January 21, 2023."
+  },
+  {
+   "transcript": "The temperature dropped to fifteen degrees.",
+   "written": "The temperature dropped to 15 degrees.",
+   "written_digits": "The temperature dropped to 15 degrees.",
+   "voice": "Daniel",
+   "kind": "measure",
+   "ref": "The temperature dropped to 15 degrees."
+  },
+  {
+   "transcript": "Please arrive by eight pm.",
+   "written": "Please arrive by 8 pm.",
+   "written_digits": "Please arrive by 8 pm.",
+   "voice": "Daniel",
+   "kind": "time",
+   "ref": "Please arrive by 8 p.m."
+  },
+  {
+   "transcript": "The order has fifty eight thousand three hundred and twenty one out.",
+   "written": "The order has 58,321 out.",
+   "written_digits": "The order has 58,321 out.",
+   "voice": "Daniel",
+   "kind": "cardinal",
+   "ref": "The order has 58,321 items."
+  },
+  {
+   "transcript": "Turn to page one hundred and forty seven.",
+   "written": "Turn to page 147.",
+   "written_digits": "Turn to page 147.",
+   "voice": "Daniel",
+   "kind": "id",
+   "ref": "Turn to page 147."
+  },
+  {
+   "transcript": "The vote passed 52 to 48.",
+   "written": "The vote passed 52 to 48.",
+   "written_digits": "The vote passed 52 to 48.",
+   "voice": "Daniel",
+   "kind": "score",
+   "ref": "The vote passed 52 to 48."
+  },
+  {
+   "transcript": "It takes forty five minutes to get there.",
+   "written": "It takes 45 minutes to get there.",
+   "written_digits": "It takes 45 minutes to get there.",
+   "voice": "Daniel",
+   "kind": "duration",
+   "ref": "It takes 45 minutes to get there."
+  },
+  {
+   "transcript": "The recipe needs two hundred and fifty grams of flour.",
+   "written": "The recipe needs 250 grams of flour.",
+   "written_digits": "The recipe needs 250 grams of flour.",
+   "voice": "Daniel",
+   "kind": "measure",
+   "ref": "The recipe needs 250 grams of flour."
+  },
+  {
+   "transcript": "sales hit five hundred and seventy eight thousand dollars in jew.",
+   "written": "sales hit $578,000 in jew.",
+   "written_digits": "sales hit $578,000 in jew.",
+   "voice": "Daniel",
+   "kind": "money",
+   "ref": "Sales hit $578,000 in June."
+  },
+  {
+   "transcript": "Now the 10th anniversary is next week.",
+   "written": "Now the 10th anniversary is next week.",
+   "written_digits": "Now the 10th anniversary is next week.",
+   "voice": "Daniel",
+   "kind": "ordinal",
+   "ref": "Our 10th anniversary is next week."
+  },
+  {
+   "transcript": "The store opens at 10 a.m.",
+   "written": "The store opens at 10 a.m.",
+   "written_digits": "The store opens at 10 a.m.",
+   "voice": "Daniel",
+   "kind": "time",
+   "ref": "The store opens at 10 a.m."
+  },
+  {
+   "transcript": "Only thirteen students showed up.",
+   "written": "Only 13 students showed up.",
+   "written_digits": "Only 13 students showed up.",
+   "voice": "Daniel",
+   "kind": "cardinal",
+   "ref": "Only 13 students showed up."
+  },
+  {
+   "transcript": "The invoices due on the 31st of",
+   "written": "The invoices due on the 31st of",
+   "written_digits": "The invoices due on the 31st of",
+   "voice": "Daniel",
+   "kind": "date",
+   "ref": "The invoice is due on May 31."
+  },
+  {
+   "transcript": "We'll meet in New York at 3.30 p.m. on March 13th.",
+   "written": "We'll meet in New York at 3.30 p.m. on March 13th.",
+   "written_digits": "We'll meet in New York at 3.30 p.m. on March 13th.",
+   "voice": "Flo",
+   "kind": "time",
+   "ref": "The meeting moved to 2:30 p.m. on March 3."
+  },
+  {
+   "transcript": "The two could cost forty five dollars.",
+   "written": "The two could cost $45.",
+   "written_digits": "The 2 could cost $45.",
+   "voice": "Flo",
+   "kind": "money",
+   "ref": "The ticket costs $45."
+  },
+  {
+   "transcript": "revenue for twelve point five percent last quarter",
+   "written": "revenue for 12.5% last quarter",
+   "written_digits": "revenue for 12.5% last quarter",
+   "voice": "Flo",
+   "kind": "percent",
+   "ref": "Revenue grew 12.5% last quarter."
+  },
+  {
+   "transcript": "She was born on July the 4th, 1990.",
+   "written": "She was born on July the 4th, 1990.",
+   "written_digits": "She was born on July the 4th, 1990.",
+   "voice": "Flo",
+   "kind": "date",
+   "ref": "She was born on July 4, 1990."
+  },
+  {
+   "transcript": "Call me at nine fifteen for tomorrow morning.",
+   "written": "Call me at 9:15 for tomorrow morning.",
+   "written_digits": "Call me at 9:15 for tomorrow morning.",
+   "voice": "Flo",
+   "kind": "time",
+   "ref": "Call me at 9:15 tomorrow morning."
+  },
+  {
+   "transcript": "We have three unread and three three parties in front of the register.",
+   "written": "We have three unread and three three parties in front of the register.",
+   "written_digits": "We have 3 unread and three three parties in front of the register.",
+   "voice": "Flo",
+   "kind": "cardinal",
+   "ref": "We have 352 participants registered."
+  },
+  {
+   "transcript": "The company has 2,000 or 100 employees.",
+   "written": "The company has 2,000 or 100 employees.",
+   "written_digits": "The company has 2,000 or 100 employees.",
+   "voice": "Flo",
+   "kind": "cardinal",
+   "ref": "The company has 2,400 employees."
+  },
+  {
+   "transcript": "The game ended one hundred and two to nine two.",
+   "written": "The game ended 102 to nine two.",
+   "written_digits": "The game ended 102 to nine two.",
+   "voice": "Flo",
+   "kind": "score",
+   "ref": "The game ended 102 to 98."
+  },
+  {
+   "transcript": "For nine weeks at six forty five a.m.",
+   "written": "For nine weeks at 6:45 a.m.",
+   "written_digits": "For 9 weeks at 6:45 a.m.",
+   "voice": "Flo",
+   "kind": "time",
+   "ref": "Our flight leaves at 6:45 a.m."
+  },
+  {
+   "transcript": "The rent is one thousand two hundred and fifty dollars a month.",
+   "written": "The rent is $1,250 a month.",
+   "written_digits": "The rent is $1,250 a month.",
+   "voice": "Flo",
+   "kind": "money",
+   "ref": "The rent is $1,250 a month."
+  },
+  {
+   "transcript": "Investing rates rose to five points through five percent.",
+   "written": "Investing rates rose to 5 points through 5%.",
+   "written_digits": "Investing rates rose to 5 points through 5%.",
+   "voice": "Flo",
+   "kind": "percent",
+   "ref": "Interest rates rose to 5.25%."
+  },
+  {
+   "transcript": "We're packaging away three point five king of mams.",
+   "written": "We're packaging away 3.5 king of mams.",
+   "written_digits": "We're packaging away 3.5 king of mams.",
+   "voice": "Flo",
+   "kind": "measure",
+   "ref": "The package weighs 2.5 kilograms."
+  },
+  {
+   "transcript": "She moves on the third floor.",
+   "written": "She moves on the third floor.",
+   "written_digits": "She moves on the 3rd floor.",
+   "voice": "Flo",
+   "kind": "ordinal",
+   "ref": "She lives on the 3rd floor."
+  },
+  {
+   "transcript": "She finished twenty first in her marathon.",
+   "written": "She finished 21st in her marathon.",
+   "written_digits": "She finished 21st in her marathon.",
+   "voice": "Flo",
+   "kind": "ordinal",
+   "ref": "He finished 21st in the marathon."
+  },
+  {
+   "transcript": "The deadline is October the fifteenth.",
+   "written": "The deadline is October the 15th.",
+   "written_digits": "The deadline is October the 15th.",
+   "voice": "Flo",
+   "kind": "date",
+   "ref": "The deadline is October 15."
+  },
+  {
+   "transcript": "This is not a 12 yearmers and 50 cents.",
+   "written": "This is not a 12 yearmers and 50 cents.",
+   "written_digits": "This is not a 12 yearmers and 50 cents.",
+   "voice": "Flo",
+   "kind": "money",
+   "ref": "Prices start at €12.50."
+  },
+  {
+   "transcript": "The city has eight million people.",
+   "written": "The city has 8 million people.",
+   "written_digits": "The city has 8 million people.",
+   "voice": "Flo",
+   "kind": "cardinal",
+   "ref": "The city has 8 million people."
+  },
+  {
+   "transcript": "The concert is on the twelfth of December.",
+   "written": "The concert is on the 12th of December.",
+   "written_digits": "The concert is on the 12th of December.",
+   "voice": "Flo",
+   "kind": "date",
+   "ref": "The concert is on the 12th of December."
+  },
+  {
+   "transcript": "room for one hundred and twelve is on the net.",
+   "written": "room for 112 is on the net.",
+   "written_digits": "room for 112 is on the net.",
+   "voice": "Flo",
+   "kind": "id",
+   "ref": "Room 412 is on the left."
+  },
+  {
+   "transcript": "I played three donors in ninety nine set for the coffee.",
+   "written": "I played three donors in 99 set for the coffee.",
+   "written_digits": "I played 3 donors in 99 set for the coffee.",
+   "voice": "Flo",
+   "kind": "money",
+   "ref": "I paid $3.99 for the coffee."
+  },
+  {
+   "transcript": "The train departure to mid-130.",
+   "written": "The train departure to mid-130.",
+   "written_digits": "The train departure to mid-130.",
+   "voice": "Flo",
+   "kind": "time",
+   "ref": "The train departs at 11:30."
+  },
+  {
+   "transcript": "about seventy five percent of users agreed.",
+   "written": "about 75% of users agreed.",
+   "written_digits": "about 75% of users agreed.",
+   "voice": "Flo",
+   "kind": "percent",
+   "ref": "About 75% of users agreed."
+  },
+  {
+   "transcript": "The bridge is one thousand two hundred and eighty meters long.",
+   "written": "The bridge is 1,280 meters long.",
+   "written_digits": "The bridge is 1,280 meters long.",
+   "voice": "Flo",
+   "kind": "measure",
+   "ref": "The bridge is 1,280 meters long."
+  },
+  {
+   "transcript": "The year twenty twenty four was busy.",
+   "written": "The year 2024 was busy.",
+   "written_digits": "The year 2024 was busy.",
+   "voice": "Flo",
+   "kind": "date",
+   "ref": "The year 2024 was busy."
+  },
+  {
+   "transcript": "He ran twenty six point two miles.",
+   "written": "He ran 26.2 miles.",
+   "written_digits": "He ran 26.2 miles.",
+   "voice": "Flo",
+   "kind": "measure",
+   "ref": "He ran 26.2 miles."
+  },
+  {
+   "transcript": "There are three hundred and sixty five days in the year.",
+   "written": "There are 365 days in the year.",
+   "written_digits": "There are 365 days in the year.",
+   "voice": "Flo",
+   "kind": "cardinal",
+   "ref": "There are 365 days in a year."
+  },
+  {
+   "transcript": "The budget is two dollars million.",
+   "written": "The budget is two dollars million.",
+   "written_digits": "The budget is two dollars million.",
+   "voice": "Flo",
+   "kind": "money",
+   "ref": "The budget is $2 million."
+  },
+  {
+   "transcript": "We met on January the twenty first. Twenty twenty three.",
+   "written": "We met on January the 21st. Twenty twenty three.",
+   "written_digits": "We met on January the 21st. Twenty twenty three.",
+   "voice": "Flo",
+   "kind": "date",
+   "ref": "We met on January 21, 2023."
+  },
+  {
+   "transcript": "The temperature is not so fifteen degrees.",
+   "written": "The temperature is not so 15 degrees.",
+   "written_digits": "The temperature is not so 15 degrees.",
+   "voice": "Flo",
+   "kind": "measure",
+   "ref": "The temperature dropped to 15 degrees."
+  },
+  {
+   "transcript": "Please remind my old kids.",
+   "written": "Please remind my old kids.",
+   "written_digits": "Please remind my old kids.",
+   "voice": "Flo",
+   "kind": "time",
+   "ref": "Please arrive by 8 p.m."
+  },
+  {
+   "transcript": "We ordered fifty thousand three hundred and twenty one items.",
+   "written": "We ordered 50,321 items.",
+   "written_digits": "We ordered 50,321 items.",
+   "voice": "Flo",
+   "kind": "cardinal",
+   "ref": "The order has 58,321 items."
+  },
+  {
+   "transcript": "turn the page one hundred and forty seven",
+   "written": "turn the page 147",
+   "written_digits": "turn the page 147",
+   "voice": "Flo",
+   "kind": "id",
+   "ref": "Turn to page 147."
+  },
+  {
+   "transcript": "The road caused fifty through to four to eight.",
+   "written": "The road caused 50 through to four to eight.",
+   "written_digits": "The road caused 50 through to 4 to 8.",
+   "voice": "Flo",
+   "kind": "score",
+   "ref": "The vote passed 52 to 48."
+  },
+  {
+   "transcript": "Two forty five minutes to get there.",
+   "written": "Two forty five minutes to get there.",
+   "written_digits": "Two forty five minutes to get there.",
+   "voice": "Flo",
+   "kind": "duration",
+   "ref": "It takes 45 minutes to get there."
+  },
+  {
+   "transcript": "The recipe needs two hundred and fifty grams of marrow.",
+   "written": "The recipe needs 250 grams of marrow.",
+   "written_digits": "The recipe needs 250 grams of marrow.",
+   "voice": "Flo",
+   "kind": "measure",
+   "ref": "The recipe needs 250 grams of flour."
+  },
+  {
+   "transcript": "sale is five hundred and seventy eight thousand dollars in June",
+   "written": "sale is $578,000 in June",
+   "written_digits": "sale is $578,000 in June",
+   "voice": "Flo",
+   "kind": "money",
+   "ref": "Sales hit $578,000 in June."
+  },
+  {
+   "transcript": "Our tenth anniversary is next week.",
+   "written": "Our 10th anniversary is next week.",
+   "written_digits": "Our 10th anniversary is next week.",
+   "voice": "Flo",
+   "kind": "ordinal",
+   "ref": "Our 10th anniversary is next week."
+  },
+  {
+   "transcript": "The store opens at ten AM.",
+   "written": "The store opens at 10 AM.",
+   "written_digits": "The store opens at 10 AM.",
+   "voice": "Flo",
+   "kind": "time",
+   "ref": "The store opens at 10 a.m."
+  },
+  {
+   "transcript": "Only 13 students showed up.",
+   "written": "Only 13 students showed up.",
+   "written_digits": "Only 13 students showed up.",
+   "voice": "Flo",
+   "kind": "cardinal",
+   "ref": "Only 13 students showed up."
+  },
+  {
+   "transcript": "Ian wishes you will make the thirteenth first.",
+   "written": "Ian wishes you will make the thirteenth first.",
+   "written_digits": "Ian wishes you will make the thirteenth first.",
+   "voice": "Flo",
+   "kind": "date",
+   "ref": "The invoice is due on May 31."
+  }
+ ]
+}

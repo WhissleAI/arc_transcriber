@@ -21,6 +21,7 @@ No audio is committed:
 | [device_directed](device_directed/) | Commands vs people talking to each other; which wake names are heard | cross-talk scored as high as commands (nurse 0.74–0.93 vs surgeon 0.51–0.88); "Scope" missed 8/9 → rerun cross-talk AUC 0.33; Scope heard 1/9 unprimed, 7/9 primed |
 | [whisper_noise](whisper_noise/) | Whispers, low level, noise, telephone, clipping | whispers are the weakest input; telephone 0.57 / clipping 0.51 fire only on their condition → rerun whisper voice 58.9% WER vs 20.8% clean; clipping 0.66; telephone silent on short clips |
 | [latency_streaming](latency_streaming/) | Offline and streaming latency, when each output arrives | Steer 0.05–0.12 s per command; Pipecat final ~2.7 s late → rerun: commands under 1 s get their final at +14–15 s (segmenter `min_s` gate); utterance record +0.79 s; flush 155 ms |
+| [written_form](written_form/) | Does the written transcript (`transcript_written`) score better against written references? | 1.2.1: digits found 22% → 74%, whole sentence right 18% → 53%, WER 27.2% → 24.2% on 120 number-heavy clips; LibriSpeech WER unchanged (15.5%) |
 | [api_issues](api_issues/) | Minimal reproductions of the API issues | 4 issues (late final for short commands, rewrite duplicates, global switch interval, two device-directed numbers) |
 
 **[FINDINGS.md](FINDINGS.md)** lists the learnings for the Arc team, each with its evidence and an ask.

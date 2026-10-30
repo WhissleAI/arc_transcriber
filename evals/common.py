@@ -50,7 +50,7 @@ def env_info(arc=None, threads=None):
         info["backbone"] = getattr(arc, "backbone", None)
         rev = re.search(r"snapshots/([0-9a-f]{7,40})", str(info["model_dir"] or ""))
         info["model_snapshot"] = rev.group(1)[:12] if rev else None
-        info["model_revision"] = getattr(arc, "eval_revision", None) or f"v{arc_audio.__version__}"   # default: the package's own
+        info["model_revision"] = getattr(arc, "eval_revision", None) or getattr(arc_audio, "MODEL_REVISION", f"v{arc_audio.__version__}")   # default: the package's
     return info
 
 
