@@ -3,6 +3,12 @@
 Package versions of `arc-transcriber` (this repository) and the model revisions of
 [WhissleAI/arc-v1.1](https://huggingface.co/WhissleAI/arc-v1.1) they load by default. Model numbers are on the model card.
 
+## Unreleased
+
+- `c/`: libarc, a native C API (C11, no dependencies) for Arc Mini: transcript, word times, linked names, number values,
+  utterance tags, events; passes `tests/golden/mini.json` (`make -C c parity`). CI builds it and runs its unit tests on Linux
+  and macOS (`.github/workflows/c.yml`). Python package unchanged.
+
 ## 1.2.0
 
 - New model revision `v1.2.0` (the default): **Arc Transcriber 1.2.0** (`--backbone full`); **Arc Mini stays 1.1.1** (same files).
