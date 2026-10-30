@@ -15,7 +15,7 @@ before each release: newer code or weights mean re-running the checks below.
 ## Build and use
 
 ```
-make -C c            # build/libarc.a, build/arc-transcribe, build/arc-parity, build/arc-trim, tests
+make -C c            # build/libarc.a, build/arc-transcribe, build/arc-score, build/arc-parity, build/arc-trim, tests
 make -C c test       # unit tests that need no weights
 ```
 
@@ -46,6 +46,36 @@ build/arc-transcribe arc-v1.1/mini clip.wav [more.wav ...] --domain nba --names 
 
 `--names` takes a list in the format of `examples/example_names.json`; `--json` writes one line per file with the
 transcript (word times and tags), names, numbers and events in arc_audio's keys.
+
+### Candidate verification: `arc_score` and the n-best
+
+An app that has candidates for what was said (catalog titles, contacts, commands) can ask Arc which one the audio
+supports. `arc_score` returns the decoder's teacher-forced log P(text | audio) for each text, with the encoder run once
+(reused from the last `arc_transcribe` of the same samples) and the texts walked as a prefix tree, so a shared "read …"
+is decoded once. Arc writes names inside inline tags, so a text may mark its name with braces: `ARC_SCORE_TAGS` scores
+it plain and inside ENTITY_PERSON / ENTITY_WORK and keeps the best; `ARC_SCORE_PERSON` only inside ENTITY_PERSON (one
+sequence per text: a cheap first pass). The prompt holds only the context's domain, so the score is what the audio
+supports, not what a list expects. Sums are not length-fair: compare texts of similar length, or add a per-token bonus.
+
+```c
+const char* texts[] = {"read {Treasure Island.}", "read {Sherlock Holmes.}", "Read Trej Island."};
+float lp[3]; int ntok[3];
+arc_score(e, pcm, n, texts, 3, ARC_SCORE_TAGS, lp, ntok);      /* lp: -5.9, -34.0, -8.9 (nats) */
+```
+
+`arc_utt.alts` / `alt_scores` / `n_alts` are the final decode's finished beams (best first, distinct texts, beam
+search's length-normalised scores): free alternatives for a catalog or a parser to pick from.
+
+```
+build/arc-score arc-v1.1/mini clip.wav --tags --topic assistant --nbest "read {Treasure Island.}" "Read Trej Island."
+```
+
+In Steer (voice book search over 61,476 books, 200 spoken requests by 4 macOS voices) the catalog proposes ~20–30
+candidates from the live list and a spelling/sound search, Arc scores them, and the best replaces the transcript when
+it explains the audio within 5.5 nats of the transcript itself: right book first 80% -> 84% (titles 74% -> 80%), and
+86% when a request within 10.5 nats is asked back ("Did you mean Les Misérables?"); on 596 clips of other speech it
+turned none into a book request (5 would be asked). Scoring 25 one-sequence texts after the decode takes ~70 ms on
+4 threads (M3 Pro), ~210 ms with all three tag variants each; the person-tag pass then all three for the best 5 comes to about 120 ms (from those two measurements).
 
 Other calls: `arc_set_context` (the decoder's context prompt: names with kinds, terms, topic, earlier text),
 `arc_set_bias` / `arc_set_bias_strength` (decoder name bias), `arc_frames_compute` (per-frame probabilities of the
@@ -146,6 +176,16 @@ never expanded; the event and device-directed heads load on first use). Peak mem
 clip length (about 1 GB for 8 minutes with the trunk on); chunked encoding is future work. Files: 68 MB (`mini/`);
 `build/arc-trim` copies a safetensors file keeping only given tensor prefixes (libarc reads `trunk. head. diar.
 ent. word.` from `model.q4.safetensors`).
+
+Scores and beams are checked against arc_audio (`tests/test_score.c` with `tools/dump_score_ref.py`): 56/56 scores
+within 2e-2 nats (worst 3.6e-4) and 5/5 n-best lists identical on stretches of `examples/example_synth.wav`
+(`tests/data/score_ref.jsonl`), 425/425 and 25/25 on 25 spoken book requests. Note for Python references: transformers'
+MoonshineStreaming decoder (5.19) adds its positional embeddings to `encoder_outputs.last_hidden_state` in place, so
+calling the model twice with one encoder output drifts every call after the first; copy the states per call.
+
+```
+build/test_score arc-v1.1/mini ../examples tests/data/score_ref.jsonl
+```
 
 ## Not ported yet
 

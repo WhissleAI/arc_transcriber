@@ -1,4 +1,4 @@
-# libarc: `make` builds build/libarc.a, the tools (arc-transcribe, arc-parity, arc-trim) and the tests.
+# libarc: `make` builds build/libarc.a, the tools (arc-transcribe, arc-score, arc-parity, arc-trim) and the tests.
 # `make test` runs the unit tests that need no weights. C11; libc, libm and threads only.
 # Part of arc_transcriber (Whissle Inc.), CC BY-NC 4.0; see LICENSE.
 CC ?= cc
@@ -9,15 +9,17 @@ SRC := $(wildcard src/*.c)
 HDR := $(wildcard src/*.h include/*.h)
 OBJ := $(patsubst src/%.c,build/%.o,$(SRC))
 UNIT := test_num test_ntext test_tidy
-TESTS := $(UNIT) test_moon test_tok test_transcribe test_full store_hash test_whole_long
+TESTS := $(UNIT) test_moon test_tok test_transcribe test_full store_hash test_whole_long test_score
 
-all: build/libarc.a build/arc-transcribe build/arc-parity build/arc-trim $(addprefix build/,$(TESTS))
+all: build/libarc.a build/arc-transcribe build/arc-score build/arc-parity build/arc-trim $(addprefix build/,$(TESTS))
 
 build/%.o: src/%.c $(HDR) | build
 	$(CC) $(CFLAGS) -c $< -o $@
 build/libarc.a: $(OBJ)
 	ar rcs $@ $^
 build/arc-transcribe: tools/arc_transcribe.c tools/json_out.h build/libarc.a
+	$(CC) $(CFLAGS) $< build/libarc.a $(LDLIBS) -o $@
+build/arc-score: tools/arc_score.c build/libarc.a
 	$(CC) $(CFLAGS) $< build/libarc.a $(LDLIBS) -o $@
 build/arc-trim: tools/arc_trim.c build/libarc.a
 	$(CC) $(CFLAGS) $< build/libarc.a $(LDLIBS) -o $@

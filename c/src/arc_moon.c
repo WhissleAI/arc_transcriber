@@ -665,6 +665,13 @@ static void topk(const float* x, int n, int k, scored* out) {
 
 int arc_moon_decode(arc_moon* m, const float* enc, int T, const int* prompt, int n_prompt, int max_length, int beams,
                     const arc_moon_procs* procs, int* out, int cap) {
+  return arc_moon_decode_nbest(m, enc, T, prompt, n_prompt, max_length, beams, procs, out, cap, 0, NULL, NULL, NULL, NULL);
+}
+
+int arc_moon_decode_nbest(arc_moon* m, const float* enc, int T, const int* prompt, int n_prompt, int max_length,
+                          int beams, const arc_moon_procs* procs, int* out, int cap, int max_alts, int* alt_ids,
+                          int* alt_len, float* alt_score, int* n_alts) {
+  if (n_alts) *n_alts = 0;
   if (beams < 1) beams = 1;
   int start_len = n_prompt + 1;
   if (max_length < start_len + 1) max_length = start_len + 1;
@@ -709,6 +716,12 @@ int arc_moon_decode(arc_moon* m, const float* enc, int T, const int* prompt, int
     n_out = cur - n_prompt;
     if (n_out > cap) n_out = cap;
     memcpy(out, run + n_prompt, sizeof(int) * (size_t)n_out);
+    if (max_alts > 0 && alt_ids && n_alts) {
+      memcpy(alt_ids, out, sizeof(int) * (size_t)n_out);
+      alt_len[0] = n_out;
+      alt_score[0] = 0.0f;
+      *n_alts = 1;
+    }
   } else {
     /* beam search exactly as transformers' _beam_search (batch 1, one EOS, length_penalty 1, early_stopping False) */
     const int K = 2 * nb;
@@ -827,6 +840,25 @@ int arc_moon_decode(arc_moon* m, const float* enc, int T, const int* prompt, int
       if (n_out > cap) n_out = cap;
       memcpy(out, best + n_prompt, sizeof(int) * (size_t)n_out);
     }
+    /* the other finished beams, best first (seq / bscore are kept sorted by the merge's topk) */
+    if (max_alts > 0 && alt_ids && n_alts) {
+      for (int b = 0; b < nb && *n_alts < max_alts; ++b) {
+        if (!fin[b] || bscore[b] < -1e8f) continue;
+        const int* sq = seq + (size_t)b * max_length;
+        int n = cur;
+        for (int i = start_len; i < cur; ++i)
+          if (sq[i] == eos) {
+            n = i + 1;
+            break;
+          }
+        int k = n - n_prompt;
+        if (k > cap) k = cap;
+        memcpy(alt_ids + (size_t)*n_alts * cap, sq + n_prompt, sizeof(int) * (size_t)k);
+        alt_len[*n_alts] = k;
+        alt_score[*n_alts] = bscore[b];
+        ++*n_alts;
+      }
+    }
   beam_done:
     arc_free(rscore);
     arc_free(bscore);
@@ -844,4 +876,138 @@ int arc_moon_decode(arc_moon* m, const float* enc, int T, const int* prompt, int
   arc_free(run);
   dec_free(&s);
   return n_out;
+}
+
+/* ------------------------------------------------------------------ scoring */
+
+/* a before b: lexicographic on the tokens, shorter first on a common prefix, then by index */
+static int seq_before(const int* const* seqs, const int* lens, int i, int j) {
+  const int *x = seqs[i], *y = seqs[j];
+  int nx = lens[i], ny = lens[j];
+  for (int k = 0; k < nx && k < ny; ++k)
+    if (x[k] != y[k]) return x[k] < y[k];
+  if (nx != ny) return nx < ny;
+  return i < j;
+}
+
+static double row_lse(const float* row) {
+  float mx = -INFINITY;
+  for (int v = 0; v < V; ++v)
+    if (row[v] > mx) mx = row[v];
+  double s = 0;
+  for (int v = 0; v < V; ++v) s += exp((double)(row[v] - mx));
+  return (double)mx + log(s);
+}
+
+/* Child c takes the self-attention caches of node src[c] (positions [0, len) only). */
+static void score_reorder(dec_state* s, const int* src, int nc) {
+  size_t used = (size_t)s->len * D;
+  for (int c = 0; c < nc; ++c)
+    for (int l = 0; l < NL; ++l) {
+      memcpy(kv_at(s, s->sk2, c, l), kv_at(s, s->sk, src[c], l), sizeof(float) * used);
+      memcpy(kv_at(s, s->sv2, c, l), kv_at(s, s->sv, src[c], l), sizeof(float) * used);
+    }
+  float* t = s->sk;
+  s->sk = s->sk2;
+  s->sk2 = t;
+  t = s->sv;
+  s->sv = s->sv2;
+  s->sv2 = t;
+}
+
+int arc_moon_score(arc_moon* m, const float* enc, int T, const int* prompt, int n_prompt, const int* const* seqs,
+                   const int* lens, int n, double* out) {
+  if (n <= 0) return 0;
+  int maxlen = 0;
+  for (int i = 0; i < n; ++i) {
+    if (lens[i] < 0) return -1;
+    if (lens[i] > maxlen) maxlen = lens[i];
+  }
+  const int G = ARC_MOON_SCORE_GROUP;
+  int* idx = arc_malloc(sizeof(int) * (size_t)n);
+  int* tok = arc_malloc(sizeof(int) * G);
+  int* src = arc_malloc(sizeof(int) * G);
+  int* na = arc_malloc(sizeof(int) * G);   /* node j covers group members [na[j], ne[j]) */
+  int* ne = arc_malloc(sizeof(int) * G);
+  int* ca = arc_malloc(sizeof(int) * G);
+  int* ce = arc_malloc(sizeof(int) * G);
+  float* root_logits = arc_malloc(sizeof(float) * V);
+  dec_state s;
+  int rc = dec_init(&s, m, enc, T, G, n_prompt + 1 + maxlen + 2);
+  if (rc || !idx || !tok || !src || !na || !ne || !ca || !ce || !root_logits) rc = -1;
+  if (!rc) {
+    /* lexicographic order (insertion sort: lists are small), so sequences sharing a prefix are neighbours */
+    for (int i = 0; i < n; ++i) {
+      int v = idx[i] = i, k = i;
+      while (k > 0 && seq_before(seqs, lens, v, idx[k - 1])) {
+        idx[k] = idx[k - 1];
+        --k;
+      }
+      idx[k] = v;
+    }
+    /* the prompt and the start token, once, in beam 0; each group starts from that state */
+    s.B = 1;
+    for (int i = 0; i <= n_prompt; ++i) {
+      tok[0] = i < n_prompt ? prompt[i] : m->bos;
+      dec_step(&s, tok);
+    }
+    memcpy(root_logits, s.logits, sizeof(float) * V);
+  }
+  const int root_len = s.len;
+  for (int g0 = 0; !rc && g0 < n; g0 += G) {
+    const int gn = n - g0 < G ? n - g0 : G;
+    const int* mem = idx + g0;
+    for (int k = 0; k < gn; ++k) out[mem[k]] = 0.0;
+    /* beam 0 still holds the root's positions [0, root_len): every slot a reorder filled was copied, positions
+     * [0, len) included, from a chain of nodes that starts at the root */
+    s.len = root_len;
+    s.B = 1;
+    memcpy(s.logits, root_logits, sizeof(float) * V);
+    int nn = 1;
+    na[0] = 0;
+    ne[0] = gn;
+    for (int depth = 0;; ++depth) {
+      int nc = 0;
+      for (int j = 0; j < nn; ++j) {
+        const float* row = s.logits + (size_t)j * V;
+        const double lse = row_lse(row);
+        for (int k = na[j]; k < ne[j]; ++k) {
+          int i = mem[k];
+          int t = depth < lens[i] ? seqs[i][depth] : m->eos;
+          out[i] += (double)row[t] - lse;
+        }
+        /* children: the members that go on, split by their next token (contiguous: the group is sorted) */
+        int k = na[j];
+        while (k < ne[j] && lens[mem[k]] <= depth) ++k;
+        while (k < ne[j]) {
+          int t = seqs[mem[k]][depth], e = k;
+          while (e < ne[j] && seqs[mem[e]][depth] == t) ++e;
+          ca[nc] = k;
+          ce[nc] = e;
+          src[nc] = j;
+          tok[nc] = t;
+          ++nc;
+          k = e;
+        }
+      }
+      if (!nc) break;
+      score_reorder(&s, src, nc);
+      s.B = nc;
+      dec_step(&s, tok);
+      memcpy(na, ca, sizeof(int) * (size_t)nc);
+      memcpy(ne, ce, sizeof(int) * (size_t)nc);
+      nn = nc;
+    }
+  }
+  s.B = G;
+  arc_free(root_logits);
+  arc_free(idx);
+  arc_free(tok);
+  arc_free(src);
+  arc_free(na);
+  arc_free(ne);
+  arc_free(ca);
+  arc_free(ce);
+  dec_free(&s);
+  return rc;
 }

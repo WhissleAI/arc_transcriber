@@ -36,6 +36,9 @@ typedef struct {
   float intent_p;
   const char* act;
   float act_p;
+  int n_alts;          /* the final decode's distinct beams (arc_utt.alts) */
+  char** alts;
+  float* alt_scores;
 } arc_utt_build;
 
 /* A simple arena: everything a result points at lives in one, freed together. */
@@ -75,6 +78,10 @@ struct arc_engine {
   float off_val[64];
   int n_sup, sup[200];
   arc_moon_procs procs;
+  /* the encoder states of the last decoded segment, for arc_score on the same samples */
+  float* enc_H;
+  int enc_T;
+  uint64_t enc_key;
   /* context */
   char** ctx_kb;
   char** ctx_ty;

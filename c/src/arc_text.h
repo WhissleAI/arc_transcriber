@@ -37,6 +37,10 @@ typedef struct {
 int arc_readout(const arc_tok* t, const int* ids, int n, char*** words, int* n_words, arc_span** spans, int* n_spans);
 /* Spans over src words moved to dst words (difflib matching blocks on lowercased word keys). Returns the count. */
 int arc_map_spans(char** src, int ns, const arc_span* spans, int nsp, char** dst, int nd, arc_span* out);
+/* inline tag ids (tagdec.py TID): ENTITY_PERSON, ENTITY_WORK and the closing END */
+#define ARC_TAG_PERSON 32600
+#define ARC_TAG_WORK 32604
+#define ARC_TAG_END 32626
 /* "ENTITY_PERSON", "NUMBER_TIME", ... for a tag id; NULL otherwise. */
 const char* arc_tag_name(int id);
 int arc_tag_id(const char* name);   /* -1 if unknown */

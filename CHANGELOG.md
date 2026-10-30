@@ -5,6 +5,10 @@ Package versions of `arc-transcriber` (this repository) and the model revisions 
 
 ## Unreleased
 
+- `c/`: `arc_score` (teacher-forced log P(text | audio) for candidate texts, name spans scored inside Arc's name tags, encoder
+  reused, shared prefixes decoded once) and the final decode's n-best (`arc_utt.alts`, `alt_scores`), with `build/arc-score`
+  and `tests/test_score.c` against arc_audio (`tools/dump_score_ref.py`, `tests/data/score_ref.jsonl`).
+
 - `c/`: libarc, a native C API (C11, no dependencies) for Arc Mini: transcript, word times, linked names, number values,
   utterance tags, events; passes `tests/golden/mini.json` (`make -C c parity`). CI builds it and runs its unit tests on Linux
   and macOS (`.github/workflows/c.yml`). Python package unchanged.
