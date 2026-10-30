@@ -99,6 +99,24 @@ int arc_moon_decode(arc_moon* m, const float* enc, int T, const int* prompt, int
  * (arc_free them), or NULL. */
 float* arc_moon_cross_attn(arc_moon* m, const float* enc, int T, const int* tokens, int n);
 
+/* The same, and the finished beams (best first, the first one is what arc_moon_decode returns): up to max_alts
+ * sequences of up to cap tokens each in alt_ids[max_alts * cap] (start token first), their lengths and HF's
+ * length-normalised beam scores; *n_alts their count (1 for greedy, score 0). */
+int arc_moon_decode_nbest(arc_moon* m, const float* enc, int T, const int* prompt, int n_prompt, int max_length,
+                          int beams, const arc_moon_procs* procs, int* out, int cap, int max_alts, int* alt_ids,
+                          int* alt_len, float* alt_score, int* n_alts);
+
+/* Teacher-forced logits (for tests): tokens[n] -> logits [n, 32768] of the next token at each position. */
+float* arc_moon_logits(arc_moon* m, const float* enc, int T, const int* tokens, int n);
+
+/* Teacher-forced log P(seq | audio) for n token sequences (each without the start token; EOS is appended and scored),
+ * after prompt[n_prompt] and the start token, with no logits processors: out[i] = sum of log-softmax of the next token.
+ * The cross-attention keys / values are computed once for all sequences, and sequences sharing a prefix share its
+ * decoder steps (they are walked as a prefix tree, at most ARC_MOON_SCORE_GROUP leaves at a time). 0 or -1. */
+#define ARC_MOON_SCORE_GROUP 32
+int arc_moon_score(arc_moon* m, const float* enc, int T, const int* prompt, int n_prompt, const int* const* seqs,
+                   const int* lens, int n, double* out);
+
 /* Teacher-forced logits (for tests): tokens[n] -> logits [n, 32768] of the next token at each position. */
 float* arc_moon_logits(arc_moon* m, const float* enc, int T, const int* tokens, int n);
 

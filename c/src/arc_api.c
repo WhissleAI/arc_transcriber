@@ -115,6 +115,7 @@ void arc_destroy(arc_engine* e) {
   arc_free(e->nb_ids);
   arc_free(e->nb_w);
   for (int i = 0; i < e->n_hist; ++i) arc_free(e->hist[i].text);
+  arc_free(e->enc_H);
   arc_free(e->dir);
   arc_free(e);
 }
@@ -340,6 +341,14 @@ static int prompt_ids(arc_engine* e, double t_now, int* out) {
 
 /* ------------------------------------------------------------------ transcript */
 
+/* FNV-1a over the samples the encoder sees (padded): which clip the cached encoder states belong to */
+static uint64_t samples_key(const float* w, int n) {
+  uint64_t h = 1469598103934665603ULL ^ (uint64_t)n;
+  const unsigned char* b = (const unsigned char*)w;
+  for (size_t i = 0; i < sizeof(float) * (size_t)n; ++i) h = (h ^ b[i]) * 1099511628211ULL;
+  return h;
+}
+
 /* Decode one audio segment (Transcriber.decode_audio + utterance): text and tag spans. */
 static int decode_segment(arc_engine* e, const float* seg, int n_in, double t_now, int beams, int bias, int words,
                           double t0, arc_utt_build* u) {
@@ -351,19 +360,42 @@ static int decode_segment(arc_engine* e, const float* seg, int n_in, double t_no
   if (nn < 80) nn = 80;
   int T;
   float* H = arc_moon_encode(e->moon, w, nn, &T);
+  uint64_t key = samples_key(w, nn);
   arc_free(w);
   if (!H) return -1;
   int P[128];
   int np = prompt_ids(e, t_now, P);
   int max_len = 1 + (int)(e->len_mult * (4.0 + e->tokens_per_s * (double)n / ARC_SAMPLE_RATE)) + np;
-  int ids[1024];
+  enum { MAX_ALTS = 8, CAP = 1024 };   /* CAP: the cap for ids and for each beam (arc_moon_decode_nbest uses it for both) */
+  int ids[CAP];
   arc_moon_procs pr = e->procs;
   pr.bias = bias && e->nb_seq ? &e->bias : NULL;
-  int ni = arc_moon_decode(e->moon, H, T, P, np, max_len, beams, &pr, ids, 1024);
+  int* alt_ids = arc_malloc(sizeof(int) * MAX_ALTS * CAP);
+  int alt_len[MAX_ALTS], n_alts = 0;
+  float alt_score[MAX_ALTS];
+  int ni = alt_ids ? arc_moon_decode_nbest(e->moon, H, T, P, np, max_len, beams, &pr, ids, CAP, MAX_ALTS, alt_ids, alt_len,
+                                           alt_score, &n_alts)
+                   : -1;
   if (ni < 0) {
+    arc_free(alt_ids);
     arc_free(H);
     return -1;
   }
+  /* the finished beams as texts, best first, distinct */
+  u->alts = arc_calloc(sizeof(char*) * MAX_ALTS);
+  u->alt_scores = arc_calloc(sizeof(float) * MAX_ALTS);
+  for (int a = 0; a < n_alts && u->alts && u->alt_scores; ++a) {
+    char* r = arc_tok_decode(e->tok, alt_ids + (size_t)a * CAP, alt_len[a]);
+    int dup = !r;
+    for (int b = 0; b < u->n_alts && !dup; ++b) dup = !strcmp(u->alts[b], r);
+    if (dup) {
+      arc_free(r);
+      continue;
+    }
+    u->alts[u->n_alts] = r;
+    u->alt_scores[u->n_alts++] = alt_score[a];
+  }
+  arc_free(alt_ids);
   char* raw = arc_tok_decode(e->tok, ids, ni);
   char* txt = arc_loopfix(raw, 2);
   /* tag spans: readout words -> raw words -> loop-fixed words */
@@ -419,7 +451,11 @@ static int decode_segment(arc_engine* e, const float* seg, int n_in, double t_no
     }
     arc_free(dst);
   }
-  arc_free(H);
+  /* keep the encoder states for arc_score on the same samples */
+  arc_free(e->enc_H);
+  e->enc_H = H;
+  e->enc_T = T;
+  e->enc_key = key;
   arc_free(raw);
   arc_free(s1);
   arc_free(sp);
@@ -529,4 +565,129 @@ arc_result* arc_transcribe(arc_engine* e, const float* pcm, size_t n, const arc_
     return NULL;
   }
   return arc_result_finish(R, (float)((double)n / ARC_SAMPLE_RATE), (float)(arc_time_ms() - t0));
+}
+
+/* ------------------------------------------------------------------ verification (arc_score) */
+
+/* one text's token sequence: plain (tag < 0) or with the brace span inside tag ... END */
+static int score_seq(arc_engine* e, const char* text, int tag, int* out, int cap) {
+  const char* a = strchr(text, '{');
+  const char* b = a ? strchr(a, '}') : NULL;
+  if (!a || !b) {
+    if (tag >= 0) return -2;   /* no span to tag */
+    return arc_tok_encode(e->tok, text, out, cap);
+  }
+  int n = 0, k;
+  char* pre = arc_malloc((size_t)(a - text) + 1);
+  char* mid = arc_malloc((size_t)(b - a));
+  if (!pre || !mid) {
+    arc_free(pre);
+    arc_free(mid);
+    return -1;
+  }
+  memcpy(pre, text, (size_t)(a - text));
+  pre[a - text] = 0;
+  memcpy(mid, a + 1, (size_t)(b - a - 1));
+  mid[b - a - 1] = 0;
+  /* no trailing spaces either: "play " would end in a lone "▁" token */
+  for (char* q = pre + strlen(pre); q > pre && q[-1] == ' ';) *--q = 0;
+  for (char* q = mid + strlen(mid); q > mid && q[-1] == ' ';) *--q = 0;
+  /* each piece encoded on its own, as the decoder writes them around a tag (arc_audio tokenizes the same way) */
+  const char* pieces[3] = {pre, mid, b + 1};
+  for (int p = 0; p < 3; ++p) {
+    if (p == 1 && tag >= 0 && n < cap) out[n++] = tag;
+    const char* t = pieces[p];
+    while (*t == ' ') ++t;
+    if (*t) {
+      k = arc_tok_encode(e->tok, t, out + n, cap - n);
+      if (k < 0 || n + k > cap) {
+        n = -1;
+        break;
+      }
+      n += k;
+    }
+    if (p == 1 && tag >= 0 && n >= 0 && n < cap) out[n++] = ARC_TAG_END;
+  }
+  arc_free(pre);
+  arc_free(mid);
+  return n;
+}
+
+int arc_score(arc_engine* e, const float* pcm, size_t n, const char* const* texts, int n_texts, int flags, float* logp,
+              int* n_tokens) {
+  g_err[0] = 0;
+  if (!e || !pcm || n_texts < 0 || (n_texts && (!texts || !logp))) {
+    arc_seterr("arc_score: bad arguments");
+    return -1;
+  }
+  if (!n_texts) return 0;
+  /* the whole clip as one utterance, padded as decode_segment pads it */
+  int nw = n < 3200 ? 3200 : (int)n;
+  float* w = arc_calloc(sizeof(float) * (size_t)nw);
+  if (!w) return -1;
+  memcpy(w, pcm, sizeof(float) * n);
+  int nn = nw / 80 * 80;
+  uint64_t key = samples_key(w, nn);
+  if (!e->enc_H || e->enc_key != key) {
+    int T;
+    float* H = arc_moon_encode(e->moon, w, nn, &T);
+    if (!H) {
+      arc_free(w);
+      return -1;
+    }
+    arc_free(e->enc_H);
+    e->enc_H = H;
+    e->enc_T = T;
+    e->enc_key = key;
+  }
+  arc_free(w);
+  int P[128];
+  arc_ctx c = {e->ctx_dom, NULL, NULL, 0, NULL};
+  int np = e->ctx_dom ? arc_ctx_prompt(e->tok, &c, "prev", 96, P) : 0;
+  /* the variants scored per text: plain; plain + both name tags; or the person tag alone (a cheap first pass: the
+   * decoder writes most names, titles included, inside ENTITY_PERSON) */
+  const int all3[3] = {-1, ARC_TAG_PERSON, ARC_TAG_WORK}, person[1] = {ARC_TAG_PERSON}, plain[1] = {-1};
+  const int* tags = (flags & ARC_SCORE_TAGS) ? all3 : (flags & ARC_SCORE_PERSON) ? person : plain;
+  const int nv = (flags & ARC_SCORE_TAGS) ? 3 : 1;
+  enum { CAP = 256 };
+  int* ids = arc_malloc(sizeof(int) * CAP * (size_t)n_texts * nv);
+  const int** seqs = arc_malloc(sizeof(int*) * (size_t)n_texts * nv);
+  int* lens = arc_malloc(sizeof(int) * (size_t)n_texts * nv);
+  int* owner = arc_malloc(sizeof(int) * (size_t)n_texts * nv);
+  double* sc = arc_malloc(sizeof(double) * (size_t)n_texts * nv);
+  int ns = 0, rc = ids && seqs && lens && owner && sc ? 0 : -1;
+  for (int i = 0; !rc && i < n_texts; ++i) {
+    if (n_tokens) n_tokens[i] = 0;
+    for (int v = 0; v < nv; ++v) {
+      int* o = ids + (size_t)ns * CAP;
+      int k = score_seq(e, texts[i] ? texts[i] : "", tags[v], o, CAP);
+      if (k == -2 && nv == 1) k = score_seq(e, texts[i] ? texts[i] : "", -1, o, CAP);   /* no span: plain */
+      if (k == -2) continue;
+      if (k < 0) {
+        arc_seterr("arc_score: a text is too long");
+        rc = -1;
+        break;
+      }
+      seqs[ns] = o;
+      lens[ns] = k;
+      owner[ns++] = i;
+    }
+  }
+  if (!rc) rc = arc_moon_score(e->moon, e->enc_H, e->enc_T, P, np, seqs, lens, ns, sc);
+  if (!rc) {
+    for (int i = 0; i < n_texts; ++i) logp[i] = -INFINITY;
+    for (int j = 0; j < ns; ++j) {
+      int i = owner[j];
+      if ((float)sc[j] > logp[i]) {
+        logp[i] = (float)sc[j];
+        if (n_tokens) n_tokens[i] = lens[j] + 1;
+      }
+    }
+  }
+  arc_free(ids);
+  arc_free(seqs);
+  arc_free(lens);
+  arc_free(owner);
+  arc_free(sc);
+  return rc;
 }

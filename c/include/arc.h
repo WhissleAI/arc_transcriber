@@ -61,6 +61,11 @@ typedef struct {
   float directed_head;       /* the separate device-directed head on the encoder features (beta) */
   int n_words;               /* words with times (arc_options.words / names / numbers), else 0 */
   const arc_word* words;
+  /* n-best: the final decode's finished beams, best first, distinct texts (alts[0] is the decoded text before the
+   * loop fix; 1 with greedy decoding). Their scores are the beam search's length-normalised log-probabilities. */
+  int n_alts;
+  const char* const* alts;
+  const float* alt_scores;
 } arc_utt;
 
 /* A name heard in the transcript and, when it is one of the list's (arc_set_names), linked to it (Arc's "names"). */
@@ -187,6 +192,20 @@ typedef struct {
 } arc_frames;
 arc_frames* arc_frames_compute(arc_engine* e, const float* pcm, size_t n, const char* domain);
 void arc_frames_free(arc_frames* f);
+
+/* Verification: how well each text matches a clip, as the decoder's teacher-forced log P(text | audio) (natural log,
+ * EOS included) with the encoder run once over the whole clip as one utterance (the encoder states of the last
+ * arc_transcribe of the same samples are reused) and the decoder sharing work between texts with a common prefix.
+ * Only the domain of the context is in the prompt (no names, no earlier text): the score says what the audio
+ * supports, not what the list expects. The decoder writes names inside inline tags, so a text may mark one span with
+ * braces ("read {Treasure Island.}"): without ARC_SCORE_TAGS the braces are dropped; with it the span is also
+ * scored inside ENTITY_PERSON and ENTITY_WORK tags and logp is the best of the three. Sums are not length-fair:
+ * n_tokens (may be NULL) gives each text's scored token count. 0, or -1 (arc_last_error). */
+#define ARC_SCORE_TAGS 1
+/* ... or only inside ENTITY_PERSON (a text without braces: plain): one sequence per text, a cheap first pass */
+#define ARC_SCORE_PERSON 2
+int arc_score(arc_engine* e, const float* pcm, size_t n, const char* const* texts, int n_texts, int flags, float* logp,
+              int* n_tokens);
 
 /* A whole clip (16 kHz mono float, any length). NULL on failure (arc_last_error). */
 arc_result* arc_transcribe(arc_engine* e, const float* pcm, size_t n, const arc_options* opt);

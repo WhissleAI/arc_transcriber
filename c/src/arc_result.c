@@ -148,6 +148,18 @@ arc_result* arc_result_finish(arc_result_build* b, float audio_s, float wall_ms)
     o->act = (arc_label){arc_arena_strdup(a, u->act), u->act_p};
     o->n_words = u->n_aw;
     o->words = pack_words(a, u->aw, u->n_aw);
+    const char** alts = arc_arena_alloc(a, sizeof(char*) * (size_t)(u->n_alts + 1));
+    float* alt_sc = arc_arena_alloc(a, sizeof(float) * (size_t)(u->n_alts + 1));
+    for (int k = 0; k < u->n_alts; ++k) {
+      alts[k] = arc_arena_strdup(a, u->alts[k]);
+      alt_sc[k] = u->alt_scores[k];
+      arc_free(u->alts[k]);
+    }
+    o->n_alts = u->n_alts;
+    o->alts = alts;
+    o->alt_scores = alt_sc;
+    arc_free(u->alts);
+    arc_free(u->alt_scores);
     arc_free(u->text);
     arc_free(u->spans);
     arc_free_words(u->words, u->n_words);
