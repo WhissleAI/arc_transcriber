@@ -1,0 +1,35 @@
+# Held out (written 2026-10-29 after heldout and heldout2 were used for tuning; not tuned on): how people ask. kind<TAB>said
+LAST_MESSAGE	Did I get any texts?
+LAST_MESSAGE	Who was that message from?
+CATCH_UP	What's been happening?
+CATCH_UP	Anything I need to know about?
+BATTERY	Am I running low on battery?
+BATTERY	How's the charge looking?
+CALENDAR	What's on for tomorrow?
+CALENDAR	Have I got anything this afternoon?
+TIME	What time do you have?
+DATE	What's today's date?
+REPEAT_LAST	Huh?
+REPEAT_LAST	Could you repeat that?
+STOP	Okay, stop.
+STOP	That's enough for now
+PAUSE	Pause it
+PAUSE	Wait a moment
+RESUME	Pick up where we left off
+RESUME	Go on then
+FASTER	Read quicker please
+SLOWER	A little slower please
+LOUDER	Turn it up
+QUIETER	Not so loud please
+NEXT	Skip ahead
+BACK	Go back a sentence
+TIME_LEFT	How long until the end?
+SLEEP	Stop playing in fifteen minutes
+SUMMARIZE	Can you give me a quick summary?
+SUMMARIZE	What's happened so far?
+OPEN	Open Mail
+MUTE	Mute Discord for two hours
+REPLY	Reply sounds good
+UNKNOWN	What's the capital of Peru?
+UNKNOWN	Set an alarm for seven
+UNKNOWN	Who texted the most in history?

@@ -1,0 +1,64 @@
+# How people actually ask (not the exact phrases the parser lists), and what Steer should do. kind<TAB>said
+# kinds: REPEAT_LAST STOP CATCH_UP PAUSE RESUME FASTER SLOWER NEXT BACK SLEEP TIME_LEFT READ_SELECTION TIME DATE BATTERY CALENDAR LAST_MESSAGE REPLY MUTE OPEN UNKNOWN
+LAST_MESSAGE	Did anyone text me?
+LAST_MESSAGE	Who just messaged me?
+LAST_MESSAGE	What did Maya say?
+LAST_MESSAGE	Read me that text again
+LAST_MESSAGE	What was that message?
+LAST_MESSAGE	Any new messages?
+CATCH_UP	Did I miss anything?
+CATCH_UP	What did I miss while I was out?
+CATCH_UP	Catch me up on my messages
+CATCH_UP	Anything I should know?
+BATTERY	How much charge is left?
+BATTERY	Do I need to charge my phone?
+BATTERY	What's the battery at?
+BATTERY	Is my phone dying?
+BATTERY	How much juice do I have?
+CALENDAR	Am I free tonight?
+CALENDAR	What's on my schedule?
+CALENDAR	When's my next meeting?
+CALENDAR	Do I have anything coming up?
+CALENDAR	What do I have later?
+TIME	What's the time now?
+TIME	Got the time?
+TIME	What time is it right now?
+TIME	Tell me the time please
+DATE	What's today?
+DATE	What's the date today?
+DATE	Which day is it today?
+REPEAT_LAST	Can you say that again?
+REPEAT_LAST	Sorry, what?
+REPEAT_LAST	Repeat that please
+REPEAT_LAST	I didn't hear that
+STOP	Stop reading
+STOP	OK that's enough
+STOP	Shut up please
+PAUSE	Pause for a second
+PAUSE	Hold on a sec
+RESUME	Keep going
+RESUME	Continue reading
+FASTER	Read a bit faster
+FASTER	Can you go faster?
+SLOWER	Slow down a little
+SLOWER	Can you read slower?
+NEXT	Skip this part
+BACK	Go back a bit
+TIME_LEFT	How much of the book is left?
+TIME_LEFT	How long until the end of the chapter?
+SLEEP	Stop reading in half an hour
+SLEEP	Set a sleep timer for 30 minutes
+SLEEP	Stop at the end of the chapter
+REPLY	Tell her I'm on my way
+REPLY	Reply saying I'll call back
+REPLY	Answer yes, see you at 8
+MUTE	Mute WhatsApp for an hour
+MUTE	Stop reading Slack messages
+MUTE	Don't read WhatsApp for a while
+OPEN	Open WhatsApp
+OPEN	Show me the message
+UNKNOWN	What's the weather tomorrow?
+UNKNOWN	Who won the game last night?
+UNKNOWN	How tall is the Eiffel Tower?
+UNKNOWN	Play some jazz
+UNKNOWN	Navigate home

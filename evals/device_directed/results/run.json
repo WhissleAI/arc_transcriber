@@ -1,0 +1,333 @@
+{
+ "env": {
+  "date": "2026-10-29",
+  "arc_audio": "1.2.0",
+  "torch": "2.11.0",
+  "python": "3.11.9",
+  "platform": "macOS-26.2-arm64-arm-64bit",
+  "cpu": "Apple M3 Pro",
+  "device": "cpu",
+  "threads": 4,
+  "runtime": "Python reference (arc_audio)",
+  "model_dir": "<hf cache>/models--WhissleAI--arc-v1.1/snapshots/6f637153ea4953d81811e68168cd29572316d32b/mini/moonshine-streaming-tiny",
+  "backbone": "edge",
+  "model_snapshot": "6f637153ea49",
+  "model_revision": "v1.2.0"
+ },
+ "voices": [
+  "Samantha",
+  "Daniel",
+  "Aman"
+ ],
+ "wake": {
+  "Scope|unprimed": {
+   "heard": 1,
+   "n": 9,
+   "misses": [
+    "Let's go. Zunin.",
+    "Let's go more.",
+    "Let's go. Show the free off scan. Let's side.",
+    "Let's go. Zunin.",
+    "It's though, more.",
+    "Let's go. Show the free odds fan. Let's sign.",
+    "Scoop zooming",
+    "It's called Noor."
+   ]
+  },
+  "Scope|primed": {
+   "heard": 7,
+   "n": 9,
+   "misses": [
+    "Let's go. Zunin.",
+    "Let's go more."
+   ]
+  },
+  "Nova|unprimed": {
+   "heard": 3,
+   "n": 9,
+   "misses": [
+    "You know about Moore.",
+    "Novak showed the free off-scan left side.",
+    "Nuva, Zunin.",
+    "Nerva Moore.",
+    "Nuva, show the preoffs down, left side.",
+    "Novak showed the pre-off scan left side."
+   ]
+  },
+  "Nova|primed": {
+   "heard": 9,
+   "n": 9,
+   "misses": []
+  },
+  "Camera|unprimed": {
+   "heard": 0,
+   "n": 9,
+   "misses": [
+    "Tamara, Zunin.",
+    "Tamara, more.",
+    "Tamara, show the pre-off scan. Let's decide.",
+    "Kandara, Zunin.",
+    "Kandara Moore.",
+    "Kadara, show the preoffs down. Left side.",
+    "Cameron opposed to post to Menon's mind in there.",
+    "Cameron Moore.",
+    "Cam Rishu with a free off scan. Left side"
+   ]
+  },
+  "Camera|primed": {
+   "heard": 6,
+   "n": 9,
+   "misses": [
+    "Cameron, of course, to post a mail in my dinner.",
+    "Cameron Moore.",
+    "Can I show you the pre-op scan left side?"
+   ]
+  },
+  "Atlas|unprimed": {
+   "heard": 5,
+   "n": 9,
+   "misses": [
+    "Adler, more.",
+    "Edward, show the free off-scan left side.",
+    "Adler's more.",
+    "Here, to his fellow Pizza Hiss in Palestinian Africa is ending every year near me."
+   ]
+  },
+  "Atlas|primed": {
+   "heard": 8,
+   "n": 9,
+   "misses": [
+    "Here, Chloe's thumb will be suggesting Pashchini of three keys ending every year in the only mall."
+   ]
+  },
+  "Display|unprimed": {
+   "heard": 3,
+   "n": 9,
+   "misses": [
+    "Just play. Zuman.",
+    "Just play more.",
+    "Just play. Show the free off-scan. Let's side.",
+    "Vespolay, Zunin.",
+    "This will air you more.",
+    "Vespoles, show the pre-offs found. Left side."
+   ]
+  },
+  "Display|primed": {
+   "heard": 4,
+   "n": 9,
+   "misses": [
+    "Just play. Zuman.",
+    "Just play more.",
+    "Just play. Show the free off scan. Let's side.",
+    "Vesmole Zunin.",
+    "This will air you more."
+   ]
+  },
+  "Steer|unprimed": {
+   "heard": 3,
+   "n": 9,
+   "misses": [
+    "Yeah. Cause.",
+    "Yeah. He's reading.",
+    "Yeah. Sleep in twenty minutes.",
+    "Steel pause.",
+    "Still keep reading.",
+    "still sleep in twenty minutes."
+   ]
+  },
+  "Steer|primed": {
+   "heard": 5,
+   "n": 9,
+   "misses": [
+    "Sleep in twenty minutes.",
+    "Steel pause.",
+    "Steel keep reading.",
+    "Steel sleep in twenty minutes."
+   ]
+  }
+ },
+ "directed": {
+  "command with name": {
+   "n": 9,
+   "tag_range": [
+    0.5789,
+    0.8412
+   ],
+   "tag_mean": 0.7313111111111111,
+   "head_range": [
+    0.0,
+    0.0082
+   ],
+   "head_mean": 0.0018444444444444446,
+   "tag_ge_0_5": 9,
+   "auc_vs_crosstalk_tag": 0.3271604938271605,
+   "auc_vs_crosstalk_head": 0.3395061728395062
+  },
+  "command, no name": {
+   "n": 9,
+   "tag_range": [
+    0.3527,
+    0.9068
+   ],
+   "tag_mean": 0.714111111111111,
+   "head_range": [
+    0.0,
+    0.0139
+   ],
+   "head_mean": 0.0027444444444444443,
+   "tag_ge_0_5": 8,
+   "auc_vs_crosstalk_tag": 0.345679012345679,
+   "auc_vs_crosstalk_head": 0.3395061728395062
+  },
+  "cross-talk (staff to staff)": {
+   "n": 18,
+   "tag_range": [
+    0.503,
+    0.9105
+   ],
+   "tag_mean": 0.7778833333333334,
+   "head_range": [
+    0.0002,
+    0.0125
+   ],
+   "head_mean": 0.003822222222222223,
+   "tag_ge_0_5": 18,
+   "auc_vs_crosstalk_tag": null,
+   "auc_vs_crosstalk_head": null
+  }
+ },
+ "directed_raw": {
+  "command with name": {
+   "tag": [
+    0.7633,
+    0.6955,
+    0.7234,
+    0.7163,
+    0.6934,
+    0.5789,
+    0.8412,
+    0.8361,
+    0.7337
+   ],
+   "head": [
+    0.0001,
+    0.0,
+    0.0009,
+    0.0006,
+    0.0003,
+    0.0009,
+    0.003,
+    0.0026,
+    0.0082
+   ],
+   "text": [
+    "Nova, zoom in.",
+    "You know about Moore.",
+    "Nova, show the free off scan. Let's side.",
+    "Nova, Zunin.",
+    "Nuba Moore.",
+    "Nova, show the pre-offs down, left side.",
+    "Nova zoom in.",
+    "Nova Moore.",
+    "Novak showed the free ups can left side."
+   ]
+  },
+  "command, no name": {
+   "tag": [
+    0.8097,
+    0.741,
+    0.603,
+    0.7805,
+    0.7037,
+    0.3527,
+    0.9068,
+    0.7952,
+    0.7344
+   ],
+   "head": [
+    0.0002,
+    0.0,
+    0.0035,
+    0.0007,
+    0.0001,
+    0.0011,
+    0.0051,
+    0.0001,
+    0.0139
+   ],
+   "text": [
+    "Zuman.",
+    "More.",
+    "Show the free off-scan. Let's hide.",
+    "Excuse me.",
+    "more.",
+    "Show the pre-offs down. Left side.",
+    "Zoomin",
+    "More.",
+    "show the free ups can left side"
+   ]
+  },
+  "cross-talk (staff to staff)": {
+   "tag": [
+    0.8273,
+    0.8464,
+    0.7663,
+    0.799,
+    0.6913,
+    0.7691,
+    0.8261,
+    0.6294,
+    0.9105,
+    0.503,
+    0.7807,
+    0.7323,
+    0.8853,
+    0.8653,
+    0.8677,
+    0.6488,
+    0.8252,
+    0.8282
+   ],
+   "head": [
+    0.0005,
+    0.0044,
+    0.0009,
+    0.0002,
+    0.0004,
+    0.008,
+    0.002,
+    0.0055,
+    0.0015,
+    0.0007,
+    0.0026,
+    0.0094,
+    0.008,
+    0.0125,
+    0.001,
+    0.0006,
+    0.0005,
+    0.0101
+   ],
+   "text": [
+    "Suction is ready. Dodger.",
+    "blood pressure is stable.",
+    "Can you hand me the rector?",
+    "We are going to need another unit of saline.",
+    "The count is correct.",
+    "Let's close in about ten minutes.",
+    "Sunshine is ready. Dr.",
+    "The blood pressure is stable.",
+    "Can you hand me the refractor?",
+    "They are going to need another unit of sailing.",
+    "The count is correct.",
+    "Let's close in about ten minutes.",
+    "Suction is ready. Doctor.",
+    "blood pressure is stable. Yeah.",
+    "Can you hand me the retractor?",
+    "We are going to need another unit of a line.",
+    "The count is correct.",
+    "Let's close in about ten minutes."
+   ]
+  }
+ }
+}
