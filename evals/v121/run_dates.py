@@ -1,4 +1,4 @@
-"""Date records (FINDINGS #19): render data/dates.tsv with macOS voices (written to files; nothing is played), run predict(),
+"""Date records: render data/dates.tsv with macOS voices (written to files; nothing is played), run predict(),
 and check each sentence's NUMBER_DATE record: heard, date {year, month, day}, iso, plus the written transcript.
 
     python -I run_dates.py --backbone mini|full --work DIR --out dates_<backbone>.json [--voices Samantha Daniel]

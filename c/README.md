@@ -70,12 +70,8 @@ search's length-normalised scores): free alternatives for a catalog or a parser 
 build/arc-score arc-v1.1/mini clip.wav --tags --topic assistant --nbest "read {Treasure Island.}" "Read Trej Island."
 ```
 
-In Steer (voice book search over 61,476 books, 200 spoken requests by 4 macOS voices) the catalog proposes ~20–30
-candidates from the live list and a spelling/sound search, Arc scores them, and the best replaces the transcript when
-it explains the audio within 5.5 nats of the transcript itself: right book first 80% -> 84% (titles 74% -> 80%), and
-86% when a request within 10.5 nats is asked back ("Did you mean Les Misérables?"); on 596 clips of other speech it
-turned none into a book request (5 would be asked). Scoring 25 one-sequence texts after the decode takes ~70 ms on
-4 threads (M3 Pro), ~210 ms with all three tag variants each; the person-tag pass then all three for the best 5 comes to about 120 ms (from those two measurements).
+Speed: scoring 25 one-sequence texts after the decode takes ~70 ms on 4 threads (M3 Pro), ~210 ms with all three tag
+variants each; the person-tag pass then all three for the best 5 comes to about 120 ms (from those two measurements).
 
 Other calls: `arc_set_context` (the decoder's context prompt: names with kinds, terms, topic, earlier text),
 `arc_set_bias` / `arc_set_bias_strength` (decoder name bias), `arc_frames_compute` (per-frame probabilities of the

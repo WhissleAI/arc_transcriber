@@ -16,7 +16,7 @@ Written form fixes from `evals/v121` (`arc_audio/written.py`, `tests/test_writte
   10,425).
 - A bare "twenty X" with a time tag stays words (it is usually a year: "as at twenty eighteen" was "20:18").
 
-Runtime and API fixes from the app findings (`evals/FINDINGS.md` items 1-4, 10, 12, 16, 17; `tests/test_app_findings.py`):
+Runtime and API fixes (`tests/test_runtime_fixes.py`):
 
 - Short utterances close on a pause (#1): `UttSegmenter` closes an utterance shorter than `min_s` after `short_pause_s` (new, 0.8 s)
   of silence; it used to stay open until `max_s` (15 s) or `flush()`. "Pause." in a stream with 20 s of trailing silence: final
@@ -65,9 +65,7 @@ Runtime and API fixes from the app findings (`evals/FINDINGS.md` items 1-4, 10, 
   the GPU heads ("Passed CPU tensor to MPS op"; the CUDA path makes the same mixed-device call, untested here). `device="auto"` picks cuda > mps > cpu;
   `device="mps"` without MPS falls back to cpu with a warning. CLI: `--device mps|auto`.
 - `pytest` runs against the checkout (`pythonpath = ["."]`), not an installed copy.
-- `evals/FINDINGS.md`: new items 18-25 (written form and benchmarks, the date month, MPS and speed, Mini's error mix, short-clip
-  fillers, the context prompt budget, live context on short questions, short-clip readouts) and new evidence for items 1, 6, 8, 10
-  and 13. `evals/written_form/` (the written-form benchmark).
+- `evals/written_form/` (the written-form benchmark).
 
 - `c/`: `arc_score` (teacher-forced log P(text | audio) for candidate texts, name spans scored inside Arc's name tags, encoder
   reused, shared prefixes decoded once) and the final decode's n-best (`arc_utt.alts`, `alt_scores`), with `build/arc-score`

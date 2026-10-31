@@ -20,7 +20,7 @@ SR = 16000
 HERE = os.path.dirname(os.path.abspath(__file__))
 WORK = os.path.join(HERE, "_work")   # rendered clips (git-ignored)
 
-# The four macOS voices the Steer book bench used (US, UK, US, Indian English).
+# Four macOS voices (US, UK, US, Indian English).
 VOICES = ["Samantha", "Daniel", "Flo", "Aman"]
 
 
@@ -90,7 +90,7 @@ def slug(s, n=40):
 
 
 def voiced_db(x, frame=320):
-    """Level of the voiced part (20 ms frames within 20 dB of the loudest), dBFS. As Steer's Dialogue.asked."""
+    """Level of the voiced part (20 ms frames within 20 dB of the loudest), dBFS. """
     n = len(x) // frame
     if n == 0:
         return -120.0
@@ -124,7 +124,7 @@ def bandpass(x, lo, hi):
 
 
 def room(speech, db, level=0.35, before=0.6, after=2.0, seed=0):
-    """Steer's voice-bench room (SteerVoiceBench `room`): the speech peak-normalised to `level`, `before`/`after` s of
+    """A simulated room: the speech peak-normalised to `level`, `before`/`after` s of
     room, and steady slightly low-passed noise at about `db` dBFS (-60 quiet, -38 a fan or a cafe, -28 a loud room)."""
     rng = np.random.default_rng(seed)
     peak = float(np.max(np.abs(speech))) or 1.0

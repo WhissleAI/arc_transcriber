@@ -285,10 +285,10 @@ PR #5 changed the segmenter (short utterances close after 0.8 s), `rewrite()`, t
     "September. We continue…";
   - Mini: "Hey, hey, hey.", "you three.".
 - 31 of Mini's 54 changed outputs have more utterances than before.
-- It is the same mechanism as FINDINGS #22 (fillers on short non-speech), now reached in `predict()` on real audio.
-- Ask (FINDINGS #1): gate the short close on `min_voiced_s` or a speech-confidence check, or apply it only in live streams.
+- It is the same mechanism as fillers on short non-speech clips, now reached in `predict()` on real audio.
+- Possible fix: gate the short close on `min_voiced_s` or a speech-confidence check, or apply it only in live streams.
 
-**Short-command final latency (#1)** (`evals/latency_streaming/run.py`): 12 commands × 2 macOS voices, real-time pace, 6 s of
+**Short-command final latency**: 12 commands × 2 macOS voices, real-time pace, 6 s of
 silence after, Arc Mini, CPU.
 
 | | `120087f` | `07cde07` |
@@ -329,7 +329,7 @@ Effect on the measured sets:
 - No other output changed on Earnings-22 (Transcriber), LibriSpeech, or the remaining TypeWhisper suites.
 - `pytest`: 82 passed, 2 skipped; the 2 full-model tests pass with `ARC_TEST_PARAKEET=1`.
 
-Not fixed (findings, in `evals/FINDINGS.md` #18–#21):
+Not fixed yet:
 - the date-record joins in section 6;
 - tagged ordinals under 10 written as digits ("fourth quarter" with a date tag → "4th quarter"; "first point" → "1st point");
 - currency without a symbol mapping ("34 cent.").
