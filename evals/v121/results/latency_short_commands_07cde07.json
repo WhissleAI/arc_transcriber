@@ -1,0 +1,788 @@
+{
+ "env": {
+  "date": "2026-10-30",
+  "arc_audio": "1.2.1",
+  "torch": "2.15.0",
+  "python": "3.12.8",
+  "platform": "macOS-26.2-arm64-arm-64bit",
+  "cpu": "Apple M3 Pro",
+  "device": "cpu",
+  "threads": 4,
+  "runtime": "Python reference (arc_audio)",
+  "model_dir": "<hf cache>/models--WhissleAI--arc-v1.1/snapshots/6f637153ea4953d81811e68168cd29572316d32b/mini/moonshine-streaming-tiny",
+  "backbone": "edge",
+  "model_snapshot": "6f637153ea49",
+  "model_revision": "v1.2.0"
+ },
+ "summary": {
+  "clips": 24,
+  "tail_s": 6.0,
+  "final_transcript_after_end_s": {
+   "n": 24,
+   "median": 0.77,
+   "p90": 1.1800000000000002,
+   "max": 1.35
+  },
+  "final_transcript_missing_within_tail": 0,
+  "utterance_record_after_end_s": {
+   "n": 24,
+   "median": 0.7900000000000003,
+   "p90": 0.89,
+   "max": 0.9600000000000002
+  },
+  "device_directed_after_end_s": {
+   "n": 24,
+   "median": 0.77,
+   "p90": 1.1800000000000002,
+   "max": 1.35
+  },
+  "partial_after_end_s": {
+   "n": 18,
+   "median": 0.15000000000000013,
+   "p90": 0.28,
+   "max": 0.2999999999999998
+  },
+  "command_complete_emitted_after_end_s": {
+   "n": 19,
+   "median": 0.18000000000000016,
+   "p90": 0.3600000000000001,
+   "max": 0.40000000000000013
+  },
+  "command_complete_missing": 5,
+  "command_complete_early_mid_command": 1,
+  "flush_ms": {
+   "n": 24,
+   "median": 254.65741602238268,
+   "p90": 372.8834170033224,
+   "max": 696.6903329594061
+  },
+  "feed_ms": {
+   "n": 1887,
+   "median": 22.39900000859052,
+   "p90": 43.4987919870764,
+   "max": 168.83208398940042
+  },
+  "offline_transcribe_ms": {
+   "n": 24,
+   "median": 280.24520800681785,
+   "p90": 438.411666022148,
+   "max": 465.0620419997722
+  },
+  "offline_predict_ms": {
+   "n": 24,
+   "median": 438.8266250025481,
+   "p90": 798.5636660014279,
+   "max": 1004.7267500194721
+  },
+  "offline_rtf_transcribe": 0.13828004922912152
+ },
+ "rows": [
+  {
+   "voice": "Samantha",
+   "said": "Say that again.",
+   "speech_end_s": 1.35,
+   "final_text": "Save that again.",
+   "partial_full": [
+    0.1499999999999999,
+    "Save that again."
+   ],
+   "transcript": 1.35,
+   "utterance": 0.8500000000000001,
+   "device_directed": 1.35,
+   "command_complete": [
+    [
+     0.25,
+     -0.15000000000000013
+    ]
+   ],
+   "command_complete_early": []
+  },
+  {
+   "voice": "Samantha",
+   "said": "Pause.",
+   "speech_end_s": 0.91,
+   "final_text": "pause.",
+   "partial_full": [
+    0.19000000000000006,
+    "pause"
+   ],
+   "transcript": 0.9899999999999999,
+   "utterance": 0.89,
+   "device_directed": 0.9899999999999999,
+   "command_complete": [],
+   "command_complete_early": []
+  },
+  {
+   "voice": "Samantha",
+   "said": "Read faster.",
+   "speech_end_s": 1.27,
+   "final_text": "Reed Faster.",
+   "partial_full": null,
+   "transcript": 1.0299999999999998,
+   "utterance": 0.8300000000000001,
+   "device_directed": 1.0299999999999998,
+   "command_complete": [],
+   "command_complete_early": []
+  },
+  {
+   "voice": "Samantha",
+   "said": "Sleep in twenty minutes.",
+   "speech_end_s": 1.78,
+   "final_text": "sleek in twenty minutes.",
+   "partial_full": [
+    0.21999999999999997,
+    "sleek in twenty minutes."
+   ],
+   "transcript": 0.72,
+   "utterance": 0.8200000000000001,
+   "device_directed": 0.72,
+   "command_complete": [
+    [
+     0.020000000000000018,
+     -0.3800000000000001
+    ]
+   ],
+   "command_complete_early": []
+  },
+  {
+   "voice": "Samantha",
+   "said": "Skip to chapter twelve.",
+   "speech_end_s": 1.82,
+   "final_text": "Skip to chapter twelve.",
+   "partial_full": [
+    0.07999999999999985,
+    "Skip to chapter twelve."
+   ],
+   "transcript": 0.78,
+   "utterance": 0.78,
+   "device_directed": 0.78,
+   "command_complete": [],
+   "command_complete_early": []
+  },
+  {
+   "voice": "Samantha",
+   "said": "What time is it?",
+   "speech_end_s": 1.24,
+   "final_text": "What time is it?",
+   "partial_full": [
+    0.26,
+    "What time is it?"
+   ],
+   "transcript": 1.0599999999999998,
+   "utterance": 0.9600000000000002,
+   "device_directed": 1.0599999999999998,
+   "command_complete": [
+    [
+     0.3600000000000001,
+     -0.040000000000000036
+    ]
+   ],
+   "command_complete_early": []
+  },
+  {
+   "voice": "Samantha",
+   "said": "Summarise this.",
+   "speech_end_s": 1.42,
+   "final_text": "So I'm gonna rise this.",
+   "partial_full": [
+    0.08000000000000007,
+    "So I'm gonna rise this."
+   ],
+   "transcript": 1.08,
+   "utterance": 0.7800000000000002,
+   "device_directed": 1.08,
+   "command_complete": [
+    [
+     0.28,
+     -0.11999999999999988
+    ]
+   ],
+   "command_complete_early": []
+  },
+  {
+   "voice": "Samantha",
+   "said": "Stop reading Slack for an hour.",
+   "speech_end_s": 2.19,
+   "final_text": "Stop reading Slack for an hour.",
+   "partial_full": [
+    0.10999999999999988,
+    "Stop reading slack for an hour."
+   ],
+   "transcript": 0.71,
+   "utterance": 0.71,
+   "device_directed": 0.71,
+   "command_complete": [
+    [
+     0.010000000000000231,
+     -0.3899999999999999
+    ]
+   ],
+   "command_complete_early": []
+  },
+  {
+   "voice": "Samantha",
+   "said": "Who wrote Pride and Prejudice?",
+   "speech_end_s": 1.93,
+   "final_text": "Who wrote pride and prejudice?",
+   "partial_full": null,
+   "transcript": 0.5700000000000001,
+   "utterance": 0.7700000000000002,
+   "device_directed": 0.5700000000000001,
+   "command_complete": [
+    [
+     0.17000000000000015,
+     -0.22999999999999998
+    ]
+   ],
+   "command_complete_early": []
+  },
+  {
+   "voice": "Samantha",
+   "said": "Open WhatsApp.",
+   "speech_end_s": 1.34,
+   "final_text": "open Wadza.",
+   "partial_full": [
+    0.15999999999999992,
+    "open Wadza"
+   ],
+   "transcript": 1.26,
+   "utterance": 0.8600000000000001,
+   "device_directed": 1.26,
+   "command_complete": [
+    [
+     0.26,
+     -0.14000000000000012
+    ]
+   ],
+   "command_complete_early": []
+  },
+  {
+   "voice": "Samantha",
+   "said": "Set an alarm at nine am on next Sunday.",
+   "speech_end_s": 2.73,
+   "final_text": "Set an alarm at nine am on next Sunday.",
+   "partial_full": [
+    0.06999999999999984,
+    "set an alarm at nine am on next Sunday."
+   ],
+   "transcript": 0.77,
+   "utterance": 0.77,
+   "device_directed": 0.77,
+   "command_complete": [
+    [
+     0.27,
+     -0.1299999999999999
+    ]
+   ],
+   "command_complete_early": []
+  },
+  {
+   "voice": "Samantha",
+   "said": "Create a new list called groceries.",
+   "speech_end_s": 2.4299999999999997,
+   "final_text": "create a new list called groceries.",
+   "partial_full": [
+    0.27000000000000046,
+    "create a new list called groceries."
+   ],
+   "transcript": 0.6700000000000004,
+   "utterance": 0.7700000000000005,
+   "device_directed": 0.6700000000000004,
+   "command_complete": [
+    [
+     -0.029999999999999805,
+     -0.4299999999999997
+    ]
+   ],
+   "command_complete_early": []
+  },
+  {
+   "voice": "Daniel",
+   "said": "Say that again.",
+   "speech_end_s": 1.42,
+   "final_text": "Save that again.",
+   "partial_full": [
+    0.28,
+    "Save that again."
+   ],
+   "transcript": 1.1800000000000002,
+   "utterance": 0.7800000000000002,
+   "device_directed": 1.1800000000000002,
+   "command_complete": [
+    [
+     0.18000000000000016,
+     -0.21999999999999997
+    ]
+   ],
+   "command_complete_early": []
+  },
+  {
+   "voice": "Daniel",
+   "said": "Pause.",
+   "speech_end_s": 0.99,
+   "final_text": "cause.",
+   "partial_full": [
+    0.20999999999999996,
+    "cause."
+   ],
+   "transcript": 1.01,
+   "utterance": 0.81,
+   "device_directed": 1.01,
+   "command_complete": [],
+   "command_complete_early": []
+  },
+  {
+   "voice": "Daniel",
+   "said": "Read faster.",
+   "speech_end_s": 1.4,
+   "final_text": "Reed faster.",
+   "partial_full": [
+    0.10000000000000009,
+    "Reed faster."
+   ],
+   "transcript": 1.1,
+   "utterance": 0.8000000000000003,
+   "device_directed": 1.1,
+   "command_complete": [
+    [
+     0.40000000000000013,
+     0.0
+    ]
+   ],
+   "command_complete_early": []
+  },
+  {
+   "voice": "Daniel",
+   "said": "Sleep in twenty minutes.",
+   "speech_end_s": 1.91,
+   "final_text": "sleep in twenty minutes",
+   "partial_full": [
+    -0.010000000000000009,
+    "sleep in twenty minutes"
+   ],
+   "transcript": 0.5900000000000001,
+   "utterance": 0.7900000000000003,
+   "device_directed": 0.5900000000000001,
+   "command_complete": [
+    [
+     -0.10999999999999988,
+     -0.51
+    ]
+   ],
+   "command_complete_early": [
+    -0.51
+   ]
+  },
+  {
+   "voice": "Daniel",
+   "said": "Skip to chapter twelve.",
+   "speech_end_s": 1.93,
+   "final_text": "Skip to Shampton's weld.",
+   "partial_full": null,
+   "transcript": 1.07,
+   "utterance": 0.6700000000000002,
+   "device_directed": 1.07,
+   "command_complete": [
+    [
+     0.27000000000000024,
+     -0.1299999999999999
+    ]
+   ],
+   "command_complete_early": []
+  },
+  {
+   "voice": "Daniel",
+   "said": "What time is it?",
+   "speech_end_s": 1.45,
+   "final_text": "What time is it?",
+   "partial_full": [
+    0.15000000000000013,
+    "What time is it?"
+   ],
+   "transcript": 0.7500000000000002,
+   "utterance": 0.8499999999999999,
+   "device_directed": 0.7500000000000002,
+   "command_complete": [
+    [
+     0.25,
+     -0.1499999999999999
+    ]
+   ],
+   "command_complete_early": []
+  },
+  {
+   "voice": "Daniel",
+   "said": "Summarise this.",
+   "speech_end_s": 1.6,
+   "final_text": "summarize this.",
+   "partial_full": [
+    0.2999999999999998,
+    "summarize this."
+   ],
+   "transcript": 0.6000000000000001,
+   "utterance": 0.7999999999999998,
+   "device_directed": 0.6000000000000001,
+   "command_complete": [
+    [
+     0.09999999999999987,
+     -0.30000000000000004
+    ]
+   ],
+   "command_complete_early": []
+  },
+  {
+   "voice": "Daniel",
+   "said": "Stop reading Slack for an hour.",
+   "speech_end_s": 2.25,
+   "final_text": "Stop reading Slack for an hour.",
+   "partial_full": [
+    0.04999999999999982,
+    "Stop reading Slack for an hour."
+   ],
+   "transcript": 0.6499999999999999,
+   "utterance": 0.75,
+   "device_directed": 0.6499999999999999,
+   "command_complete": [
+    [
+     0.04999999999999982,
+     -0.3500000000000001
+    ]
+   ],
+   "command_complete_early": []
+  },
+  {
+   "voice": "Daniel",
+   "said": "Who wrote Pride and Prejudice?",
+   "speech_end_s": 2.2199999999999998,
+   "final_text": "Who will pride and prejudice?",
+   "partial_full": null,
+   "transcript": 0.5800000000000001,
+   "utterance": 0.6800000000000002,
+   "device_directed": 0.5800000000000001,
+   "command_complete": [
+    [
+     0.08000000000000007,
+     -0.31999999999999984
+    ]
+   ],
+   "command_complete_early": []
+  },
+  {
+   "voice": "Daniel",
+   "said": "Open WhatsApp.",
+   "speech_end_s": 1.44,
+   "final_text": "open WhatsApp.",
+   "partial_full": null,
+   "transcript": 0.6600000000000001,
+   "utterance": 0.96,
+   "device_directed": 0.6600000000000001,
+   "command_complete": [
+    [
+     0.26,
+     -0.1399999999999999
+    ]
+   ],
+   "command_complete_early": []
+  },
+  {
+   "voice": "Daniel",
+   "said": "Set an alarm at nine am on next Sunday.",
+   "speech_end_s": 2.92,
+   "final_text": "Set an alarm at nine and on next Sunday.",
+   "partial_full": [
+    -0.21999999999999975,
+    "Set an alarm at nine and on next Sunday."
+   ],
+   "transcript": 0.5800000000000001,
+   "utterance": 0.6800000000000002,
+   "device_directed": 0.5800000000000001,
+   "command_complete": [],
+   "command_complete_early": []
+  },
+  {
+   "voice": "Daniel",
+   "said": "Create a new list called groceries.",
+   "speech_end_s": 2.65,
+   "final_text": "create a new list for groceries.",
+   "partial_full": null,
+   "transcript": 0.75,
+   "utterance": 0.75,
+   "device_directed": 0.75,
+   "command_complete": [
+    [
+     0.050000000000000266,
+     -0.3500000000000001
+    ]
+   ],
+   "command_complete_early": []
+  }
+ ],
+ "flush": [
+  {
+   "text": "Say that again.",
+   "flush_ms": 160.78095801640302,
+   "text_heard": "Save that again."
+  },
+  {
+   "text": "Pause.",
+   "flush_ms": 148.47575000021607,
+   "text_heard": "pause."
+  },
+  {
+   "text": "Read faster.",
+   "flush_ms": 475.43966700322926,
+   "text_heard": "Reed Faster."
+  },
+  {
+   "text": "Sleep in twenty minutes.",
+   "flush_ms": 366.40262498985976,
+   "text_heard": "sleek in twenty minutes."
+  },
+  {
+   "text": "Skip to chapter twelve.",
+   "flush_ms": 169.24695897614583,
+   "text_heard": "Skip to chapter twelve."
+  },
+  {
+   "text": "What time is it?",
+   "flush_ms": 254.65741602238268,
+   "text_heard": "What time is it?"
+  },
+  {
+   "text": "Summarise this.",
+   "flush_ms": 179.48833300033584,
+   "text_heard": "So I'm gonna rise this."
+  },
+  {
+   "text": "Stop reading Slack for an hour.",
+   "flush_ms": 217.44741697330028,
+   "text_heard": "Stop reading Slack for an hour."
+  },
+  {
+   "text": "Who wrote Pride and Prejudice?",
+   "flush_ms": 272.89937500609085,
+   "text_heard": "Who wrote pride and prejudice?"
+  },
+  {
+   "text": "Open WhatsApp.",
+   "flush_ms": 207.3198749567382,
+   "text_heard": "open Wadza."
+  },
+  {
+   "text": "Set an alarm at nine am on next Sunday.",
+   "flush_ms": 271.06141700642183,
+   "text_heard": "Set an alarm at nine am on next Sunday."
+  },
+  {
+   "text": "Create a new list called groceries.",
+   "flush_ms": 208.645541977603,
+   "text_heard": "create a new list called groceries."
+  },
+  {
+   "text": "Say that again.",
+   "flush_ms": 361.1067500314675,
+   "text_heard": "Save that again."
+  },
+  {
+   "text": "Pause.",
+   "flush_ms": 188.9528750325553,
+   "text_heard": "cause."
+  },
+  {
+   "text": "Read faster.",
+   "flush_ms": 153.381125011947,
+   "text_heard": "Reed faster."
+  },
+  {
+   "text": "Sleep in twenty minutes.",
+   "flush_ms": 372.8834170033224,
+   "text_heard": "sleep in twenty minutes"
+  },
+  {
+   "text": "Skip to chapter twelve.",
+   "flush_ms": 696.6903329594061,
+   "text_heard": "Skip to Shampton's weld."
+  },
+  {
+   "text": "What time is it?",
+   "flush_ms": 339.03891703812405,
+   "text_heard": "What time is it?"
+  },
+  {
+   "text": "Summarise this.",
+   "flush_ms": 362.27954097557813,
+   "text_heard": "summarize this."
+  },
+  {
+   "text": "Stop reading Slack for an hour.",
+   "flush_ms": 272.1334579982795,
+   "text_heard": "Stop reading Slack for an hour."
+  },
+  {
+   "text": "Who wrote Pride and Prejudice?",
+   "flush_ms": 200.05400001537055,
+   "text_heard": "Who will pride and prejudice?"
+  },
+  {
+   "text": "Open WhatsApp.",
+   "flush_ms": 136.37016603024676,
+   "text_heard": "open WhatsApp."
+  },
+  {
+   "text": "Set an alarm at nine am on next Sunday.",
+   "flush_ms": 300.5676250322722,
+   "text_heard": "Set an alarm at nine and on next Sunday."
+  },
+  {
+   "text": "Create a new list called groceries.",
+   "flush_ms": 166.75595799461007,
+   "text_heard": "create a new list for groceries."
+  }
+ ],
+ "offline": [
+  {
+   "text": "Say that again.",
+   "audio_s": 1.75,
+   "transcribe_ms": 438.411666022148,
+   "predict_ms": 817.7065000054426
+  },
+  {
+   "text": "Pause.",
+   "audio_s": 1.31,
+   "transcribe_ms": 254.82962501700968,
+   "predict_ms": 284.7234590444714
+  },
+  {
+   "text": "Read faster.",
+   "audio_s": 1.67,
+   "transcribe_ms": 255.72391698369756,
+   "predict_ms": 501.1187919881195
+  },
+  {
+   "text": "Sleep in twenty minutes.",
+   "audio_s": 2.18,
+   "transcribe_ms": 385.12662501307204,
+   "predict_ms": 447.0712080365047
+  },
+  {
+   "text": "Skip to chapter twelve.",
+   "audio_s": 2.22,
+   "transcribe_ms": 448.5745000420138,
+   "predict_ms": 522.2522499971092
+  },
+  {
+   "text": "What time is it?",
+   "audio_s": 1.64,
+   "transcribe_ms": 216.15329204360023,
+   "predict_ms": 165.6796250026673
+  },
+  {
+   "text": "Summarise this.",
+   "audio_s": 1.8199375,
+   "transcribe_ms": 250.73712499579415,
+   "predict_ms": 303.5977079998702
+  },
+  {
+   "text": "Stop reading Slack for an hour.",
+   "audio_s": 2.59,
+   "transcribe_ms": 339.64954101247713,
+   "predict_ms": 438.8266250025481
+  },
+  {
+   "text": "Who wrote Pride and Prejudice?",
+   "audio_s": 2.33,
+   "transcribe_ms": 308.3196250372566,
+   "predict_ms": 358.3492919569835
+  },
+  {
+   "text": "Open WhatsApp.",
+   "audio_s": 1.74,
+   "transcribe_ms": 289.6709580090828,
+   "predict_ms": 459.87620897358283
+  },
+  {
+   "text": "Set an alarm at nine am on next Sunday.",
+   "audio_s": 3.13,
+   "transcribe_ms": 415.5205420101993,
+   "predict_ms": 609.3813749612309
+  },
+  {
+   "text": "Create a new list called groceries.",
+   "audio_s": 2.8299375,
+   "transcribe_ms": 364.18675002641976,
+   "predict_ms": 390.2217079885304
+  },
+  {
+   "text": "Say that again.",
+   "audio_s": 1.8199375,
+   "transcribe_ms": 220.01950000412762,
+   "predict_ms": 262.01212499290705
+  },
+  {
+   "text": "Pause.",
+   "audio_s": 1.39,
+   "transcribe_ms": 465.0620419997722,
+   "predict_ms": 793.0655420059338
+  },
+  {
+   "text": "Read faster.",
+   "audio_s": 1.7999375,
+   "transcribe_ms": 280.24520800681785,
+   "predict_ms": 469.7992089786567
+  },
+  {
+   "text": "Sleep in twenty minutes.",
+   "audio_s": 2.31,
+   "transcribe_ms": 235.64745800103992,
+   "predict_ms": 744.9987920117564
+  },
+  {
+   "text": "Skip to chapter twelve.",
+   "audio_s": 2.33,
+   "transcribe_ms": 298.6980000277981,
+   "predict_ms": 1004.7267500194721
+  },
+  {
+   "text": "What time is it?",
+   "audio_s": 1.85,
+   "transcribe_ms": 259.0465829707682,
+   "predict_ms": 798.5636660014279
+  },
+  {
+   "text": "Summarise this.",
+   "audio_s": 2.0,
+   "transcribe_ms": 276.45995805505663,
+   "predict_ms": 402.1143339923583
+  },
+  {
+   "text": "Stop reading Slack for an hour.",
+   "audio_s": 2.65,
+   "transcribe_ms": 335.7344579999335,
+   "predict_ms": 388.1600829772651
+  },
+  {
+   "text": "Who wrote Pride and Prejudice?",
+   "audio_s": 2.6199375,
+   "transcribe_ms": 212.14566699927673,
+   "predict_ms": 343.8336669933051
+  },
+  {
+   "text": "Open WhatsApp.",
+   "audio_s": 1.8399375,
+   "transcribe_ms": 173.47783298464492,
+   "predict_ms": 326.22454199008644
+  },
+  {
+   "text": "Set an alarm at nine am on next Sunday.",
+   "audio_s": 3.32,
+   "transcribe_ms": 216.49587497813627,
+   "predict_ms": 248.23116697371006
+  },
+  {
+   "text": "Create a new list called groceries.",
+   "audio_s": 3.05,
+   "transcribe_ms": 276.8471660092473,
+   "predict_ms": 262.4832500005141
+  }
+ ]
+}

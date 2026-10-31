@@ -1,0 +1,649 @@
+{
+ "backbone": "mini",
+ "right": 19,
+ "n": 30,
+ "rows": [
+  {
+   "text": "The meeting moved to March third.",
+   "voice": "Samantha",
+   "expected_iso": "--03-03",
+   "plain": "the meeting moved to March third.",
+   "written": "the meeting moved to March 3.",
+   "date_records": [
+    {
+     "heard": "March third",
+     "value": 3,
+     "date": {
+      "year": null,
+      "month": 3,
+      "day": 3
+     },
+     "iso": "--03-03"
+    }
+   ],
+   "other_numbers": [],
+   "iso_right": true
+  },
+  {
+   "text": "The meeting moved to March third.",
+   "voice": "Daniel",
+   "expected_iso": "--03-03",
+   "plain": "The meeting moved to March third.",
+   "written": "The meeting moved to March 3.",
+   "date_records": [
+    {
+     "heard": "March third",
+     "value": 3,
+     "date": {
+      "year": null,
+      "month": 3,
+      "day": 3
+     },
+     "iso": "--03-03"
+    }
+   ],
+   "other_numbers": [],
+   "iso_right": true
+  },
+  {
+   "text": "We meet again on the third of March.",
+   "voice": "Samantha",
+   "expected_iso": "--03-03",
+   "plain": "We need to get on the third of March.",
+   "written": "We need to get on the 3rd of March.",
+   "date_records": [
+    {
+     "heard": "third of March",
+     "value": 3,
+     "date": {
+      "year": null,
+      "month": 3,
+      "day": 3
+     },
+     "iso": "--03-03"
+    }
+   ],
+   "other_numbers": [],
+   "iso_right": true
+  },
+  {
+   "text": "We meet again on the third of March.",
+   "voice": "Daniel",
+   "expected_iso": "--03-03",
+   "plain": "We meet again on the third of March.",
+   "written": "We meet again on the 3rd of March.",
+   "date_records": [
+    {
+     "heard": "third of March",
+     "value": 3,
+     "date": {
+      "year": null,
+      "month": 3,
+      "day": 3
+     },
+     "iso": "--03-03"
+    }
+   ],
+   "other_numbers": [],
+   "iso_right": true
+  },
+  {
+   "text": "The contract was signed on March 3rd 2024.",
+   "voice": "Samantha",
+   "expected_iso": "2024-03-03",
+   "plain": "The contract was signed on March 3, 2024.",
+   "written": "The contract was signed on March 3, 2024.",
+   "date_records": [
+    {
+     "heard": "March 3 2024",
+     "value": 3,
+     "date": {
+      "year": 2024,
+      "month": 3,
+      "day": 3
+     },
+     "iso": "2024-03-03"
+    }
+   ],
+   "other_numbers": [],
+   "iso_right": true
+  },
+  {
+   "text": "The contract was signed on March 3rd 2024.",
+   "voice": "Daniel",
+   "expected_iso": "2024-03-03",
+   "plain": "The contract was signed on the 3rd of March 2024.",
+   "written": "The contract was signed on the 3rd of March 2024.",
+   "date_records": [
+    {
+     "heard": "3rd of March",
+     "value": 3,
+     "date": {
+      "year": null,
+      "month": 3,
+      "day": 3
+     },
+     "iso": "--03-03"
+    },
+    {
+     "heard": "March 2024",
+     "value": 2024,
+     "date": {
+      "year": 2024,
+      "month": 3,
+      "day": null
+     },
+     "iso": "2024-03"
+    }
+   ],
+   "other_numbers": [],
+   "iso_right": false
+  },
+  {
+   "text": "Her birthday is on July twenty first.",
+   "voice": "Samantha",
+   "expected_iso": "--07-21",
+   "plain": "Her birthday is on July twenty first.",
+   "written": "Her birthday is on July 21.",
+   "date_records": [
+    {
+     "heard": "July twenty first",
+     "value": 21,
+     "date": {
+      "year": null,
+      "month": 7,
+      "day": 21
+     },
+     "iso": "--07-21"
+    }
+   ],
+   "other_numbers": [],
+   "iso_right": true
+  },
+  {
+   "text": "Her birthday is on July twenty first.",
+   "voice": "Daniel",
+   "expected_iso": "--07-21",
+   "plain": "Her birthday is on July 23,",
+   "written": "Her birthday is on July 23,",
+   "date_records": [
+    {
+     "heard": "July 23",
+     "value": 23,
+     "date": {
+      "year": null,
+      "month": 7,
+      "day": 23
+     },
+     "iso": "--07-23"
+    }
+   ],
+   "other_numbers": [],
+   "iso_right": false
+  },
+  {
+   "text": "The report is due on the twenty first of July.",
+   "voice": "Samantha",
+   "expected_iso": "--07-21",
+   "plain": "The report is due on the 21st of July.",
+   "written": "The report is due on the 21st of July.",
+   "date_records": [
+    {
+     "heard": "21st of July",
+     "value": 21,
+     "date": {
+      "year": null,
+      "month": 7,
+      "day": 21
+     },
+     "iso": "--07-21"
+    }
+   ],
+   "other_numbers": [],
+   "iso_right": true
+  },
+  {
+   "text": "The report is due on the twenty first of July.",
+   "voice": "Daniel",
+   "expected_iso": "--07-21",
+   "plain": "The record is due on the twenty first of July.",
+   "written": "The record is due on the 21st of July.",
+   "date_records": [
+    {
+     "heard": "twenty first of July",
+     "value": 21,
+     "date": {
+      "year": null,
+      "month": 7,
+      "day": 21
+     },
+     "iso": "--07-21"
+    }
+   ],
+   "other_numbers": [],
+   "iso_right": true
+  },
+  {
+   "text": "They opened the office on January 1st, 2020.",
+   "voice": "Samantha",
+   "expected_iso": "2020-01-01",
+   "plain": "open the office on January for 2020.",
+   "written": "open the office on January for 2020.",
+   "date_records": [
+    {
+     "heard": "2020",
+     "value": 2020,
+     "date": {
+      "year": 2020,
+      "month": null,
+      "day": null
+     },
+     "iso": "2020"
+    }
+   ],
+   "other_numbers": [],
+   "iso_right": false
+  },
+  {
+   "text": "They opened the office on January 1st, 2020.",
+   "voice": "Daniel",
+   "expected_iso": "2020-01-01",
+   "plain": "Leon can be office on the first of January. 2020.",
+   "written": "Leon can be office on the 1st of January. 2020.",
+   "date_records": [
+    {
+     "heard": "first of January",
+     "value": 1,
+     "date": {
+      "year": null,
+      "month": 1,
+      "day": 1
+     },
+     "iso": "--01-01"
+    },
+    {
+     "heard": "2020",
+     "value": 2020,
+     "date": {
+      "year": 2020,
+      "month": null,
+      "day": null
+     },
+     "iso": "2020"
+    }
+   ],
+   "other_numbers": [],
+   "iso_right": false
+  },
+  {
+   "text": "The deadline is October fifteenth, twenty twenty five.",
+   "voice": "Samantha",
+   "expected_iso": "2025-10-15",
+   "plain": "The deadline is October fifteenth, twenty twenty five.",
+   "written": "The deadline is October 15, 2025.",
+   "date_records": [
+    {
+     "heard": "October fifteenth twenty twenty five",
+     "value": 15,
+     "date": {
+      "year": 2025,
+      "month": 10,
+      "day": 15
+     },
+     "iso": "2025-10-15"
+    }
+   ],
+   "other_numbers": [],
+   "iso_right": true
+  },
+  {
+   "text": "The deadline is October fifteenth, twenty twenty five.",
+   "voice": "Daniel",
+   "expected_iso": "2025-10-15",
+   "plain": "The deadline is October 15. 2025.",
+   "written": "The deadline is October 15. 2025.",
+   "date_records": [
+    {
+     "heard": "October 15",
+     "value": 15,
+     "date": {
+      "year": null,
+      "month": 10,
+      "day": 15
+     },
+     "iso": "--10-15"
+    }
+   ],
+   "other_numbers": [
+    {
+     "heard": "2025",
+     "kind": null,
+     "value": 2025
+    }
+   ],
+   "iso_right": false
+  },
+  {
+   "text": "I was born in nineteen eighty seven.",
+   "voice": "Samantha",
+   "expected_iso": "1987",
+   "plain": "I was born in 1987.",
+   "written": "I was born in 1987.",
+   "date_records": [
+    {
+     "heard": "1987",
+     "value": 1987,
+     "date": {
+      "year": 1987,
+      "month": null,
+      "day": null
+     },
+     "iso": "1987"
+    }
+   ],
+   "other_numbers": [],
+   "iso_right": true
+  },
+  {
+   "text": "I was born in nineteen eighty seven.",
+   "voice": "Daniel",
+   "expected_iso": "1987",
+   "plain": "I was born in nineteen eighty seven.",
+   "written": "I was born in 1987.",
+   "date_records": [
+    {
+     "heard": "nineteen eighty seven",
+     "value": 1987,
+     "date": {
+      "year": 1987,
+      "month": null,
+      "day": null
+     },
+     "iso": "1987"
+    }
+   ],
+   "other_numbers": [],
+   "iso_right": true
+  },
+  {
+   "text": "School starts on September second.",
+   "voice": "Samantha",
+   "expected_iso": "--09-02",
+   "plain": "Schools starts on September second.",
+   "written": "Schools starts on September 2.",
+   "date_records": [
+    {
+     "heard": "September second",
+     "value": 2,
+     "date": {
+      "year": null,
+      "month": 9,
+      "day": 2
+     },
+     "iso": "--09-02"
+    }
+   ],
+   "other_numbers": [],
+   "iso_right": true
+  },
+  {
+   "text": "School starts on September second.",
+   "voice": "Daniel",
+   "expected_iso": "--09-02",
+   "plain": "School starts on September 2nd.",
+   "written": "School starts on September 2nd.",
+   "date_records": [
+    {
+     "heard": "September 2nd",
+     "value": 2,
+     "date": {
+      "year": null,
+      "month": 9,
+      "day": 2
+     },
+     "iso": "--09-02"
+    }
+   ],
+   "other_numbers": [],
+   "iso_right": true
+  },
+  {
+   "text": "The festival runs until the thirtieth of November.",
+   "voice": "Samantha",
+   "expected_iso": "--11-30",
+   "plain": "The festival runs until the 30th of November.",
+   "written": "The festival runs until the 30th of November.",
+   "date_records": [
+    {
+     "heard": "30th of November",
+     "value": 30,
+     "date": {
+      "year": null,
+      "month": 11,
+      "day": 30
+     },
+     "iso": "--11-30"
+    }
+   ],
+   "other_numbers": [],
+   "iso_right": true
+  },
+  {
+   "text": "The festival runs until the thirtieth of November.",
+   "voice": "Daniel",
+   "expected_iso": "--11-30",
+   "plain": "The festival runs until the thirtieth of November.",
+   "written": "The festival runs until the 30th of November.",
+   "date_records": [
+    {
+     "heard": "thirtieth of November",
+     "value": 30,
+     "date": {
+      "year": null,
+      "month": 11,
+      "day": 30
+     },
+     "iso": "--11-30"
+    }
+   ],
+   "other_numbers": [],
+   "iso_right": true
+  },
+  {
+   "text": "Rent is due on the first of every month.",
+   "voice": "Samantha",
+   "expected_iso": null,
+   "plain": "rent is due on the first of every month.",
+   "written": "rent is due on the first of every month.",
+   "date_records": [
+    {
+     "heard": "first of",
+     "value": 1,
+     "date": null,
+     "iso": null
+    }
+   ],
+   "other_numbers": [],
+   "iso_right": false
+  },
+  {
+   "text": "Rent is due on the first of every month.",
+   "voice": "Daniel",
+   "expected_iso": null,
+   "plain": "Renda is due on the first of every month.",
+   "written": "Renda is due on the first of every month.",
+   "date_records": [
+    {
+     "heard": "first of",
+     "value": 1,
+     "date": null,
+     "iso": null
+    }
+   ],
+   "other_numbers": [],
+   "iso_right": false
+  },
+  {
+   "text": "We shipped the update on February twenty ninth, 2024.",
+   "voice": "Samantha",
+   "expected_iso": "2024-02-29",
+   "plain": "We should see update on February twenty ninth. 2024.",
+   "written": "We should see update on February 29. 2024.",
+   "date_records": [
+    {
+     "heard": "February twenty ninth",
+     "value": 29,
+     "date": {
+      "year": null,
+      "month": 2,
+      "day": 29
+     },
+     "iso": "--02-29"
+    },
+    {
+     "heard": "2024",
+     "value": 2024,
+     "date": {
+      "year": 2024,
+      "month": null,
+      "day": null
+     },
+     "iso": "2024"
+    }
+   ],
+   "other_numbers": [],
+   "iso_right": false
+  },
+  {
+   "text": "We shipped the update on February twenty ninth, 2024.",
+   "voice": "Daniel",
+   "expected_iso": "2024-02-29",
+   "plain": "We should be up big on February 2020. two thousand and twenty four.",
+   "written": "We should be up big on February 2020. 2024.",
+   "date_records": [
+    {
+     "heard": "two thousand and twenty four",
+     "value": 2024,
+     "date": {
+      "year": 2024,
+      "month": null,
+      "day": null
+     },
+     "iso": "2024"
+    }
+   ],
+   "other_numbers": [],
+   "iso_right": false
+  },
+  {
+   "text": "The trial begins on Monday, April 7th.",
+   "voice": "Samantha",
+   "expected_iso": "--04-07",
+   "plain": "The trial begins on Monday, April seventh.",
+   "written": "The trial begins on Monday, April 7.",
+   "date_records": [
+    {
+     "heard": "April seventh",
+     "value": 7,
+     "date": {
+      "year": null,
+      "month": 4,
+      "day": 7
+     },
+     "iso": "--04-07"
+    }
+   ],
+   "other_numbers": [],
+   "iso_right": true
+  },
+  {
+   "text": "The trial begins on Monday, April 7th.",
+   "voice": "Daniel",
+   "expected_iso": "--04-07",
+   "plain": "The trial begins on Monday, the 7th of April.",
+   "written": "The trial begins on Monday, the 7th of April.",
+   "date_records": [
+    {
+     "heard": "7th of April",
+     "value": 7,
+     "date": {
+      "year": null,
+      "month": 4,
+      "day": 7
+     },
+     "iso": "--04-07"
+    }
+   ],
+   "other_numbers": [],
+   "iso_right": true
+  },
+  {
+   "text": "Please send it by December thirty first.",
+   "voice": "Samantha",
+   "expected_iso": "--12-31",
+   "plain": "Please send it by December thirty first.",
+   "written": "Please send it by December 31.",
+   "date_records": [
+    {
+     "heard": "December thirty first",
+     "value": 31,
+     "date": {
+      "year": null,
+      "month": 12,
+      "day": 31
+     },
+     "iso": "--12-31"
+    }
+   ],
+   "other_numbers": [],
+   "iso_right": true
+  },
+  {
+   "text": "Please send it by December thirty first.",
+   "voice": "Daniel",
+   "expected_iso": "--12-31",
+   "plain": "Please send in by December thirty first.",
+   "written": "Please send in by December 31.",
+   "date_records": [
+    {
+     "heard": "December thirty first",
+     "value": 31,
+     "date": {
+      "year": null,
+      "month": 12,
+      "day": 31
+     },
+     "iso": "--12-31"
+    }
+   ],
+   "other_numbers": [],
+   "iso_right": true
+  },
+  {
+   "text": "The store reopened in March 2021.",
+   "voice": "Samantha",
+   "expected_iso": "2021-03",
+   "plain": "Stormy Oakland in March 2021.",
+   "written": "Stormy Oakland in March 2021.",
+   "date_records": [],
+   "other_numbers": [],
+   "iso_right": false
+  },
+  {
+   "text": "The store reopened in March 2021.",
+   "voice": "Daniel",
+   "expected_iso": "2021-03",
+   "plain": "The store reopened in March, 2021.",
+   "written": "The store reopened in March, 2021.",
+   "date_records": [],
+   "other_numbers": [
+    {
+     "heard": "2021",
+     "kind": null,
+     "value": 2021
+    }
+   ],
+   "iso_right": false
+  }
+ ]
+}

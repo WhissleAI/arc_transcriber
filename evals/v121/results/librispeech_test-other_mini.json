@@ -1,0 +1,78 @@
+{
+ "ls_test-other_mini.jsonl": {
+  "meta": {
+   "arc_audio": "1.2.1",
+   "backbone": "mini",
+   "device": "cpu",
+   "torch_threads": 6
+  },
+  "n": 500,
+  "audio_min": 53.16125104166667,
+  "rtf_x": 6.004021535699638,
+  "all": {
+   "plain": {
+    "n": 500,
+    "wer_whisper": 0.24429854872149273,
+    "wer_strict": 0.24348534201954397,
+    "recall": 0.0,
+    "precision": 0.0,
+    "ref_numbers": 0,
+    "hyp_numbers": 7,
+    "matched": 0,
+    "tw_digits": 0.0,
+    "tw_digits_n": "0/0"
+   },
+   "written": {
+    "n": 500,
+    "wer_whisper": 0.24441372955540197,
+    "wer_strict": 0.24569567240577012,
+    "recall": 0.0,
+    "precision": 0.0,
+    "ref_numbers": 0,
+    "hyp_numbers": 24,
+    "matched": 0,
+    "tw_digits": 0.0,
+    "tw_digits_n": "0/0"
+   },
+   "changed_utterances": 16
+  }
+ },
+ "ls_test-other_mini_fix.jsonl": {
+  "meta": {
+   "arc_audio": "1.2.1",
+   "backbone": "mini",
+   "device": "cpu",
+   "torch_threads": 6
+  },
+  "n": 500,
+  "audio_min": 53.16125104166667,
+  "rtf_x": 6.004021535699638,
+  "all": {
+   "plain": {
+    "n": 500,
+    "wer_whisper": 0.24429854872149273,
+    "wer_strict": 0.24348534201954397,
+    "recall": 0.0,
+    "precision": 0.0,
+    "ref_numbers": 0,
+    "hyp_numbers": 7,
+    "matched": 0,
+    "tw_digits": 0.0,
+    "tw_digits_n": "0/0"
+   },
+   "written": {
+    "n": 500,
+    "wer_whisper": 0.24441372955540197,
+    "wer_strict": 0.24569567240577012,
+    "recall": 0.0,
+    "precision": 0.0,
+    "ref_numbers": 0,
+    "hyp_numbers": 24,
+    "matched": 0,
+    "tw_digits": 0.0,
+    "tw_digits_n": "0/0"
+   },
+   "changed_utterances": 16
+  }
+ }
+}

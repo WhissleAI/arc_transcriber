@@ -22,6 +22,7 @@ No audio is committed:
 | [whisper_noise](whisper_noise/) | Whispers, low level, noise, telephone, clipping | whispers are the weakest input; telephone 0.57 / clipping 0.51 fire only on their condition → rerun whisper voice 58.9% WER vs 20.8% clean; clipping 0.66; telephone silent on short clips |
 | [latency_streaming](latency_streaming/) | Offline and streaming latency, when each output arrives | Steer 0.05–0.12 s per command; Pipecat final ~2.7 s late → rerun: commands under 1 s get their final at +14–15 s (segmenter `min_s` gate); utterance record +0.79 s; flush 155 ms |
 | [written_form](written_form/) | Does the written transcript (`transcript_written`) score better against written references? | 1.2.1: digits found 22% → 74%, whole sentence right 18% → 53%, WER 27.2% → 24.2% on 120 number-heavy clips; LibriSpeech WER unchanged (15.5%) |
+| [v121](v121/) | Does 1.2.1 hold up on real speech, both models? TypeWhisper reproduced; Earnings-22; LibriSpeech; MPS; streaming / CLI; dates | TypeWhisper reproduced exactly (340/340 clips); written form: Digits 28% → 72% (Mini), 4% → 76% (Transcriber); Earnings-22 number recall 5% → 80% (Transcriber), 0 wrong values in 60 hand-checked; CPU = MPS outputs |
 | [api_issues](api_issues/) | Minimal reproductions of the API issues | 4 issues (late final for short commands, rewrite duplicates, global switch interval, two device-directed numbers) |
 
 **[FINDINGS.md](FINDINGS.md)** lists the learnings for the Arc team, each with its evidence and an ask.
