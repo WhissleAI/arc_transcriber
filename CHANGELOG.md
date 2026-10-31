@@ -8,6 +8,14 @@ Package versions of `arc-transcriber` (this repository) and the model revisions 
 Code-only release: model revision stays `v1.2.0` (`arc_audio.MODEL_REVISION`; the package no longer derives the revision from its
 own version). Same weights, same golden outputs.
 
+Written form fixes from `evals/v121` (`arc_audio/written.py`, `tests/test_written.py`):
+
+- Numbers with "hundred" or "thousand" are no longer read as clock times. "one thousand four hundred twenty five" became 14:25,
+  "at one hundred twelve days" became "at 1:12 days".
+- Malformed scale runs keep their words instead of being multiplied into a number ("one hundred and four hundred twenty five" was
+  10,425).
+- A bare "twenty X" with a time tag stays words (it is usually a year: "as at twenty eighteen" was "20:18").
+
 Runtime and API fixes from the app findings (`evals/FINDINGS.md` items 1-4, 10, 12, 16, 17; `tests/test_app_findings.py`):
 
 - Short utterances close on a pause (#1): `UttSegmenter` closes an utterance shorter than `min_s` after `short_pause_s` (new, 0.8 s)

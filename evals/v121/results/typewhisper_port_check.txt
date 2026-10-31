@@ -1,0 +1,2 @@
+whissle-arc_mini.json: 340 clips, 0 mismatches; published-row pools: all 0.305, w/o acc 0.252, core w/o acc 0.234; Digits 7/25
+whissle-arc_transcriber.json: 340 clips, 0 mismatches; published-row pools: all 0.172, w/o acc 0.109, core w/o acc 0.099; Digits 1/25

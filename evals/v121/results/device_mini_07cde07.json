@@ -1,0 +1,145 @@
+{
+ "backbone": "mini",
+ "torch": "2.15.0",
+ "threads": 6,
+ "runs": [
+  {
+   "device": "cpu",
+   "seconds": 15.0,
+   "predict": {
+    "s": 3.7595194170135073,
+    "plain": "Why are we to be denied each other's society? Why are we to be divided? Surely it must be because we're in danger of lugging each other too well. I'm losing sight of the creator and I don't retrieve the creature. January and February.",
+    "written": "Why are we to be denied each other's society? Why are we to be divided? Surely it must be because we're in danger of lugging each other too well. I'm losing sight of the creator and I don't retrieve the creature. January and February.",
+    "numbers": 0,
+    "word_diff_vs_cpu": 0,
+    "identical_to_cpu": true,
+    "written_identical_to_cpu": true
+   },
+   "stream": {
+    "s": 7.987625834008213,
+    "plain": "Why are we to be denied each other's society? Why are we to be divided? Surely it must be because we're in danger of lugging each other too well. I'm losing sight of the creator and I don't retrieve the creature. January and February.",
+    "written": "Why are we to be denied each other's society? Why are we to be divided? Surely it must be because we're in danger of lugging each other too well. I'm losing sight of the creator and I don't retrieve the creature. January and February.",
+    "written_all": "Why are we to be denied each other's society? Why are we to be divided? Surely it must be because we're in danger of lugging each other too well. I'm losing sight of the creator and I don't retrieve the creature. January and February.",
+    "word_diff_vs_cpu": 0,
+    "identical_to_cpu": true,
+    "written_identical_to_cpu": true,
+    "words_vs_predict_same_device": 0
+   }
+  },
+  {
+   "device": "cpu",
+   "seconds": 60.0,
+   "predict": {
+    "s": 12.851206333027221,
+    "plain": "Indeed, he persecuted the church of Christ for a long time. Do you suppose that God, for the sake of a few Lutheran heretics, would this own his entire church? Against these boasting, false apostles, Paul boldly defends his apostolic authority in ministry. In God the Father, who raised him from the dead, the clause seems superfluous on first sight, and all the brethren which are with me. This should go far in shedding the mouths of the false apostles. We look for that reward which I have not seen, nor ear heard, neither have entered into the heart of man. Embrace him and forget about the nature of God. To bestow peace and grace lies in the province of God. Who alone can create these blessings? The angels cannot. He never loses sight of the purpose of his epistle. Not gold or silver or pasture lambs. or an angel, but himself. What four?",
+    "written": "Indeed, he persecuted the church of Christ for a long time. Do you suppose that God, for the sake of a few Lutheran heretics, would this own his entire church? Against these boasting, false apostles, Paul boldly defends his apostolic authority in ministry. In God the Father, who raised him from the dead, the clause seems superfluous on first sight, and all the brethren which are with me. This should go far in shedding the mouths of the false apostles. We look for that reward which I have not seen, nor ear heard, neither have entered into the heart of man. Embrace him and forget about the nature of God. To bestow peace and grace lies in the province of God. Who alone can create these blessings? The angels cannot. He never loses sight of the purpose of his epistle. Not gold or silver or pasture lambs. or an angel, but himself. What four?",
+    "numbers": 1,
+    "word_diff_vs_cpu": 0,
+    "identical_to_cpu": true,
+    "written_identical_to_cpu": true
+   },
+   "stream": {
+    "s": 30.700873084017076,
+    "plain": "Indeed, he persecuted the church of Christ for a long time. Do you suppose that God, for the sake of a few Lutheran heretics, would this own his entire church? Against these boasting, false apostles, Paul boldly defends his apostolic authority in ministry. In God the Father, who raised him from the dead, the clause seems superfluous on first sight, and all the brethren which are with me. This should go far in shedding the mouths of the false apostles. We look for that reward which I have not seen, nor ear heard, neither have entered into the heart of man. Embrace him and forget about the nature of God. To bestow peace and grace lies in the province of God. Who alone can create these blessings? The angels cannot. He never loses sight of the purpose of his epistle. Not gold or silver or pasture lambs. or an angel, but himself. What four?",
+    "written": "Indeed, he persecuted the church of Christ for a long time. Do you suppose that God, for the sake of a few Lutheran heretics, would this own his entire church? Against these boasting, false apostles, Paul boldly defends his apostolic authority in ministry. In God the Father, who raised him from the dead, the clause seems superfluous on first sight, and all the brethren which are with me. This should go far in shedding the mouths of the false apostles. We look for that reward which I have not seen, nor ear heard, neither have entered into the heart of man. Embrace him and forget about the nature of God. To bestow peace and grace lies in the province of God. Who alone can create these blessings? The angels cannot. He never loses sight of the purpose of his epistle. Not gold or silver or pasture lambs. or an angel, but himself. What four?",
+    "written_all": "Indeed, he persecuted the church of Christ for a long time. Do you suppose that God, for the sake of a few Lutheran heretics, would this own his entire church? Against these boasting, false apostles, Paul boldly defends his apostolic authority in ministry. In God the Father, who raised him from the dead, the clause seems superfluous on first sight, and all the brethren which are with me. This should go far in shedding the mouths of the false apostles. We look for that reward which I have not seen, nor ear heard, neither have entered into the heart of man. Embrace him and forget about the nature of God. To bestow peace and grace lies in the province of God. Who alone can create these blessings? The angels cannot. He never loses sight of the purpose of his epistle. Not gold or silver or pasture lambs. or an angel, but himself. What four?",
+    "word_diff_vs_cpu": 0,
+    "identical_to_cpu": true,
+    "written_identical_to_cpu": true,
+    "words_vs_predict_same_device": 0
+   }
+  },
+  {
+   "device": "cpu",
+   "seconds": 61.3,
+   "predict": {
+    "s": 14.894582250039093,
+    "plain": "I felt it in my bones when I woke this morning that something splendid was going to turn up. She pushed him toward the big chair by the fire and sat down on a stool at the opposite side of the hearth. Her knees drawn up to her chin, laughing like a happy little girl. When did you come, Bartley? And how did it happen? You have it spoken a word. I'll do anything you wish me to, Bartley. She said tremorlessly. He pulled up a window as if the air were heavy. I get nothing but misery out of either. It was myself I was defying Hilda. held his face quivered, but she whispered, Yes. I think it must have been She pressed his hand gently and gratitude. Keep away if you wish. When have I ever followed you? He took a ruffling in his arms. Do you know what I mean? Oh, Bartley, what am I to do? The sight of you, Bartley, to see you living and happy and successful. Can I never make you understand what that means to me? And then you came back, not caring very much. but it made no difference.",
+    "written": "I felt it in my bones when I woke this morning that something splendid was going to turn up. She pushed him toward the big chair by the fire and sat down on a stool at the opposite side of the hearth. Her knees drawn up to her chin, laughing like a happy little girl. When did you come, Bartley? And how did it happen? You have it spoken a word. I'll do anything you wish me to, Bartley. She said tremorlessly. He pulled up a window as if the air were heavy. I get nothing but misery out of either. It was myself I was defying Hilda. held his face quivered, but she whispered, Yes. I think it must have been She pressed his hand gently and gratitude. Keep away if you wish. When have I ever followed you? He took a ruffling in his arms. Do you know what I mean? Oh, Bartley, what am I to do? The sight of you, Bartley, to see you living and happy and successful. Can I never make you understand what that means to me? And then you came back, not caring very much. but it made no difference.",
+    "numbers": 0,
+    "word_diff_vs_cpu": 0,
+    "identical_to_cpu": true,
+    "written_identical_to_cpu": true
+   },
+   "stream": {
+    "s": 32.31316812505247,
+    "plain": "I felt it in my bones when I woke this morning that something splendid was going to turn up. She pushed him toward the big chair by the fire and sat down on a stool at the opposite side of the hearth. Her knees drawn up to her chin, laughing like a happy little girl. When did you come, Bartley? And how did it happen? You have it spoken a word. I'll do anything you wish me to, Bartley. She said tremorlessly. He pulled up a window as if the air were heavy. I get nothing but misery out of either. It was myself I was defying Hilda. held his face quivered, but she whispered, Yes. I think it must have been She pressed his hand gently and gratitude. Keep away if you wish. When have I ever followed you? He took a ruffling in his arms. Do you know what I mean? Oh, Bartley, what am I to do? The sight of you, Bartley, to see you living and happy and successful. Can I never make you understand what that means to me? And then you came back, not caring very much. but it made no difference.",
+    "written": "I felt it in my bones when I woke this morning that something splendid was going to turn up. She pushed him toward the big chair by the fire and sat down on a stool at the opposite side of the hearth. Her knees drawn up to her chin, laughing like a happy little girl. When did you come, Bartley? And how did it happen? You have it spoken a word. I'll do anything you wish me to, Bartley. She said tremorlessly. He pulled up a window as if the air were heavy. I get nothing but misery out of either. It was myself I was defying Hilda. held his face quivered, but she whispered, Yes. I think it must have been She pressed his hand gently and gratitude. Keep away if you wish. When have I ever followed you? He took a ruffling in his arms. Do you know what I mean? Oh, Bartley, what am I to do? The sight of you, Bartley, to see you living and happy and successful. Can I never make you understand what that means to me? And then you came back, not caring very much. but it made no difference.",
+    "written_all": "I felt it in my bones when I woke this morning that something splendid was going to turn up. She pushed him toward the big chair by the fire and sat down on a stool at the opposite side of the hearth. Her knees drawn up to her chin, laughing like a happy little girl. When did you come, Bartley? And how did it happen? You have it spoken a word. I'll do anything you wish me to, Bartley. She said tremorlessly. He pulled up a window as if the air were heavy. I get nothing but misery out of either. It was myself I was defying Hilda. held his face quivered, but she whispered, Yes. I think it must have been She pressed his hand gently and gratitude. Keep away if you wish. When have I ever followed you? He took a ruffling in his arms. Do you know what I mean? Oh, Bartley, what am I to do? The sight of you, Bartley, to see you living and happy and successful. Can I never make you understand what that means to me? And then you came back, not caring very much. but it made no difference.",
+    "word_diff_vs_cpu": 0,
+    "identical_to_cpu": true,
+    "written_identical_to_cpu": true,
+    "words_vs_predict_same_device": 0
+   }
+  },
+  {
+   "device": "mps",
+   "seconds": 15.0,
+   "predict": {
+    "s": 4.412009958003182,
+    "plain": "Why are we to be denied each other's society? Why are we to be divided? Surely it must be because we're in danger of lugging each other too well. I'm losing sight of the creator and I don't retrieve the creature. January and February.",
+    "written": "Why are we to be denied each other's society? Why are we to be divided? Surely it must be because we're in danger of lugging each other too well. I'm losing sight of the creator and I don't retrieve the creature. January and February.",
+    "numbers": 0,
+    "word_diff_vs_cpu": 0,
+    "identical_to_cpu": true,
+    "written_identical_to_cpu": true
+   },
+   "stream": {
+    "s": 24.542379249993246,
+    "plain": "Why are we to be denied each other's society? Why are we to be divided? Surely it must be because we're in danger of lugging each other too well. I'm losing sight of the creator and I don't retrieve the creature. January and February.",
+    "written": "Why are we to be denied each other's society? Why are we to be divided? Surely it must be because we're in danger of lugging each other too well. I'm losing sight of the creator and I don't retrieve the creature. January and February.",
+    "written_all": "Why are we to be denied each other's society? Why are we to be divided? Surely it must be because we're in danger of lugging each other too well. I'm losing sight of the creator and I don't retrieve the creature. January and February.",
+    "word_diff_vs_cpu": 0,
+    "identical_to_cpu": true,
+    "written_identical_to_cpu": true,
+    "words_vs_predict_same_device": 0
+   }
+  },
+  {
+   "device": "mps",
+   "seconds": 60.0,
+   "predict": {
+    "s": 10.699579250009265,
+    "plain": "Indeed, he persecuted the church of Christ for a long time. Do you suppose that God, for the sake of a few Lutheran heretics, would this own his entire church? Against these boasting, false apostles, Paul boldly defends his apostolic authority in ministry. In God the Father, who raised him from the dead, the clause seems superfluous on first sight, and all the brethren which are with me. This should go far in shedding the mouths of the false apostles. We look for that reward which I have not seen, nor ear heard, neither have entered into the heart of man. Embrace him and forget about the nature of God. To bestow peace and grace lies in the province of God. Who alone can create these blessings? The angels cannot. He never loses sight of the purpose of his epistle. Not gold or silver or pasture lambs. or an angel, but himself. What four?",
+    "written": "Indeed, he persecuted the church of Christ for a long time. Do you suppose that God, for the sake of a few Lutheran heretics, would this own his entire church? Against these boasting, false apostles, Paul boldly defends his apostolic authority in ministry. In God the Father, who raised him from the dead, the clause seems superfluous on first sight, and all the brethren which are with me. This should go far in shedding the mouths of the false apostles. We look for that reward which I have not seen, nor ear heard, neither have entered into the heart of man. Embrace him and forget about the nature of God. To bestow peace and grace lies in the province of God. Who alone can create these blessings? The angels cannot. He never loses sight of the purpose of his epistle. Not gold or silver or pasture lambs. or an angel, but himself. What four?",
+    "numbers": 1,
+    "word_diff_vs_cpu": 0,
+    "identical_to_cpu": true,
+    "written_identical_to_cpu": true
+   },
+   "stream": {
+    "s": 58.60495175002143,
+    "plain": "Indeed, he persecuted the church of Christ for a long time. Do you suppose that God, for the sake of a few Lutheran heretics, would this own his entire church? Against these boasting, false apostles, Paul boldly defends his apostolic authority in ministry. In God the Father, who raised him from the dead, the clause seems superfluous on first sight, and all the brethren which are with me. This should go far in shedding the mouths of the false apostles. We look for that reward which I have not seen, nor ear heard, neither have entered into the heart of man. Embrace him and forget about the nature of God. To bestow peace and grace lies in the province of God. Who alone can create these blessings? The angels cannot. He never loses sight of the purpose of his epistle. Not gold or silver or pasture lambs. or an angel, but himself. What four?",
+    "written": "Indeed, he persecuted the church of Christ for a long time. Do you suppose that God, for the sake of a few Lutheran heretics, would this own his entire church? Against these boasting, false apostles, Paul boldly defends his apostolic authority in ministry. In God the Father, who raised him from the dead, the clause seems superfluous on first sight, and all the brethren which are with me. This should go far in shedding the mouths of the false apostles. We look for that reward which I have not seen, nor ear heard, neither have entered into the heart of man. Embrace him and forget about the nature of God. To bestow peace and grace lies in the province of God. Who alone can create these blessings? The angels cannot. He never loses sight of the purpose of his epistle. Not gold or silver or pasture lambs. or an angel, but himself. What four?",
+    "written_all": "Indeed, he persecuted the church of Christ for a long time. Do you suppose that God, for the sake of a few Lutheran heretics, would this own his entire church? Against these boasting, false apostles, Paul boldly defends his apostolic authority in ministry. In God the Father, who raised him from the dead, the clause seems superfluous on first sight, and all the brethren which are with me. This should go far in shedding the mouths of the false apostles. We look for that reward which I have not seen, nor ear heard, neither have entered into the heart of man. Embrace him and forget about the nature of God. To bestow peace and grace lies in the province of God. Who alone can create these blessings? The angels cannot. He never loses sight of the purpose of his epistle. Not gold or silver or pasture lambs. or an angel, but himself. What four?",
+    "word_diff_vs_cpu": 0,
+    "identical_to_cpu": true,
+    "written_identical_to_cpu": true,
+    "words_vs_predict_same_device": 0
+   }
+  },
+  {
+   "device": "mps",
+   "seconds": 61.3,
+   "predict": {
+    "s": 8.328782333992422,
+    "plain": "I felt it in my bones when I woke this morning that something splendid was going to turn up. She pushed him toward the big chair by the fire and sat down on a stool at the opposite side of the hearth. Her knees drawn up to her chin, laughing like a happy little girl. When did you come, Bartley? And how did it happen? You have it spoken a word. I'll do anything you wish me to, Bartley. She said tremorlessly. He pulled up a window as if the air were heavy. I get nothing but misery out of either. It was myself I was defying Hilda. held his face quivered, but she whispered, Yes. I think it must have been She pressed his hand gently and gratitude. Keep away if you wish. When have I ever followed you? He took a ruffling in his arms. Do you know what I mean? Oh, Bartley, what am I to do? The sight of you, Bartley, to see you living and happy and successful. Can I never make you understand what that means to me? And then you came back, not caring very much. but it made no difference.",
+    "written": "I felt it in my bones when I woke this morning that something splendid was going to turn up. She pushed him toward the big chair by the fire and sat down on a stool at the opposite side of the hearth. Her knees drawn up to her chin, laughing like a happy little girl. When did you come, Bartley? And how did it happen? You have it spoken a word. I'll do anything you wish me to, Bartley. She said tremorlessly. He pulled up a window as if the air were heavy. I get nothing but misery out of either. It was myself I was defying Hilda. held his face quivered, but she whispered, Yes. I think it must have been She pressed his hand gently and gratitude. Keep away if you wish. When have I ever followed you? He took a ruffling in his arms. Do you know what I mean? Oh, Bartley, what am I to do? The sight of you, Bartley, to see you living and happy and successful. Can I never make you understand what that means to me? And then you came back, not caring very much. but it made no difference.",
+    "numbers": 0,
+    "word_diff_vs_cpu": 0,
+    "identical_to_cpu": true,
+    "written_identical_to_cpu": true
+   },
+   "stream": {
+    "s": 53.024981959024444,
+    "plain": "I felt it in my bones when I woke this morning that something splendid was going to turn up. She pushed him toward the big chair by the fire and sat down on a stool at the opposite side of the hearth. Her knees drawn up to her chin, laughing like a happy little girl. When did you come, Bartley? And how did it happen? You have it spoken a word. I'll do anything you wish me to, Bartley. She said tremorlessly. He pulled up a window as if the air were heavy. I get nothing but misery out of either. It was myself I was defying Hilda. held his face quivered, but she whispered, Yes. I think it must have been She pressed his hand gently and gratitude. Keep away if you wish. When have I ever followed you? He took a ruffling in his arms. Do you know what I mean? Oh, Bartley, what am I to do? The sight of you, Bartley, to see you living and happy and successful. Can I never make you understand what that means to me? And then you came back, not caring very much. but it made no difference.",
+    "written": "I felt it in my bones when I woke this morning that something splendid was going to turn up. She pushed him toward the big chair by the fire and sat down on a stool at the opposite side of the hearth. Her knees drawn up to her chin, laughing like a happy little girl. When did you come, Bartley? And how did it happen? You have it spoken a word. I'll do anything you wish me to, Bartley. She said tremorlessly. He pulled up a window as if the air were heavy. I get nothing but misery out of either. It was myself I was defying Hilda. held his face quivered, but she whispered, Yes. I think it must have been She pressed his hand gently and gratitude. Keep away if you wish. When have I ever followed you? He took a ruffling in his arms. Do you know what I mean? Oh, Bartley, what am I to do? The sight of you, Bartley, to see you living and happy and successful. Can I never make you understand what that means to me? And then you came back, not caring very much. but it made no difference.",
+    "written_all": "I felt it in my bones when I woke this morning that something splendid was going to turn up. She pushed him toward the big chair by the fire and sat down on a stool at the opposite side of the hearth. Her knees drawn up to her chin, laughing like a happy little girl. When did you come, Bartley? And how did it happen? You have it spoken a word. I'll do anything you wish me to, Bartley. She said tremorlessly. He pulled up a window as if the air were heavy. I get nothing but misery out of either. It was myself I was defying Hilda. held his face quivered, but she whispered, Yes. I think it must have been She pressed his hand gently and gratitude. Keep away if you wish. When have I ever followed you? He took a ruffling in his arms. Do you know what I mean? Oh, Bartley, what am I to do? The sight of you, Bartley, to see you living and happy and successful. Can I never make you understand what that means to me? And then you came back, not caring very much. but it made no difference.",
+    "word_diff_vs_cpu": 0,
+    "identical_to_cpu": true,
+    "written_identical_to_cpu": true,
+    "words_vs_predict_same_device": 0
+   }
+  }
+ ]
+}

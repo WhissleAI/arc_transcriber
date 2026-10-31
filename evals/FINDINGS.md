@@ -9,6 +9,8 @@ What building Steer on Arc Mini taught us, each with its evidence and an ask. Th
 - **TypeWhisper**: the independent TypeWhisper benchmark (10 English suites, 340 clips, Mac mini M5 Pro, CPU), with `arc-transcriber`
   1.2.0 and the package defaults (`Arc.predict(wav)`, plain `transcript`).
 - **1.2.1**: `arc_audio` 1.2.1 (the written-form PR), Arc Mini 1.1.1 files, M3 Pro, 2026-10-30 (`evals/written_form`).
+- **v121 evals**: `evals/v121`, both models (Arc Mini 1.1.1, Arc Transcriber 1.2.0), main at `120087f` and `07cde07`, M3 Pro CPU / MPS,
+  2026-10-30. TypeWhisper's suites and scoring reproduced exactly; real speech from Earnings-22 and LibriSpeech.
 
 All speech is synthetic (Steer TTS or macOS voices). A real-voice session is still owed and may change the device-directed and affect conclusions.
 
@@ -27,6 +29,21 @@ All speech is synthetic (Steer TTS or macOS voices). A real-voice session is sti
 - **Fixed in 1.2.1:** short utterances close after `short_pause_s` (0.8 s) of silence ("Pause." final 14.6 s -> 0.8 s after the
   speech, espeak voice, CPU); `Stream.end_turn()` / `finalize()`; `Stream.set_context()` on a running stream. In Steer's live path,
   short clips also get no device-directed or intent readout (#25).
+- **Measured (v121 evals, `latency_streaming` rerun, 24 clips × 2 macOS voices, real-time pace, 6 s tail, Arc Mini CPU):**
+  - `120087f`: 9 of 24 finals never arrived.
+  - `07cde07`: 24 of 24 arrive, median **0.77 s** after the speech, p90 1.18 s, max 1.35 s.
+  - The commands under 1 s that used to be missing now arrive at 0.99–1.35 s: the 0.8 s pause plus the decode.
+- **Side effect of the 0.8 s close on real speech (v121 evals, Earnings-22, offline `predict()`):** WER went up on real calls.
+  - Arc Mini: 42.14% → 42.34% (624 segments; 54 changed, 24 worse, 13 better, +27 word errors).
+  - Arc Transcriber: 16.17% → 16.72% (first 150 segments; 10 changed).
+  - Most changes are a new short utterance at the start of a segment, where a clipped word or breath now closes as its own
+    utterance. It decodes as a confident filler or an invented phrase: "Go ahead, sir.", "Thank you, Trey.", "Good morning.",
+    "Yes.", "September.", "Play song.", "Hey, hey, hey.".
+  - Same mechanism as #22.
+  - LibriSpeech (150 utterances) and TypeWhisper's suites are unaffected or slightly better: core WER 9.9% → 9.7% for the
+    Transcriber.
+  - **Ask:** gate the short close on `min_voiced_s` or a speech / confidence check, or use it only in live streams and keep
+    `min_s` merging in `predict()`.
 
 ### 2. `transcript_rewritten` can duplicate a token
 - **Evidence (Py 1.1.1, Pipecat):** "Priya Raymond" was linked to "Priya Raman", but the linked span covered only "Priya". The rewrite gave "Priya Raman Raymond", so the service uses the plain transcript plus `names`.
@@ -235,6 +252,25 @@ All speech is synthetic (Steer TTS or macOS voices). A real-voice session is sti
   - Consider a written-form decoder target, or a written-form head on the tags, so the C port and other runtimes get it too.
     libarc has no `arc_audio/written.py`.
   - Tell benchmarkers which field to score. TypeWhisper scored `transcript`, which was what the README suggested then.
+- **Measured on real speech (v121 evals):**
+  - **TypeWhisper reproduced:** our 1.2.0 transcripts are identical to their published rows on 340 / 340 clips for both models,
+    and our Python port of their scoring matches their per-clip WER exactly.
+  - **TypeWhisper scores with `transcript_written`:**
+    - Digits: Mini 28% → **72%**, Transcriber 4% → **76%** (Parakeet v2: 60%).
+    - Number-formatting WER: 26.5% → 16.4% and 27.1% → 12.4% (Parakeet v2: 20.4%).
+    - WER EN w/o accented: Mini 23.4% → 22.5%, Transcriber 9.9% → 8.8%.
+  - **Earnings-22** (624 real call segments, 900 reference numbers, written references): number recall Transcriber 5.4% →
+    **79.9%** (precision 88%), Mini 25.0% → 58.8% (precision 68%, limited by Mini's 42% WER on this accented speech).
+    - WER with a normalizer that doesn't convert number words: Transcriber 30.7% → 17.9%, Mini 48.5% → 42.1%.
+    - With Whisper's normalizer, WER is unchanged (±0.1).
+  - **Wrong conversions:**
+    - A hand check of 60 random rewritten utterances found 0 wrong values; every wrong digit was already a wrong word.
+    - The all-row scan found invented clock times from numbers in main: "at 1:12 days" from "one hundred twelve",
+      "14:25 Oak Street" from "one thousand four hundred twenty five", "20:18" from "twenty eighteen".
+    - It also found one malformed number: "10,425" from "one hundred and four hundred twenty five".
+    - Fixed in the `evals-121` PR (`written.py`): now 0.
+  - **LibriSpeech** (500 + 500 utterances, spoken-form references): the written form adds 0.01–0.04 points of WER with
+    Whisper's normalizer, because those references spell numbers. Recognition is unchanged.
 
 ### 19. A date record lost its month
 - **Evidence (1.2.0):** "The meeting moved to 2:30 on March 3rd" (macOS voice). The transcript's NUMBER_DATE tag covered "March
@@ -247,6 +283,14 @@ All speech is synthetic (Steer TTS or macOS voices). A real-voice session is sti
   - Decide the date value in the schema: the ISO string, or year / month / day fields. One number can't hold "March 3".
   - Port the fix to libarc (`c/src`, its `tidy_number` / `extend_number`). The golden clip has no date, so `make parity` can't catch it.
   - Train NUMBER_DATE spans to include "of <Month>" when the ordinal comes first.
+- **Measured (v121 evals, 15 date sentences × 2 macOS voices):** Mini 19/30, Transcriber 21/30 with the expected `iso`.
+  - Whenever Arc heard day and month together, the month was kept ("March third", "third of March", "21st of July" → `--MM-DD`).
+  - **Year not joined:**
+    - Both models punctuate "January 1st, 2020" as "January 1. 2020", so the year becomes its own record.
+    - The UK reading "the 3rd of March 2024" gives two overlapping records ("3rd of March", "March 2024").
+    - Ask: join a year after "of <Month>" and across a comma or period in `extend_date`, or train the span to cover it.
+  - **Non-dates:** "the first of every month" gives a `date` record with `heard` "first of" and `date` null. Drop it, or keep it
+    as an ordinal.
 
 ### 20. `device="mps"` failed, so Arc ran CPU-only on a Mac
 - **TypeWhisper:** "arc_audio … fails on MPS with 'Passed CPU tensor to MPS op'". Both models ran on the CPU: Mini at 30× real time,
@@ -272,7 +316,16 @@ All speech is synthetic (Steer TTS or macOS voices). A real-voice session is sti
     about 2.4 s per minute of audio.
   - TypeWhisper measured roughly 19 s per minute, so most of the Transcriber's CPU time is outside the encoder: the decoder, beams
     and alignment.
+- **Measured end to end (v121 evals, `07cde07`, M3 Pro):**
+  - **Same outputs:** Arc Transcriber with the real Parakeet encoder now runs on MPS. CPU and MPS give word-for-word identical
+    plain and written transcripts, in `predict()` and `stream()`, for both models (LibriSpeech clips of 15 and 60 s).
+  - **Times** (machine heavily shared, load 25–45, so the CPU times are inflated): Transcriber `predict()` takes 8.2 s per
+    60 s on MPS against 68 s on CPU. Mini's streaming is 2–3× slower on MPS than on CPU.
+  - **Speed** with TypeWhisper's protocol on a quieter machine (CPU, 6 threads, `120087f`): Mini 16.2×, Transcriber 2.7× real
+    time, against their 30× / 3.2× on an M5 Pro. 1.2.1 doesn't change CPU speed (1.2.0 here: 16.4× / 2.7×).
+  - CUDA is still untested.
 - **Ask:**
+  - Make `device="auto"` keep Arc Mini's streaming on the CPU (or pick per backbone).
   - Run CI on macOS arm64 with `device="mps"`, and on CUDA for the full model.
   - Profile Arc Transcriber. If the decoder and alignment dominate, batch them or move them to the GPU. Its 3.2× against Parakeet's
     208× is the gap people see.
@@ -302,6 +355,17 @@ All speech is synthetic (Steer TTS or macOS voices). A real-voice session is sti
   - Publish Arc Transcriber against its own base encoder on standard sets. It loses about 4 points to Parakeet on the same encoder,
     which suggests the decoder or the heads cost accuracy. Say whether that is the price of the tags.
   - For Mini: more read speech and more accents (Common Voice 42.8%), and British spellings, which the normalizer doesn't map.
+- **Measured at scale (v121 evals, Whisper normalizer, corpus WER, plain transcript):**
+
+  | Set | Arc Mini | Arc Transcriber |
+  |---|---|---|
+  | LibriSpeech test-clean (500 utt.) | 8.81% | 3.56% |
+  | LibriSpeech test-other (500 utt.) | 24.43% | 5.90% |
+  | Earnings-22 (624 real call segments) | 42.14% | 17.14% |
+
+  - Mini's gap grows with accent and spontaneity: Earnings-22 is 42% against the Transcriber's 17%.
+  - Numbers are not the cause: on Earnings-22's digit-free controls, Mini is still 34.4% against 15.7%.
+  - 1.2.1's code changes leave every plain transcript identical to 1.2.0 (TypeWhisper suites: 340 / 340 clips, both models).
 
 ## Short clips, noise and live context
 
@@ -360,3 +424,22 @@ All speech is synthetic (Steer TTS or macOS voices). A real-voice session is sti
 - **Ask:**
   - Emit the utterance readouts on `flush()` / end of turn for any clip with speech, however short, together with the final (#1).
   - Calibrate intents for one- and two-word commands.
+
+### 26. Voice book search at catalog scale: noise, reverb and short words decide it
+- **Source:** Steer's voice book-search benchmark (steertts-apps, branch `voice-search-bench`, `docs/VOICE_BOOK_SEARCH_BENCH.md`):
+  1,893 spoken requests over a 61k-book catalog. The numbers here are from that document; this PR did not rerun them.
+- **Overall:** Arc Mini + verify finds the right book in **62.7%**, against Whisper-turbo 83.4% and Parakeet 81.6%.
+- **Clean Steer-TTS speech:** Arc + verify 79.7%, against 85.8% for Whisper / Parakeet. So most of the gap is noise and reverb.
+- **Café babble, 5–12 dB SNR:** Arc 35%, Whisper 78%. Arc writes the background speech as leading words of the request.
+- **Reverb (DRR ≈ −17 dB):** Arc + verify 34%, Whisper 81%.
+- **Short function words in noise:** "books by" → "Brooks by", "play" → "clay". These break the command parse before search.
+- **Live names list** (#11 in clean conditions): −0.2 points here, so it doesn't help in this mix.
+- **Verification** (scoring candidates against the audio): +10.5 points for Arc, with 0.6% false opens.
+  - Its ceiling is candidate recall: in 164 misses the right book was outside the 20–30 candidates.
+  - It needs a calibrated "none of these" to say no.
+- **Ask:**
+  - Train on babble and reverb, with targets that leave background speech out of the transcript.
+  - Weight short command words in noise.
+  - Give a calibrated reject score for candidate verification.
+  - Related: #10 (linker on titles), #23 (prompt budget limits the candidates).
+

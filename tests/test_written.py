@@ -61,6 +61,47 @@ def test_keeps_words_when_unsure(text):
     assert to_written(text) == text
 
 
+# Numbers with 'hundred' / 'thousand' are not clock times (evals/v121: "one thousand four hundred twenty five Oak Street" was
+# written "14:25 Oak Street"; "at one hundred twenty five" -> "at 01:25"). The 24-hour 'fourteen hundred' form stays a time.
+NOT_TIMES = [
+    ("Shares closed at one hundred twenty five.", "Shares closed at 125."),
+    ("He stopped at one hundred fifty.", "He stopped at 150."),
+    ("There were around four hundred thirty people.", "There were around 430 people."),
+    ("The index finished at two thousand one hundred fifty.", "The index finished at 2,150."),
+]
+
+
+@pytest.mark.parametrize("spoken,written", NOT_TIMES)
+def test_hundreds_are_not_times(spoken, written):
+    assert to_written(spoken) == written
+
+
+def test_tagged_time_with_thousand_is_a_number():
+    assert render_span("one thousand four hundred twenty five".split(), "time_of_day") == "1,425"
+    assert render_span(["fourteen", "hundred"], "time_of_day") == "14:00"
+    assert render_span(["nineteen", "hundred", "hours"], "time_of_day") == "19:00 hours"
+    assert render_span(["fourteen", "twenty", "five"], "time_of_day") == "14:25"
+    assert render_span("six hundred forty five".split(), "time_of_day") == "06:45"     # tagged: the 24-hour reading
+
+
+def test_twenty_x_is_not_a_bare_time():
+    # Arc Mini tagged "as at twenty eighteen end of the year" (Earnings-22) as a time; it was written "20:18"
+    assert render_span(["twenty", "eighteen"], "time_of_day") is None
+    assert to_written("as at twenty eighteen end of the year") == "as at twenty eighteen end of the year"
+    assert render_span(["twenty", "thirty", "hours"], "time_of_day") is None
+    assert render_span(["nineteen", "thirty"], "time_of_day") == "19:30"
+    assert render_span(["eight", "fifteen", "p.m."], "time_of_day") == "8:15 p.m."
+
+
+def test_malformed_scales_keep_words():
+    # Arc Transcriber heard "one hundred and four hundred twenty five" (TypeWhisper hard-en); it was written "10,425"
+    assert to_written("located at one hundred and four hundred twenty five Oak Street") == "located at 100 and 425 Oak Street"
+    assert render_span("two thousand three thousand".split(), None) is None
+    assert to_written("We sold fifteen hundred units.") == "We sold 1,500 units."
+    assert to_written("about five hundred thousand people") == "about 500,000 people"
+    assert to_written("one million two hundred thousand dollars") == "$1,200,000"
+
+
 def test_spell_small_off():
     assert to_written("I have two kids", spell_small=False) == "I have 2 kids"
     assert to_written("the third floor", spell_small=False) == "the 3rd floor"

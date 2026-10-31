@@ -130,9 +130,31 @@ def fmt_num(v, kind=None):
     return f'{v:.6f}'.rstrip('0').rstrip('.')
 
 
+def well_formed(tok):
+    """False for scale words that cannot be one number: 'one hundred and four hundred twenty five' (a second 'hundred' after 104),
+    'two thousand three thousand' (a scale repeated or rising). _compose_int multiplies through these (10425, 5000)."""
+    cur, last = (0, float('inf'))
+    for t in tok:
+        if t == 'point':
+            break
+        if t in NL.VAL:
+            cur += NL.VAL[t]
+        elif t == 'hundred':
+            if cur >= 100:
+                return False
+            cur = (cur or 1) * 100
+        elif t in NL.SC:
+            if NL.SC[t] >= last or cur >= 1000:
+                return False
+            last, cur = (NL.SC[t], 0)
+    return True
+
+
 def value_str(tok, kind=None):
     """written number for a token list (numlib tokens), or None when the reading is not certain"""
     tok = [t for t in tok if t != 'UNITW']
+    if not well_formed(tok):
+        return None
     neg = bool(tok) and tok[0] == 'NEG'
     tok = [t for t in tok if t != 'NEG']
     if not tok or not any((t in NL.VAL or t in NL.SC for t in tok)) or 'SEP' in tok:
@@ -246,15 +268,23 @@ def render_generic(ws, kind=None, spell_small=True):
     return ' '.join(out) if changed else None
 
 
-def hour_minute(tok):
-    """(hour, minute) from a spoken clock time: 'two thirty' (2, 30), 'nine oh five' (9, 5), 'seven' (7, 0), 'fourteen hundred' (14, 0)"""
+def hour_minute(tok, min_hundred_hour=1):
+    """(hour, minute) from a spoken clock time: 'two thirty' (2, 30), 'nine oh five' (9, 5), 'seven' (7, 0), 'fourteen hundred' (14, 0).
+    min_hundred_hour: the smallest hour accepted before 'hundred' ('six hundred forty five' is 06:45 only when Arc tagged a time)"""
     tok = [t for t in tok if t not in ('UNITW', 'and')]
     if not tok or 'point' in tok or 'NEG' in tok or 'SEP' in tok:
         return None
+    if any((t in tok for t in ('thousand',) + SCALE_BIG)) or not well_formed(tok):
+        return None                                     # 'one thousand four hundred twenty five' is a number, never a clock time
     v = NL._compose_int(tok) if 'OH' not in tok else None
     if v is not None and float(v).is_integer():
         v = int(v)
         if 'hundred' in tok and v >= 100:
+            # 24-hour 'fourteen hundred', 'nineteen hundred thirty'. Without a time tag the hour before 'hundred' must be 10-24:
+            # 'at one hundred twenty five' / 'around four hundred thirty' are numbers (they read as 01:25 / 04:30 otherwise)
+            hh = NL._compose_int(tok[:tok.index('hundred')])
+            if hh is None or not min_hundred_hour <= hh <= 24:
+                return None
             h, m = divmod(v, 100)
         elif v <= 24 and len(tok) == 1 or (v <= 12 and len(tok) <= 2):
             h, m = (v, 0)
@@ -298,7 +328,7 @@ def render_time(ws, nxt=(), require_context=False, prev=''):
     tok, ordf = toks_of(ws[i:j])
     if ordf:
         return None
-    hm = hour_minute(tok)
+    hm = hour_minute(tok, 10 if require_context else 1)
     if hm is None:
         return None
     h, m = hm
@@ -306,6 +336,8 @@ def render_time(ws, nxt=(), require_context=False, prev=''):
     ocl = any((c in OCLOCK for c in sc)) or (bool(nxt) and core(nxt[0]) in OCLOCK)
     if require_context and (not (ampm or ocl or (core(prev) in TIME_PREP and m))):
         return None
+    if h >= 20 and not (ampm or ocl or 'hundred' in C[i:j]):
+        return None                                     # 'twenty eighteen' is a year far more often than 20:18, even with a time tag
     if ampm and not 1 <= h <= 12:
         return None
     if 'hundred' in C[i:j]:
