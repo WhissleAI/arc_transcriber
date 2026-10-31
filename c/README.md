@@ -1,16 +1,14 @@
 # libarc: a native C API for Arc Mini
 
-A dependency-free C11 library (libc, libm, threads) that runs **Arc Mini**, the on-device backbone of Arc v1.1, from
+A dependency-free C11 library (libc, libm, threads) that runs **Arc Mini**, the on-device model of Arc v1, from
 the release folder as published (`WhissleAI/arc-v1.1`, `mini/`), with no Python, PyTorch or ONNX. One header,
 [`include/arc.h`](include/arc.h). It produces what `Arc.predict` produces offline for Arc Mini: the transcript with
 inline tags and word times, names linked to a list, numbers with values, utterance tags (device-directed, intent,
 dialogue act), sound events and per-frame probabilities. The full **Arc Transcriber** backbone (Parakeet) is not
 supported yet; see [the plan](#plan-arc-transcriber-full-backbone).
 
-**Verified against** `arc_transcriber` main at `23f032b` (arc_audio 1.2.0) and the weights `WhissleAI/arc-v1.1` at
-tag `v1.2.0` (`6f637153`), `mini/`. Arc Mini is unchanged since 1.1.1: `mini/` at v1.2.0 is byte-identical to v1.1.1,
-and arc_audio 1.1.1 → 1.2.0 changed only the version and two lines of `rescorer.py`. Re-check (git fetch; HfApi refs)
-before each release: newer code or weights mean re-running the checks below.
+**Verified against** `arc_audio` in this repository and the published `mini/` weights (`WhissleAI/arc-v1.1`). Newer code
+or weights mean re-running the checks below.
 
 ## Build and use
 
@@ -195,7 +193,7 @@ Python for the cases the tests cover (accented Latin names fold as NFKD does; lo
 ## Plan: Arc Transcriber (full backbone)
 
 The full model is Arc's same heads on a bigger encoder; nothing in it is TDT decoding. From `arc_audio/server.py`
-and the release (`WhissleAI/arc-v1.1`, `full/` at v1.2.0):
+and the release (`WhissleAI/arc-v1.1`, `full/`):
 
 - **Encoder**: NVIDIA Parakeet-TDT 0.6B v2's FastConformer encoder, unmodified (`nvidia/parakeet-tdt-0.6b-v2`,
   `parakeet-tdt-0.6b-v2.nemo`, 2.47 GB, CC-BY-4.0; Arc downloads it at run time). Only the encoder and the

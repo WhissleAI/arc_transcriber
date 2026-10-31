@@ -1,6 +1,6 @@
 # Arc packed weight format (`*.q4.safetensors`)
 
-This format is used by model revisions `v1.1.1`, `v1.1.2` and `v1.2.0` (Arc Mini 1.1.1, Arc Transcriber 1.1.1 and 1.2.0).
+This format is used by both Arc v1 models (Arc Mini and Arc Transcriber).
 
 Files: `mini/model.q4.safetensors` (Arc), `mini/moonshine-streaming-tiny/model.q4.safetensors` (speech encoder + transcript decoder),
 `full/model.q4.safetensors` (Arc, same bytes as mini), `full/decoder/model.q4.safetensors` (transcript decoder only).
