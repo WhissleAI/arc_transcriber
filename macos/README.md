@@ -27,10 +27,13 @@ utterances wait for it.
 
 ## Measured on a Mac
 
-| | time to first word | time to final | settled tags | WER (LibriSpeech test-clean) | CPU |
-|---|---|---|---|---|---|
-| SpeechTranscriber + Arc heads (`arc-speech`) | to be measured | to be measured | to be measured | to be measured | to be measured |
-| Arc full (`c/build/arc-stream`) | to be measured | to be measured | to be measured | as on the Pi (same output) | to be measured |
+M3 Pro, macOS 26.2, LibriSpeech test-clean clips (and the same clips with pink noise at 10 dB SNR), Whisper's English
+normaliser. Apple's text is from `arc-speech --no-finalize` (the transcriber finalises on its own).
+
+| | WER, 100 clean clips | WER, 100 noisy clips | time to first word / final / settled tags | CPU |
+|---|---|---|---|---|
+| SpeechTranscriber (+ Arc heads for tags) | 1.2 % | 2.2 % | to be measured | to be measured |
+| Arc full (`c/build/arc-stream`, same output as on the Pi) | 6.2 % | to be measured | see [the Pi table](../raspberry-pi/README.md#measured-on-a-raspberry-pi-5) | to be measured |
 
 ## Android
 

@@ -231,7 +231,12 @@ Raspberry Pi 5, no cooler, 40 LibriSpeech test-clean clips, 100 ms chunks (laten
 | full, partials every 1 s | 4 | 0.37 | 136 MB | 0.69 s | 1.01 s |
 | full, no partials | 4 | 0.24 | 129 MB | 0.71 s | 1.01 s |
 
-macOS (SpeechTranscriber + Arc heads vs Arc full): to be measured.
+macOS, 100 LibriSpeech test-clean clips (latency and CPU: to be measured):
+
+| transcript | WER clean | WER noisy (10 dB) |
+|---|---|---|
+| Apple SpeechTranscriber + Arc heads | 1.2 % | 2.2 % |
+| Arc full | 6.2 % | to be measured |
 
 ## Tests
 
