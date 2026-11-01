@@ -236,6 +236,11 @@ int main(int argc, char** argv) {
       int hok = same(u->start, gh.u[i].start) && same(u->end, gh.u[i].end) && same(u->device_directed, gh.u[i].dd) &&
                 same(u->directed_head, gh.u[i].head) && same_s(u->intent.label, gh.u[i].intent) &&
                 same_s(u->act.label, gh.u[i].act);
+      /* command_complete is read per utterance (its highest ev_at frame): present wherever the trunk read the utterance */
+      if (u->device_directed >= 0 && u->command_complete < 0) {
+        printf("%s utt %d: device_directed %.3f but no command_complete\n", argv[fi], i, u->device_directed);
+        fb++;
+      }
       if (!ok || !tok || !hok) {
         printf("%s utt %d:%s%s%s\n  offline %.2f-%.2f \"%s\" [%s] dd %.6f cc %.6f head %.6f %s %s\n"
                "  stream  %.2f-%.2f \"%s\" [%s] dd %.6f cc %.6f head %.6f %s %s\n  heads   %.2f-%.2f dd %.6f head %.6f\n",

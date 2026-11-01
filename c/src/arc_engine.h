@@ -160,6 +160,7 @@ int arc_link_run(arc_link* l, const arc_link_ctx* c, const arc_wstore* ws, arc_r
 typedef struct {
   float start, end;
   float p[512];          /* utterance probabilities over the trunk's utt columns, at the last speech frame */
+  float cc;              /* ev_at:discourse.assistant.command_complete: its highest over the utterance (-1: none) */
 } arc_live_utt;
 typedef void (*arc_live_fn)(void* user, const arc_frame* frame, const arc_event* event);
 typedef struct arc_live arc_live;

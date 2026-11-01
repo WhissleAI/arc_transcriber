@@ -55,7 +55,8 @@ typedef struct {
   const arc_tag* tags;
   /* utterance-level readout of the trunk (filled when the trunk ran; p < 0: not available) */
   float device_directed;     /* discourse.assistant.device_directed */
-  float command_complete;    /* discourse.assistant.command_complete */
+  float command_complete;    /* discourse.assistant.command_complete: an instant query (ev_at), here its highest frame
+                              * over the utterance through its closing pause (arc_audio reports it per frame) */
   arc_label intent;          /* best discourse.intent.* */
   arc_label act;             /* best discourse.act.* */
   float directed_head;       /* the separate device-directed head on the encoder features (beta) */

@@ -679,6 +679,7 @@ static int shipped(struct arc_trunk* t, int i, int dom) {
 typedef struct {
   float start, end;
   float p[MAXTAG];   /* utt probs at the last speech frame */
+  float cc;          /* ev_at:discourse.assistant.command_complete, its highest over the utterance (-1: none) */
 } trunk_utt;
 
 /* the engine's speaker / utterance state machine and utterance readout over the trunk output */
@@ -775,6 +776,17 @@ static int readout(struct arc_trunk* t, const float* Ha, const float* H, int N, 
   float* pu = arc_malloc(sizeof(float) * (size_t)N * (ncu ? ncu : 1));
   logits_q(t, Q_UTT, z, N, dom, pu);
   probs_q(t, Q_UTT, pu, N, dom);
+  /* command_complete is an instant query (ev_at), not an utterance column: an utterance's is its highest frame, from
+   * its start through the pause that closes it (as the stream's read-out gives it) */
+  int nea = t->ncols[Q_EV_AT], cc_col = -1;
+  for (int j = 0; j < nea; ++j)
+    if (!strcmp(t->ids[t->cols[Q_EV_AT][j]], "discourse.assistant.command_complete")) cc_col = j;
+  float* pea = cc_col >= 0 ? arc_malloc(sizeof(float) * (size_t)N * nea) : NULL;
+  if (pea) {
+    logits_q(t, Q_EV_AT, H, N, dom, pea);
+    probs_q(t, Q_EV_AT, pea, N, dom);
+  }
+  float cur_cc = -1;
   /* _decode_frame / _close_utt for utterances (and finish) */
   int cap = 16, nu = 0, in_utt = 0, utt0 = -1, utt_last = -1, have_p = 0;
   trunk_utt* U = arc_malloc(sizeof(trunk_utt) * (size_t)cap);
@@ -793,17 +805,21 @@ static int readout(struct arc_trunk* t, const float* Ha, const float* H, int N, 
         U[nu].start = utt0 / 10.0f;
         U[nu].end = (utt_last + 1) / 10.0f;
         memcpy(U[nu].p, cur_p, sizeof(float) * (size_t)ncu);
+        U[nu].cc = cur_cc;
         nu++;
       }
       in_utt = 0;
       utt0 = -1;
       have_p = 0;
+      cur_cc = -1;
     }
     if (i == N) break;
     if (ust[i]) {
       in_utt = 1;
       utt0 = i;
+      cur_cc = -1;
     }
+    if (in_utt && pea && pea[(size_t)i * nea + cc_col] > cur_cc) cur_cc = pea[(size_t)i * nea + cc_col];
     if (pf[(size_t)i * ncf + sp_col] >= 0.5f && in_utt) {
       utt_last = i;
       memcpy(cur_p, pu + (size_t)i * ncu, sizeof(float) * (size_t)ncu);
@@ -817,6 +833,7 @@ static int readout(struct arc_trunk* t, const float* Ha, const float* H, int N, 
   arc_free(z);
   arc_free(z1);
   arc_free(pu);
+  arc_free(pea);
   *out_utts = U;
   return nu;
 }
@@ -1015,6 +1032,7 @@ int arc_engine_run(arc_engine* e, const float* pcm, size_t n, const arc_options*
       }
       if (best < 0) continue;
       const float* p = U[best].p;
+      R->u[i].cc = U[best].cc;
       for (int j = 0; j < ncu; ++j) {
         int c = t->cols[Q_UTT][j];
         if (!shipped(t, c, dom)) continue;
@@ -1496,6 +1514,7 @@ struct arc_live {
   int in_utt, have_p;
   long utt0, utt_last;
   float cur_p[MAXTAG];
+  float cur_cc;          /* the open utterance's highest ev_at command_complete so far (-1: none) */
   arc_live_utt* U;
   int nU, capU;
   long pause_seq;        /* trunk utterances that have paused (first non-speech frame after speech) */
@@ -1550,6 +1569,7 @@ arc_live* arc_live_new(arc_engine* e, const char* domain, int trunk, int events,
   for (int j = 0; j < t->ncols[Q_EV_AT]; ++j)
     if (!strcmp(t->ids[t->cols[Q_EV_AT][j]], "discourse.assistant.command_complete")) L->cc_col = j;
   L->spk_cur = -1;
+  L->cur_cc = -1;
   L->spk_pend = -2;
   L->u_spk = -1;
   L->utt0 = L->utt_last = -1;
@@ -1649,13 +1669,14 @@ float arc_live_directed(arc_live* L, long a, long b) {
 int arc_live_tags(arc_live* L, float start, float end, arc_utt_build* u, int* settled) {
   struct arc_trunk* t = L->t;
   const float* best = NULL;
-  float bo = 0;
+  float bo = 0, bcc = -1;
   int closed = 0;
   for (int k = 0; k < L->nU; ++k) {
     float ov = fminf(end, L->U[k].end) - fmaxf(start, L->U[k].start);
     if (ov > bo) {
       bo = ov;
       best = L->U[k].p;
+      bcc = L->U[k].cc;
       closed = 1;
     }
   }
@@ -1664,6 +1685,7 @@ int arc_live_tags(arc_live* L, float start, float end, arc_utt_build* u, int* se
     if (ov > bo) {
       bo = ov;
       best = L->cur_p;
+      bcc = L->cur_cc;
       closed = 0;
     }
   }
@@ -1673,6 +1695,7 @@ int arc_live_tags(arc_live* L, float start, float end, arc_utt_build* u, int* se
   u->intent = u->act = NULL;
   u->intent_p = u->act_p = -1;
   if (!best) return 0;
+  u->cc = bcc;
   for (int j = 0; j < L->ncu; ++j) {
     int c = t->cols[Q_UTT][j];
     if (!shipped(t, c, L->dom)) continue;
@@ -1801,8 +1824,10 @@ static int live_close_utt(arc_live* L) {
     u->start = L->utt0 / 10.0f;
     u->end = (L->utt_last + 1) / 10.0f;
     memcpy(u->p, L->cur_p, sizeof(float) * (size_t)L->ncu);
+    u->cc = L->cur_cc;
   }
   L->in_utt = 0;
+  L->cur_cc = -1;
   L->utt0 = -1;
   L->have_p = 0;
   return 0;
@@ -1913,6 +1938,7 @@ static int live_trunk(arc_live* L, long to) {
     if (ust) {
       L->in_utt = 1;
       L->utt0 = fi;
+      L->cur_cc = -1;
     }
     if (speech && L->in_utt) {
       L->utt_last = fi;
@@ -1922,6 +1948,9 @@ static int live_trunk(arc_live* L, long to) {
       L->pause_seq++;   /* the read-out now holds what the utterance ends with, unless speech resumes */
     float ddv = L->in_utt && L->dd_col >= 0 ? pu[L->dd_col] : -1.0f;
     float ccv = L->in_utt && L->cc_col >= 0 && pev[0] ? pev[0][(size_t)i * t->ncols[Q_EV_AT] + L->cc_col] : -1.0f;
+    /* the utterance's command_complete (an instant query, not an utterance column): its highest frame so far, through
+     * the pause that ends it */
+    if (ccv > L->cur_cc) L->cur_cc = ccv;
     if (L->fullfr) {   /* this frame's columns, sent once its events are there */
       if (lb_push(&L->fr_pend, NULL, 1)) goto out;
       float* r = lb_at(&L->fr_pend, fi);
