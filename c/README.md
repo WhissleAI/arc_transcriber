@@ -76,6 +76,48 @@ Other calls: `arc_set_context` (the decoder's context prompt: names with kinds, 
 shipped read-outs), `arc_memory*` (carry the trunk's state across calls, save / load it), `arc_set_threads`. Results
 own all their memory; one engine runs one call at a time (use one engine per thread).
 
+## Streaming: `arc_stream`
+
+Live audio in any chunk size, records out through one callback (on the caller's thread, inside the push). The encoder
+is streamed (each layer keeps its keys and values; a frame is emitted once its 240 ms look-ahead has arrived), the
+trunk carries its state, and the read-out runs every 100 ms frame, so nothing is re-encoded or re-windowed. Three
+modes, one API:
+
+| mode | loads | gives |
+|---|---|---|
+| `ARC_STREAM_FULL` | everything | Arc's transcript: PARTIAL records (greedy, from the streamed states), FINAL ones (the same decode as `arc_transcribe`), tags |
+| `ARC_STREAM_HEADS` | no decoder (`arc_create_ex(..., ARC_NO_DECODER, ...)`) | utterances (times, device-directed, intent, act), events, frames; no text |
+| `ARC_STREAM_EXTERNAL` | no decoder | the same, with another recogniser's words (`arc_stream_words` with times, or `arc_stream_text` without) grouped into Arc's utterances |
+
+```c
+arc_engine* e = arc_create_ex("arc-v1.1/mini", 2, ARC_NO_DECODER, err, sizeof err);
+arc_stream_config c = {.mode = ARC_STREAM_EXTERNAL, .domain = "assistant", .on_output = on_output, .frames = 1};
+arc_stream* s = arc_stream_open(e, &c);
+arc_stream_push(s, pcm, n);                         /* as audio arrives */
+arc_ext_word w[] = {{"turn", 0.42f, 0.61f}, {"it", 0.61f, 0.70f}, {"up", 0.70f, 0.95f}};
+arc_stream_words(s, w, 3, 1);                       /* the recogniser's final words, in stream time */
+arc_stream_finish(s);
+arc_stream_close(s);
+```
+
+Records: `PARTIAL` (text so far), `ENDPOINT` (Arc's segmenter closed an utterance: in EXTERNAL mode, the moment to
+ask the recogniser for its final words), `FINAL` (the utterance: text, words, inline tags, read-out),
+`TAGS` (`tags_final` 0: the utterance's read-out at its first frame without speech, which changes only if speech
+resumes; 1: settled when the read-out closes the utterance, 0.5 s without speech), `EVENT`, and `FRAME` (every 100 ms:
+every column of `arc_frames_compute`, with `speech`, `device_directed` and `command_complete` at hand).
+
+Timing. A frame is final when it is sent: the read-out delay plus about 0.1 s after it. The delay is how far the trunk
+reads ahead of the frame it labels; Arc was trained with 0, 0.1, 0.2, 0.3 (default), 0.5 and 0.8 s
+(`arc_stream_config.delay_ms`). An utterance's tags come at its first non-speech frame (provisional), settled 0.5 s
+later; its FINAL text comes after the segmenter's 0.4 s pause (plus the 0.15 s pad the decode reads, in FULL mode).
+
+Checked (`build/test_stream MINI file.wav ...`, chunks of random sizes): FULL finals identical to `arc_transcribe`
+(text, times, inline tags), settled tags, directed head and events identical to `arc_transcribe` with the trunk,
+HEADS the same without the decoder, FRAME columns identical to `arc_frames_compute`, and EXTERNAL fed Arc's own
+aligned words groups them into the same utterances (bit-identical on aarch64; x86 within 1e-5 through the AVX2 GELU).
+`build/arc-stream MINI file.wav ... [--mode heads|external]` runs files as live audio and reports RTF, CPU, peak RSS
+and the latency of each kind of record.
+
 ## What runs, and how it was checked
 
 | Part | arc_audio | Here | Matches the reference |
@@ -183,8 +225,9 @@ build/test_score arc-v1.1/mini ../examples tests/data/score_ref.jsonl
 
 ## Not ported yet
 
-arc_audio has these and libarc does not: streaming (`Arc.stream`: partials, live mode, early commit, provisional
-records), external ASR words (`transcript='external'`, word-sourced names, the builtin fallback), the
+arc_audio has these and libarc does not: in streams, early commit and names / numbers (linking needs the word times
+of a whole utterance; EXTERNAL words get the utterance read-out, not word-sourced names), the builtin fallback for
+external words, the
 `moonshine_release` and `parakeet` transcript tiers, speaker read-outs and diarization beyond the slot state machine
 (`voice` / `fused` modes, roles), segments, bio events, trunk span tags (`spans`), the `frames` output of `predict`
 other than `arc_frames_compute`, and the full backbone. Text handling is exact for ASCII; non-ASCII text follows

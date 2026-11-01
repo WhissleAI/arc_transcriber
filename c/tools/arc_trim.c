@@ -3,6 +3,7 @@
  * arc_audio) read the result exactly as the original. Tensor bytes are copied unchanged, in the original order.
  *   arc-trim IN.safetensors OUT.safetensors trunk. head. diar.slot ent.
  * Part of arc_transcriber (Whissle Inc.), CC BY-NC 4.0; see LICENSE. */
+#define _POSIX_C_SOURCE 200809L   /* open_memstream (glibc with -std=c11) */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

@@ -1,23 +1,35 @@
-# libarc: `make` builds build/libarc.a, the tools (arc-transcribe, arc-score, arc-parity, arc-trim) and the tests.
+# libarc: `make` builds build/libarc.a, the tools (arc-transcribe, arc-stream, arc-score, arc-parity, arc-trim) and the tests.
 # `make test` runs the unit tests that need no weights. C11; libc, libm and threads only.
 # Part of arc_transcriber (Whissle Inc.), CC BY-NC 4.0; see LICENSE.
 CC ?= cc
 CFLAGS ?= -O2
+# Raspberry Pi presets: make PI=5 (Cortex-A76) or PI=4 (Cortex-A72); CPU=... for another -mcpu
+ifeq ($(PI),5)
+CPU ?= cortex-a76
+endif
+ifeq ($(PI),4)
+CPU ?= cortex-a72
+endif
+ifneq ($(CPU),)
+CFLAGS += -mcpu=$(CPU)
+endif
 CFLAGS += -std=c11 -Iinclude -Isrc -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -pthread
 LDLIBS += -lm
 SRC := $(wildcard src/*.c)
 HDR := $(wildcard src/*.h include/*.h)
 OBJ := $(patsubst src/%.c,build/%.o,$(SRC))
 UNIT := test_num test_ntext test_tidy
-TESTS := $(UNIT) test_moon test_tok test_transcribe test_full store_hash test_whole_long test_score
+TESTS := $(UNIT) test_moon test_tok test_transcribe test_full store_hash test_whole_long test_score test_stream
 
-all: build/libarc.a build/arc-transcribe build/arc-score build/arc-parity build/arc-trim $(addprefix build/,$(TESTS))
+all: build/libarc.a build/arc-transcribe build/arc-stream build/arc-score build/arc-parity build/arc-trim $(addprefix build/,$(TESTS))
 
 build/%.o: src/%.c $(HDR) | build
 	$(CC) $(CFLAGS) -c $< -o $@
 build/libarc.a: $(OBJ)
 	ar rcs $@ $^
 build/arc-transcribe: tools/arc_transcribe.c tools/json_out.h build/libarc.a
+	$(CC) $(CFLAGS) $< build/libarc.a $(LDLIBS) -o $@
+build/arc-stream: tools/arc_stream.c tools/json_out.h build/libarc.a
 	$(CC) $(CFLAGS) $< build/libarc.a $(LDLIBS) -o $@
 build/arc-score: tools/arc_score.c build/libarc.a
 	$(CC) $(CFLAGS) $< build/libarc.a $(LDLIBS) -o $@
@@ -44,6 +56,13 @@ PY ?= python3
 parity: build/arc-parity
 	build/arc-parity $(MINI) $(ARC)/examples/example_synth.wav $(ARC)/examples/example_names.json > build/candidate.json
 	cd $(ARC) && $(PY) scripts/check_parity.py --backbone mini --candidate $(CURDIR)/build/candidate.json
+# install: PREFIX/lib/libarc.a, PREFIX/include/arc.h, PREFIX/bin/arc-transcribe, arc-stream
+PREFIX ?= /usr/local
+install: build/libarc.a build/arc-transcribe build/arc-stream
+	mkdir -p $(PREFIX)/lib $(PREFIX)/include $(PREFIX)/bin
+	cp build/libarc.a $(PREFIX)/lib/
+	cp include/arc.h $(PREFIX)/include/
+	cp build/arc-transcribe build/arc-stream $(PREFIX)/bin/
 clean:
 	rm -rf build
-.PHONY: all clean test parity
+.PHONY: all clean test parity install

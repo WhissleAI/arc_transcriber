@@ -350,43 +350,229 @@ typedef struct {
   int ldy;
 } q4job;
 
+/* Every output is the same computation in every path below, so they all give bit-identical results: the row's
+ * weights dequantised as (code - zero) * scale in float32, a dot product with four NEON accumulators over strides
+ * of 16 (lanes c + 4j .. c + 4j + 3 in accumulator j), summed (v0 + v1) + (v2 + v3) across lanes, the scalar tail,
+ * then bias + sum. Only the loop order and what is kept in registers differ. */
+static float q4_dot(const float* xr, const float* row, int C) {
+#if defined(__ARM_NEON)
+  float32x4_t v0 = vdupq_n_f32(0), v1 = v0, v2 = v0, v3 = v0;
+  int c = 0;
+  for (; c + 16 <= C; c += 16) {
+    v0 = vfmaq_f32(v0, vld1q_f32(xr + c), vld1q_f32(row + c));
+    v1 = vfmaq_f32(v1, vld1q_f32(xr + c + 4), vld1q_f32(row + c + 4));
+    v2 = vfmaq_f32(v2, vld1q_f32(xr + c + 8), vld1q_f32(row + c + 8));
+    v3 = vfmaq_f32(v3, vld1q_f32(xr + c + 12), vld1q_f32(row + c + 12));
+  }
+  float acc = vaddvq_f32(vaddq_f32(vaddq_f32(v0, v1), vaddq_f32(v2, v3)));
+  for (; c < C; ++c) acc += xr[c] * row[c];
+  return acc;
+#else
+  float a0 = 0, a1 = 0, a2 = 0, a3 = 0;
+  int c = 0;
+  for (; c + 4 <= C; c += 4) {
+    a0 += xr[c] * row[c];
+    a1 += xr[c + 1] * row[c + 1];
+    a2 += xr[c + 2] * row[c + 2];
+    a3 += xr[c + 3] * row[c + 3];
+  }
+  for (; c < C; ++c) a0 += xr[c] * row[c];
+  return (a0 + a1) + (a2 + a3);
+#endif
+}
+
+/* the reference order: one row dequantised, then its dot product with every input row */
+static void q4_rows_plain(const q4job* j, int r0, int r1, float* row) {
+  const arc_q4* W = j->W;
+  for (int r = r0; r < r1; ++r) {
+    arc_q4_row(W, r, row);
+    float b = j->bias ? j->bias[r] : 0.0f;
+    for (int m = 0; m < j->M; ++m) j->y[(size_t)m * j->ldy + r] = b + q4_dot(j->x + (size_t)m * j->ldx, row, W->C);
+  }
+}
+
+#if defined(__ARM_NEON)
+/* 16 weights of a row from k = r * Cp + c (c a multiple of 16: half a group of 32), dequantised to the same floats
+ * as arc_q4_row: (code - zero) is formed in int8 (exact: both are small integers, so it equals float(code) -
+ * float(zero)), widened, converted and scaled. Named registers: GCC keeps arrays of NEON vectors in memory. */
+#define Q4_DEQ16(W, k, w0, w1, w2, w3)                                                     \
+  do {                                                                                    \
+    int64_t g_ = (k) >> 5;                                                                \
+    uint8x8_t b_ = vld1_u8((W)->q + ((k) >> 1));                                          \
+    uint8x8_t lo_ = vand_u8(b_, vdup_n_u8(15)), hi_ = vshr_n_u8(b_, 4);                   \
+    uint8x16_t v_ = vcombine_u8(vzip1_u8(lo_, hi_), vzip2_u8(lo_, hi_));                  \
+    uint8_t z_ = ((W)->z[g_ >> 1] >> ((g_ & 1) * 4)) & 15;                                \
+    int8x16_t d_ = vreinterpretq_s8_u8(vsubq_u8(v_, vdupq_n_u8(z_)));                     \
+    int16x8_t d0_ = vmovl_s8(vget_low_s8(d_)), d1_ = vmovl_high_s8(d_);                   \
+    float32x4_t s_ = vdupq_n_f32((W)->s[g_]);                                             \
+    w0 = vmulq_f32(vcvtq_f32_s32(vmovl_s16(vget_low_s16(d0_))), s_);                      \
+    w1 = vmulq_f32(vcvtq_f32_s32(vmovl_high_s16(d0_)), s_);                               \
+    w2 = vmulq_f32(vcvtq_f32_s32(vmovl_s16(vget_low_s16(d1_))), s_);                      \
+    w3 = vmulq_f32(vcvtq_f32_s32(vmovl_high_s16(d1_)), s_);                               \
+  } while (0)
+
+static inline float q4_sum4(float32x4_t a0, float32x4_t a1, float32x4_t a2, float32x4_t a3) {
+  return vaddvq_f32(vaddq_f32(vaddq_f32(a0, a1), vaddq_f32(a2, a3)));
+}
+
+/* few input rows (decoder steps, streamed frames): the weights are dequantised in registers as they are used and
+ * never written out; one input row, or four at a time (each dequantised weight used four times). C % 16 == 0. */
+static void q4_fused1(const q4job* j, int r0, int r1, int m) {
+  const arc_q4* W = j->W;
+  const float* x = j->x + (size_t)m * j->ldx;
+  for (int r = r0; r < r1; ++r) {
+    const int64_t base = (int64_t)r * W->Cp;
+    float32x4_t a0 = vdupq_n_f32(0), a1 = a0, a2 = a0, a3 = a0;
+    for (int c = 0; c < W->C; c += 16) {
+      float32x4_t w0, w1, w2, w3;
+      Q4_DEQ16(W, base + c, w0, w1, w2, w3);
+      a0 = vfmaq_f32(a0, vld1q_f32(x + c), w0);
+      a1 = vfmaq_f32(a1, vld1q_f32(x + c + 4), w1);
+      a2 = vfmaq_f32(a2, vld1q_f32(x + c + 8), w2);
+      a3 = vfmaq_f32(a3, vld1q_f32(x + c + 12), w3);
+    }
+    j->y[(size_t)m * j->ldy + r] = (j->bias ? j->bias[r] : 0.0f) + q4_sum4(a0, a1, a2, a3);
+  }
+}
+
+/* rows m .. m + mm - 1 (mm 2..4; a missing row repeats the last, its sums are dropped) */
+static void q4_fused4(const q4job* j, int r0, int r1, int m, int mm) {
+  const arc_q4* W = j->W;
+  const float* x0 = j->x + (size_t)m * j->ldx;
+  const float* x1 = x0 + j->ldx;
+  const float* x2 = mm > 2 ? x1 + j->ldx : x1;
+  const float* x3 = mm > 3 ? x2 + j->ldx : x2;
+  for (int r = r0; r < r1; ++r) {
+    const int64_t base = (int64_t)r * W->Cp;
+    float32x4_t a00 = vdupq_n_f32(0), a01 = a00, a02 = a00, a03 = a00, a10 = a00, a11 = a00, a12 = a00, a13 = a00;
+    float32x4_t a20 = a00, a21 = a00, a22 = a00, a23 = a00, a30 = a00, a31 = a00, a32 = a00, a33 = a00;
+    for (int c = 0; c < W->C; c += 16) {
+      float32x4_t w0, w1, w2, w3;
+      Q4_DEQ16(W, base + c, w0, w1, w2, w3);
+      a00 = vfmaq_f32(a00, vld1q_f32(x0 + c), w0);
+      a01 = vfmaq_f32(a01, vld1q_f32(x0 + c + 4), w1);
+      a02 = vfmaq_f32(a02, vld1q_f32(x0 + c + 8), w2);
+      a03 = vfmaq_f32(a03, vld1q_f32(x0 + c + 12), w3);
+      a10 = vfmaq_f32(a10, vld1q_f32(x1 + c), w0);
+      a11 = vfmaq_f32(a11, vld1q_f32(x1 + c + 4), w1);
+      a12 = vfmaq_f32(a12, vld1q_f32(x1 + c + 8), w2);
+      a13 = vfmaq_f32(a13, vld1q_f32(x1 + c + 12), w3);
+      a20 = vfmaq_f32(a20, vld1q_f32(x2 + c), w0);
+      a21 = vfmaq_f32(a21, vld1q_f32(x2 + c + 4), w1);
+      a22 = vfmaq_f32(a22, vld1q_f32(x2 + c + 8), w2);
+      a23 = vfmaq_f32(a23, vld1q_f32(x2 + c + 12), w3);
+      a30 = vfmaq_f32(a30, vld1q_f32(x3 + c), w0);
+      a31 = vfmaq_f32(a31, vld1q_f32(x3 + c + 4), w1);
+      a32 = vfmaq_f32(a32, vld1q_f32(x3 + c + 8), w2);
+      a33 = vfmaq_f32(a33, vld1q_f32(x3 + c + 12), w3);
+    }
+    float b = j->bias ? j->bias[r] : 0.0f;
+    float* y = j->y + (size_t)m * j->ldy + r;
+    y[0] = b + q4_sum4(a00, a01, a02, a03);
+    y[j->ldy] = b + q4_sum4(a10, a11, a12, a13);
+    if (mm > 2) y[2 * (size_t)j->ldy] = b + q4_sum4(a20, a21, a22, a23);
+    if (mm > 3) y[3 * (size_t)j->ldy] = b + q4_sum4(a30, a31, a32, a33);
+  }
+}
+
+static void q4_rows_fused(const q4job* j, int r0, int r1) {
+  for (int m = 0; m < j->M; m += 4) {
+    int mm = j->M - m < 4 ? j->M - m : 4;
+    if (mm == 1) q4_fused1(j, r0, r1, m);
+    else q4_fused4(j, r0, r1, m, mm);
+  }
+}
+
+/* 2 input rows x 2 weight rows: four outputs, each with its own four accumulators (16 registers); every load is
+ * used twice. C % 16 == 0. */
+static inline __attribute__((always_inline)) void q4_dot2x2(const float* x0, const float* x1, const float* w0,
+                                                            const float* w1, int C, float out[4]) {
+  float32x4_t a00 = vdupq_n_f32(0), a01 = a00, a02 = a00, a03 = a00, b00 = a00, b01 = a00, b02 = a00, b03 = a00;
+  float32x4_t a10 = a00, a11 = a00, a12 = a00, a13 = a00, b10 = a00, b11 = a00, b12 = a00, b13 = a00;
+  for (int c = 0; c < C; c += 16) {
+#define Q4STEP(o, A0, B0, A1, B1)                                                \
+  {                                                                              \
+    float32x4_t p = vld1q_f32(x0 + c + o), q = vld1q_f32(x1 + c + o);            \
+    float32x4_t u = vld1q_f32(w0 + c + o), v = vld1q_f32(w1 + c + o);            \
+    A0 = vfmaq_f32(A0, p, u);                                                    \
+    B0 = vfmaq_f32(B0, p, v);                                                    \
+    A1 = vfmaq_f32(A1, q, u);                                                    \
+    B1 = vfmaq_f32(B1, q, v);                                                    \
+  }
+    Q4STEP(0, a00, b00, a10, b10)
+    Q4STEP(4, a01, b01, a11, b11)
+    Q4STEP(8, a02, b02, a12, b12)
+    Q4STEP(12, a03, b03, a13, b13)
+#undef Q4STEP
+  }
+  out[0] = vaddvq_f32(vaddq_f32(vaddq_f32(a00, a01), vaddq_f32(a02, a03)));   /* x0 . w0 */
+  out[1] = vaddvq_f32(vaddq_f32(vaddq_f32(b00, b01), vaddq_f32(b02, b03)));   /* x0 . w1 */
+  out[2] = vaddvq_f32(vaddq_f32(vaddq_f32(a10, a11), vaddq_f32(a12, a13)));   /* x1 . w0 */
+  out[3] = vaddvq_f32(vaddq_f32(vaddq_f32(b10, b11), vaddq_f32(b12, b13)));   /* x1 . w1 */
+}
+
+/* many input rows (encoder, trunk): blocks of Q4_RB dequantised weight rows against blocks of Q4_MB input rows,
+ * so both stay in cache (the old order streamed every input row once per weight row). */
+enum { Q4_RB = 8, Q4_MB = 48 };
+static void q4_rows_blocked(const q4job* j, int r0, int r1, float* rows) {
+  const arc_q4* W = j->W;
+  const int C = W->C;
+  for (int m0 = 0; m0 < j->M; m0 += Q4_MB) {
+    int m1 = m0 + Q4_MB < j->M ? m0 + Q4_MB : j->M;
+    for (int rb = r0; rb < r1; rb += Q4_RB) {
+      int re = rb + Q4_RB < r1 ? rb + Q4_RB : r1;
+      for (int r = rb; r < re; ++r) arc_q4_row(W, r, rows + (size_t)(r - rb) * C);
+      int m = m0;
+      for (; m + 2 <= m1; m += 2) {
+        const float* x0 = j->x + (size_t)m * j->ldx;
+        const float* x1 = x0 + j->ldx;
+        int r = rb;
+        for (; r + 2 <= re; r += 2) {
+          float o[4];
+          q4_dot2x2(x0, x1, rows + (size_t)(r - rb) * C, rows + (size_t)(r + 1 - rb) * C, C, o);
+          float b0 = j->bias ? j->bias[r] : 0.0f, b1 = j->bias ? j->bias[r + 1] : 0.0f;
+          j->y[(size_t)m * j->ldy + r] = b0 + o[0];
+          j->y[(size_t)m * j->ldy + r + 1] = b1 + o[1];
+          j->y[(size_t)(m + 1) * j->ldy + r] = b0 + o[2];
+          j->y[(size_t)(m + 1) * j->ldy + r + 1] = b1 + o[3];
+        }
+        for (; r < re; ++r) {
+          float b = j->bias ? j->bias[r] : 0.0f;
+          j->y[(size_t)m * j->ldy + r] = b + q4_dot(x0, rows + (size_t)(r - rb) * C, C);
+          j->y[(size_t)(m + 1) * j->ldy + r] = b + q4_dot(x1, rows + (size_t)(r - rb) * C, C);
+        }
+      }
+      for (; m < m1; ++m)
+        for (int r = rb; r < re; ++r)
+          j->y[(size_t)m * j->ldy + r] =
+              (j->bias ? j->bias[r] : 0.0f) + q4_dot(j->x + (size_t)m * j->ldx, rows + (size_t)(r - rb) * C, C);
+    }
+  }
+}
+#endif
+
 static void q4_task(void* ctx, int task, int n_tasks) {
   const q4job* j = ctx;
   const arc_q4* W = j->W;
   int r0 = (int)((int64_t)W->R * task / n_tasks), r1 = (int)((int64_t)W->R * (task + 1) / n_tasks);
+#if defined(__ARM_NEON)
+  static int plain = -1;   /* ARC_Q4_PLAIN=1: the reference loop order (for checks); races only store the same value */
+  if (plain < 0) plain = getenv("ARC_Q4_PLAIN") != NULL;
+  if (W->C % 16 == 0 && !plain) {
+    if (j->M <= 4) {   /* one dequantisation per weight in either path; above 4 rows the fused one needs two */
+      q4_rows_fused(j, r0, r1);
+      return;
+    }
+    float* rows = arc_malloc(sizeof(float) * (size_t)W->C * Q4_RB + 64);
+    if (!rows) return;
+    q4_rows_blocked(j, r0, r1, rows);
+    arc_free(rows);
+    return;
+  }
+#endif
   float* row = arc_malloc(sizeof(float) * (size_t)W->C + 64);
   if (!row) return;
-  for (int r = r0; r < r1; ++r) {
-    arc_q4_row(W, r, row);
-    float b = j->bias ? j->bias[r] : 0.0f;
-    for (int m = 0; m < j->M; ++m) {
-      const float* xr = j->x + (size_t)m * j->ldx;
-#if defined(__ARM_NEON)
-      float32x4_t v0 = vdupq_n_f32(0), v1 = v0, v2 = v0, v3 = v0;
-      int c = 0;
-      for (; c + 16 <= W->C; c += 16) {
-        v0 = vfmaq_f32(v0, vld1q_f32(xr + c), vld1q_f32(row + c));
-        v1 = vfmaq_f32(v1, vld1q_f32(xr + c + 4), vld1q_f32(row + c + 4));
-        v2 = vfmaq_f32(v2, vld1q_f32(xr + c + 8), vld1q_f32(row + c + 8));
-        v3 = vfmaq_f32(v3, vld1q_f32(xr + c + 12), vld1q_f32(row + c + 12));
-      }
-      float acc = vaddvq_f32(vaddq_f32(vaddq_f32(v0, v1), vaddq_f32(v2, v3)));
-      for (; c < W->C; ++c) acc += xr[c] * row[c];
-      j->y[(size_t)m * j->ldy + r] = b + acc;
-#else
-      float a0 = 0, a1 = 0, a2 = 0, a3 = 0;
-      int c = 0;
-      for (; c + 4 <= W->C; c += 4) {
-        a0 += xr[c] * row[c];
-        a1 += xr[c + 1] * row[c + 1];
-        a2 += xr[c + 2] * row[c + 2];
-        a3 += xr[c + 3] * row[c + 3];
-      }
-      for (; c < W->C; ++c) a0 += xr[c] * row[c];
-      j->y[(size_t)m * j->ldy + r] = b + ((a0 + a1) + (a2 + a3));
-#endif
-    }
-  }
+  q4_rows_plain(j, r0, r1, row);
   arc_free(row);
 }
 
