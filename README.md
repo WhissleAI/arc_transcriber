@@ -219,6 +219,20 @@ the same release folder without Python: transcript with inline tags and word tim
 utterance tags and sound events, checked against arc_audio (`make -C c parity MINI=/path/arc-v1.1/mini`). Arc Transcriber
 (full) is not supported there yet.
 
+It also streams (`arc_stream_*`): Arc's own transcript, heads only (tags, events and 100 ms frames without the decoder),
+or another recogniser's words merged with Arc's tags. [`raspberry-pi/`](raspberry-pi/README.md) and
+[`macos/`](macos/README.md) (Apple's on-device recogniser as the transcriber) have builds and examples.
+
+Raspberry Pi 5, no cooler, 40 LibriSpeech test-clean clips, 100 ms chunks (latencies p50 after the end of speech):
+
+| stream | threads | RTF | peak RSS | final | settled tags |
+|---|---|---|---|---|---|
+| heads only | 1 | 0.26 | 66 MB | 0.32 s (endpoint) | 1.02 s |
+| full, partials every 1 s | 4 | 0.37 | 136 MB | 0.69 s | 1.01 s |
+| full, no partials | 4 | 0.24 | 129 MB | 0.71 s | 1.01 s |
+
+macOS (SpeechTranscriber + Arc heads vs Arc full): to be measured.
+
 ## Tests
 
 ```bash

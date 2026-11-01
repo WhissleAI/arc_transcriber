@@ -304,6 +304,9 @@ typedef struct {
   float start, end;
 } arc_ext_word;
 int arc_stream_words(arc_stream* s, const arc_ext_word* w, int n, int final);
+/* EXTERNAL: the recogniser has finalised everything up to t seconds (the end of its final result, words or not), so
+ * utterances that end before t - 0.3 s get no more words: their FINAL need not wait (arc_audio's mark_covered). */
+int arc_stream_covered(arc_stream* s, float t);
 /* EXTERNAL: a recogniser's text without times (split on spaces), as arc_stream_words with start = -1. */
 int arc_stream_text(arc_stream* s, const char* text, int final);
 /* Close the open utterance now (push-to-talk released, an external end of speech): its FINAL comes without waiting

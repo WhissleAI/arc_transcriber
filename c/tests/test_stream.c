@@ -120,6 +120,12 @@ static int run_ext(arc_engine* e, const float* pcm, size_t n, const arc_result* 
       wi++;
     }
   }
+  for (; ui < r->n_utts; ++ui, wi = 0)   /* the recogniser's last words, after the audio */
+    for (; wi < r->utts[ui].n_words; ++wi) {
+      const arc_word* w = &r->utts[ui].words[wi];
+      arc_ext_word x = {w->text, w->start, w->end};
+      if (arc_stream_words(s, &x, 1, 1)) return -1;
+    }
   int rc = arc_stream_finish(s);
   arc_stream_close(s);
   return rc;

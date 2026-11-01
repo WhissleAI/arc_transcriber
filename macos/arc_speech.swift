@@ -234,11 +234,12 @@ func runFile(_ path: String) async throws -> Run {
         let audioAt = (t - r.t0) / 1000
         if o.record != nil {
           let wj = ws.map { "{\"text\": \(esc($0.0)), \"start\": \(String(format: "%.3f", $0.1)), \"end\": \(String(format: "%.3f", $0.2))}" }.joined(separator: ", ")
-          r.record.append("{\"at\": \(String(format: "%.3f", audioAt)), \"final\": \(res.isFinal ? 1 : 0), \"words\": [\(wj)]}")
+          r.record.append("{\"at\": \(String(format: "%.3f", audioAt)), \"final\": \(res.isFinal ? 1 : 0), \"words\": [\(wj)], \"upto\": \(String(format: "%.3f", res.range.end.seconds))}")
         }
         var cw = ws.map { strdup($0.0) }
         var aw = (0..<ws.count).map { arc_ext_word(text: cw[$0], start: Float(ws[$0].1), end: Float(ws[$0].2)) }
         arc_stream_words(stream, &aw, Int32(aw.count), res.isFinal ? 1 : 0)
+        if res.isFinal { arc_stream_covered(stream, Float(res.range.end.seconds)) }   // finalised up to here
         for p in cw { free(p) }
         cw.removeAll()
         if !r.json {
