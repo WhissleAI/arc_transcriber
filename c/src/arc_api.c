@@ -66,6 +66,12 @@ static __thread char g_err[512];
 const char* arc_last_error(void) { return g_err[0] ? g_err : arc_geterr(); }
 
 arc_engine* arc_create(const char* dir, int threads, char* err, size_t err_len) {
+  return arc_create_ex(dir, threads, 0, err, err_len);
+}
+
+int arc_has_decoder(const arc_engine* e) { return e && e->tok != NULL; }
+
+arc_engine* arc_create_ex(const char* dir, int threads, int flags, char* err, size_t err_len) {
   arc_engine* e = arc_calloc(sizeof *e);
   if (!e) goto fail;
   if (threads <= 0) threads = 4;
@@ -74,10 +80,13 @@ arc_engine* arc_create(const char* dir, int threads, char* err, size_t err_len) 
   char path[1200];
   snprintf(path, sizeof path, "%s/%s", dir,
            arc_json_str(arc_json_get(arc_json_get(e->cfg, "encoder"), "subfolder"), "moonshine-streaming-tiny"));
-  if (!(e->moon = arc_moon_load(path, threads))) goto fail;
-  char tp[1300];
-  snprintf(tp, sizeof tp, "%s/tokenizer.json", path);
-  if (!(e->tok = arc_tok_load(tp))) goto fail;
+  int no_dec = (flags & ARC_NO_DECODER) != 0;
+  if (!(e->moon = arc_moon_load_ex(path, threads, no_dec))) goto fail;
+  if (!no_dec) {
+    char tp[1300];
+    snprintf(tp, sizeof tp, "%s/tokenizer.json", path);
+    if (!(e->tok = arc_tok_load(tp))) goto fail;
+  }
   if (arc_engine_load_trunk(e, dir)) goto fail;   /* trunk, heads, ontology (arc_engine.c) */
   return e;
 fail:
@@ -139,6 +148,9 @@ static void build_bias(arc_engine* e, const char* const* names, int n_names, con
   arc_free(e->nb_ids);
   arc_free(e->nb_w);
   e->nb_off = e->nb_ids = NULL;
+  e->nb_w = NULL;
+  e->nb_seq = 0;
+  if (!e->tok) return;   /* no decoder (ARC_NO_DECODER): nothing to bias */
   e->nb_w = NULL;
   e->nb_seq = e->nb_maxlen = 0;
   if (n_names < 0) n_names = 0;
@@ -350,7 +362,7 @@ static uint64_t samples_key(const float* w, int n) {
 }
 
 /* Decode one audio segment (Transcriber.decode_audio + utterance): text and tag spans. */
-static int decode_segment(arc_engine* e, const float* seg, int n_in, double t_now, int beams, int bias, int words,
+int arc_decode_segment(arc_engine* e, const float* seg, int n_in, double t_now, int beams, int bias, int words,
                           double t0, arc_utt_build* u) {
   int n = n_in < 3200 ? 3200 : n_in;
   float* w = arc_calloc(sizeof(float) * (size_t)n);
@@ -464,9 +476,67 @@ static int decode_segment(arc_engine* e, const float* seg, int n_in, double t_no
   return 0;
 }
 
+void arc_hist_add(arc_engine* e, double start, double end, const char* text) {
+  if (!text || !text[0]) return;   /* history for auto_prev (last 64) */
+  if (e->n_hist == 64) {
+    arc_free(e->hist[0].text);
+    memmove(e->hist, e->hist + 1, sizeof(e->hist[0]) * 63);
+    e->n_hist--;
+  }
+  e->hist[e->n_hist].s = start;
+  e->hist[e->n_hist].e = end;
+  e->hist[e->n_hist++].text = arc_strdup(text);
+}
+
+/* A quick read of encoder states already computed (a stream's partials): greedy, the context prompt and bias as for
+ * finals, the text loop-fixed and its inline tags read out. n_samples: the audio the states cover (for the length
+ * limit). */
+int arc_decode_states(arc_engine* e, const float* H, int T, int n_samples, double t_now, int bias, arc_utt_build* u) {
+  int P[128];
+  int np = prompt_ids(e, t_now, P);
+  int max_len = 1 + (int)(e->len_mult * (4.0 + e->tokens_per_s * (double)n_samples / ARC_SAMPLE_RATE)) + np;
+  enum { CAP = 1024 };
+  int ids[CAP];
+  arc_moon_procs pr = e->procs;
+  pr.bias = bias && e->nb_seq ? &e->bias : NULL;
+  int ni = arc_moon_decode(e->moon, H, T, P, np, max_len, 1, &pr, ids, CAP);
+  if (ni < 0) return -1;
+  char* raw = arc_tok_decode(e->tok, ids, ni);
+  char* txt = arc_loopfix(raw, 2);
+  char** rw;
+  int nrw;
+  arc_span* sp;
+  int nsp;
+  arc_readout(e->tok, ids, ni, &rw, &nrw, &sp, &nsp);
+  char** raww;
+  int nraw = arc_split_words(raw, &raww);
+  arc_span* s1 = arc_malloc(sizeof(arc_span) * (size_t)(nsp + 1));
+  int n1 = arc_map_spans(rw, nrw, sp, nsp, raww, nraw, s1);
+  char** txw;
+  int ntx = arc_split_words(txt, &txw);
+  arc_span* s2 = arc_malloc(sizeof(arc_span) * (size_t)(n1 + 1));
+  int n2 = strcmp(txt, raw) ? arc_map_spans(raww, nraw, s1, n1, txw, ntx, s2) : n1;
+  if (!strcmp(txt, raw)) memcpy(s2, s1, sizeof(arc_span) * (size_t)n1);
+  u->text = txt;
+  u->spans = s2;
+  u->n_spans = n2;
+  u->words = txw;
+  u->n_words = ntx;
+  arc_free(raw);
+  arc_free(s1);
+  arc_free(sp);
+  arc_free_words(rw, nrw);
+  arc_free_words(raww, nraw);
+  return 0;
+}
+
 arc_result* arc_transcribe(arc_engine* e, const float* pcm, size_t n, const arc_options* opt) {
   double t0 = arc_time_ms();
   g_err[0] = 0;
+  if (!e->tok) {
+    snprintf(g_err, sizeof g_err, "arc_transcribe: the engine was created without the decoder (ARC_NO_DECODER)");
+    return NULL;
+  }
   arc_options o = {0};
   if (opt) o = *opt;
   int beams = o.beams > 0 ? o.beams : e->beams;
@@ -542,22 +612,13 @@ arc_result* arc_transcribe(arc_engine* e, const float* pcm, size_t n, const arc_
     u->f1 = seg[i][1];
     u->start = (float)(seg[i][0] / 10.0);
     u->end = (float)((seg[i][1] + 1) / 10.0);
-    if (decode_segment(e, pcm + lo, (int)(hi - lo), seg[i][0] / 10.0, beams, o.bias_names,
+    if (arc_decode_segment(e, pcm + lo, (int)(hi - lo), seg[i][0] / 10.0, beams, o.bias_names,
                        o.words || o.names || o.numbers, lo / (double)ARC_SAMPLE_RATE, u)) {
       arc_free(seg);
       arc_result_free(arc_result_finish(R, 0, 0));
       return NULL;
     }
-    if (u->text[0]) {   /* history for auto_prev (last 64) */
-      if (e->n_hist == 64) {
-        arc_free(e->hist[0].text);
-        memmove(e->hist, e->hist + 1, sizeof(e->hist[0]) * 63);
-        e->n_hist--;
-      }
-      e->hist[e->n_hist].s = seg[i][0] / 10.0;
-      e->hist[e->n_hist].e = (seg[i][1] + 1) / 10.0;
-      e->hist[e->n_hist++].text = arc_strdup(u->text);
-    }
+    arc_hist_add(e, seg[i][0] / 10.0, (seg[i][1] + 1) / 10.0, u->text);
   }
   arc_free(seg);
   if ((o.trunk || o.events || o.names || o.numbers) && arc_engine_run(e, pcm, n, &o, R)) {
@@ -616,6 +677,10 @@ static int score_seq(arc_engine* e, const char* text, int tag, int* out, int cap
 int arc_score(arc_engine* e, const float* pcm, size_t n, const char* const* texts, int n_texts, int flags, float* logp,
               int* n_tokens) {
   g_err[0] = 0;
+  if (e && !e->tok) {
+    arc_seterr("arc_score: the engine was created without the decoder (ARC_NO_DECODER)");
+    return -1;
+  }
   if (!e || !pcm || n_texts < 0 || (n_texts && (!texts || !logp))) {
     arc_seterr("arc_score: bad arguments");
     return -1;

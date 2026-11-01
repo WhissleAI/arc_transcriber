@@ -105,6 +105,13 @@ struct arc_engine {
   arc_trunk* trunk;
 };
 
+/* arc_api.c, for streams: the final decode of one segment (as arc_transcribe), a greedy read of encoder states,
+ * and the auto_prev history */
+int arc_decode_segment(arc_engine* e, const float* seg, int n_in, double t_now, int beams, int bias, int words,
+                       double t0, arc_utt_build* u);
+int arc_decode_states(arc_engine* e, const float* H, int T, int n_samples, double t_now, int bias, arc_utt_build* u);
+void arc_hist_add(arc_engine* e, double start, double end, const char* text);
+
 /* Per-stage outputs for parity checks (scripts/check_parity.py): pooled features [N, 640], tapped features
  * [N, 640], event probabilities [N, 50], and each query's per-frame probabilities over its shipped columns. */
 typedef struct {
@@ -147,5 +154,30 @@ float* arc_engine_span_probs(arc_engine* e, const float* H, int T, int dom, int*
 void arc_wstore_init(arc_wstore* ws, const arc_result_build* R);
 void arc_wstore_free(arc_wstore* ws);
 int arc_link_run(arc_link* l, const arc_link_ctx* c, const arc_wstore* ws, arc_result_build* R);
+
+/* Streaming read-out (arc_engine.c): encoder frames in, 10 Hz frames, events and trunk utterances out, the same
+ * per-frame computations as arc_engine_run. fn gets each trunk frame (frame) and each event that ended (event). */
+typedef struct {
+  float start, end;
+  float p[512];          /* utterance probabilities over the trunk's utt columns, at the last speech frame */
+} arc_live_utt;
+typedef void (*arc_live_fn)(void* user, const arc_frame* frame, const arc_event* event);
+typedef struct arc_live arc_live;
+/* delay: the read-out delay in 100 ms frames (one of the trained ones, config delays_s; -1: 3). events: 1 the event
+ * head, -1 also every column of arc_frames_compute in each frame (frame.labels / p) */
+arc_live* arc_live_new(arc_engine* e, const char* domain, int trunk, int events, int delay, arc_live_fn fn, void* user);
+/* pauses so far (an utterance of the read-out reached its first non-speech frame) and the open utterance's frames */
+long arc_live_pauses(const arc_live* L);
+int arc_live_open(const arc_live* L, long* f0, long* f1);
+void arc_live_free(arc_live* L);
+int arc_live_tap(arc_live* L);   /* the encoder layer whose input the event head reads */
+/* encoder frames [n, 320] and tap frames; final: the stream has ended (flush) */
+int arc_live_push(arc_live* L, const float* H, long n, const float* tap, long n_tap, int final);
+long arc_live_frames(const arc_live* L);         /* 10 Hz feature frames complete */
+long arc_live_trunk_frames(const arc_live* L);   /* trunk frames read out */
+/* the device-directed head over frames [a, b): its probability, -2 while frames are missing, -1 none */
+float arc_live_directed(arc_live* L, long a, long b);
+/* tags of the trunk utterance overlapping [start, end) most into u (dd, cc, intent, act); *settled 1 when final */
+int arc_live_tags(arc_live* L, float start, float end, arc_utt_build* u, int* settled);
 
 #endif

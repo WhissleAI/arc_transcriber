@@ -212,6 +212,107 @@ arc_result* arc_transcribe(arc_engine* e, const float* pcm, size_t n, const arc_
 void arc_result_free(arc_result* r);
 const char* arc_last_error(void);
 
+/* ================================================================ load options, streaming
+ *
+ * arc_create_ex(dir, threads, ARC_NO_DECODER, ...) loads Arc's encoder, trunk and heads without the transcript
+ * decoder and its tokenizer (less memory, faster load): arc_transcribe and arc_score then fail, and streams run in
+ * ARC_STREAM_HEADS or ARC_STREAM_EXTERNAL mode. */
+#define ARC_NO_DECODER 1
+arc_engine* arc_create_ex(const char* dir, int threads, int flags, char* err, size_t err_len);
+/* 1 when the engine has the transcript decoder (not created with ARC_NO_DECODER) */
+int arc_has_decoder(const arc_engine* e);
+
+/* A stream: push audio as it arrives (any chunk size) and get records back through one callback, run inside the push
+ * call on the caller's thread. Utterances are cut by Arc's own segmenter (pauses, at most 15 s) in every mode.
+ *
+ *   ARC_STREAM_FULL      Arc's transcript: PARTIAL records while an utterance is open (greedy, over the streamed
+ *                        encoder states), then FINAL (the same decode as arc_transcribe: identical text and tags).
+ *   ARC_STREAM_HEADS     no transcript decoder: FINAL records carry the utterance's times and tags, no text.
+ *   ARC_STREAM_EXTERNAL  heads plus the text of another recogniser (arc_stream_words / arc_stream_text): its words
+ *                        are grouped into Arc's utterances by time, PARTIAL records follow its interim words.
+ *
+ * In every mode an utterance's tags (device_directed, command_complete, intent, act) come from the trunk utterance
+ * it overlaps most and directed_head from the device-directed head over its frames. FINAL is sent as soon as the
+ * text is final; when the trunk utterance has not closed by then (it closes 0.5 s after speech, read 0.3 s late),
+ * FINAL has tags_final = 0 and its tags so far, and a TAGS record with the settled tags follows.
+ *
+ * Timing: FRAME records are final as they come, the read-out delay (delay_ms) plus about 0.1 s after the frame. An
+ * utterance's tags are those of its last speech frame; the read-out declares the utterance over after 0.5 s without
+ * speech (Arc's rule), so at its first non-speech frame a TAGS record with tags_final = 0 gives them provisionally
+ * (they change only if the speech resumes), and the settled ones follow. */
+typedef enum { ARC_STREAM_FULL = 0, ARC_STREAM_HEADS = 1, ARC_STREAM_EXTERNAL = 2 } arc_stream_mode;
+/* ENDPOINT: Arc's segmenter closed an utterance (id, utt->start / end, no text yet). In EXTERNAL mode it is the moment
+ * to ask the recogniser for its final words (SpeechAnalyzer.finalize(through: end), Android stopListening()): Apple's
+ * transcriber, for one, holds a long phrase's final text until told to finalise. */
+typedef enum {
+  ARC_OUT_PARTIAL = 1, ARC_OUT_FINAL = 2, ARC_OUT_TAGS = 3, ARC_OUT_EVENT = 4, ARC_OUT_FRAME = 5, ARC_OUT_ENDPOINT = 6
+} arc_out_kind;
+
+/* One 100 ms frame of the trunk's read-out (it runs 0.3 s behind the audio, plus the encoder's 0.24 s look-ahead). */
+typedef struct {
+  float t;                   /* frame start, seconds */
+  float speech;              /* meta.speech */
+  int in_utterance;          /* inside an utterance of the trunk's read-out */
+  float device_directed;     /* that utterance's read-out so far (-1 outside one) */
+  float command_complete;    /* ev_at:discourse.assistant.command_complete in this frame (-1 outside an utterance) */
+  /* every column arc_frames_compute gives for the domain, in its order: frame tags, the utterance read-out so far,
+   * the instant queries ("ev_at:<id>", "ev_imm:<id>", "ev_rec:<id>") and the sound / channel events */
+  int n_labels;
+  const char* const* labels;   /* the stream's (valid until it is closed) */
+  const float* p;              /* this frame's (valid during the callback) */
+} arc_frame;
+
+typedef struct {
+  arc_out_kind kind;
+  int id;                    /* PARTIAL / FINAL / TAGS / ENDPOINT: the utterance's number in the stream (0, 1, ...) */
+  const arc_utt* utt;        /* PARTIAL: the text so far (and the tags so far); FINAL / TAGS: the utterance */
+  int tags_final;            /* FINAL: 1 when its tags are settled (else a TAGS record follows) */
+  const arc_event* event;    /* EVENT: a sound / channel event that has ended */
+  const arc_frame* frame;    /* FRAME */
+  double audio_s;            /* audio pushed so far when this record was made */
+} arc_stream_out;
+typedef void (*arc_stream_fn)(const arc_stream_out* out, void* user);
+
+typedef struct {
+  arc_stream_mode mode;
+  const char* domain;        /* as arc_options.domain; NULL = "unknown" */
+  arc_stream_fn on_output;
+  void* user;
+  int frames;                /* 1: FRAME records */
+  int events;                /* 1: EVENT records (sound / channel events) */
+  int partial_ms;            /* FULL: a partial every ... ms of audio while an utterance is open (0: 400; -1: none) */
+  float partial_window_s;    /* FULL: partials decode at most the last ... s of the utterance (0: 7) */
+  int beams;                 /* FULL: beams of the final decode (0: the release's 4; 1 greedy) */
+  int bias_names;            /* FULL: as arc_options.bias_names */
+  float word_wait_s;         /* EXTERNAL: wait at most ... s after an utterance for the recogniser's final words
+                              * (0: 6, arc_audio's setting for external words) */
+  int delay_ms;              /* the read-out delay: how far the trunk reads ahead of the frame it labels. One Arc was
+                              * trained with: 0 (= the default, 300), 100, 200, 300, 500, 800, or ARC_DELAY_NONE.
+                              * Shorter: every tag sooner, judged on less of what follows. */
+} arc_stream_config;
+#define ARC_DELAY_NONE (-1)
+
+typedef struct arc_stream arc_stream;
+arc_stream* arc_stream_open(arc_engine* e, const arc_stream_config* c);   /* NULL on failure (arc_last_error) */
+/* 16 kHz mono float. 0, or -1 (arc_last_error). */
+int arc_stream_push(arc_stream* s, const float* pcm, size_t n);
+/* EXTERNAL: words of another recogniser, times in seconds from the stream's first sample. final = 0: an interim
+ * hypothesis (replaces the previous one); 1: final words. A word with start < 0 has no times (Android's
+ * SpeechRecognizer): such words go to the utterance open now, or else to the last one, spread over its time. */
+typedef struct {
+  const char* text;
+  float start, end;
+} arc_ext_word;
+int arc_stream_words(arc_stream* s, const arc_ext_word* w, int n, int final);
+/* EXTERNAL: a recogniser's text without times (split on spaces), as arc_stream_words with start = -1. */
+int arc_stream_text(arc_stream* s, const char* text, int final);
+/* Close the open utterance now (push-to-talk released, an external end of speech): its FINAL comes without waiting
+ * for the pause. */
+int arc_stream_end_turn(arc_stream* s);
+/* End of the audio: everything still open is closed and sent. */
+int arc_stream_finish(arc_stream* s);
+void arc_stream_close(arc_stream* s);
+
 #ifdef __cplusplus
 }
 #endif

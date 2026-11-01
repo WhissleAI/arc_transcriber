@@ -148,6 +148,8 @@ int arc_seg_feed(arc_seg* s, int f, double db, int* f0, int* f1, const char** re
   return 0;
 }
 
+int arc_seg_open(const arc_seg* s) { return s->n_cur ? s->cur[0].f : -1; }
+
 int arc_seg_flush(arc_seg* s, int* f0, int* f1, const char** reason) {
   int r = s->n_cur ? emit(s, s->cur, s->n_cur, f0, f1) : 0;
   s->n_cur = 0;

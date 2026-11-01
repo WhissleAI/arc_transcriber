@@ -52,10 +52,13 @@ typedef struct arc_moon {
   float inv_freq[16];      /* RoPE on the first 32 of 40 head dims, interleaved pairs */
   int n_rot;               /* 32 */
   int bos, eos;
+  int has_decoder;          /* 0: loaded with encoder_only */
 } arc_moon;
 
 /* folder: the moonshine-streaming-tiny folder (model.q4.safetensors or model.safetensors). */
 arc_moon* arc_moon_load(const char* folder, int threads);
+/* encoder_only: the encoder alone (the decoder's tensors are not read; decoding functions must not be called) */
+arc_moon* arc_moon_load_ex(const char* folder, int threads, int encoder_only);
 void arc_moon_free(arc_moon* m);
 
 /* Encoder over a whole utterance: pcm[n] at 16 kHz (n a multiple of 80, at least 80). Returns the states
@@ -119,5 +122,17 @@ int arc_moon_score(arc_moon* m, const float* enc, int T, const int* prompt, int 
 
 /* Teacher-forced logits (for tests): tokens[n] -> logits [n, 32768] of the next token at each position. */
 float* arc_moon_logits(arc_moon* m, const float* enc, int T, const int* tokens, int n);
+
+/* Streaming encoder: the same states as arc_moon_encode_ex over the samples pushed so far, frame by frame as soon as
+ * each frame's look-ahead (240 ms) has arrived; final = 1 flushes the rest as the whole clip does at its end.
+ * tap >= 0 also gives the hidden states before that layer. Frames are handed out by arc_moon_stream_take. */
+typedef struct arc_moon_stream arc_moon_stream;
+arc_moon_stream* arc_moon_stream_new(arc_moon* m, int tap);
+void arc_moon_stream_free(arc_moon_stream* s);
+int arc_moon_stream_push(arc_moon_stream* s, const float* pcm, size_t n, int final);
+/* the encoder frames (and tap frames) finished since the last take: [n, 320] each (arc_free them; NULL when 0) */
+long arc_moon_stream_take(arc_moon_stream* s, float** H, float** tap, long* n_tap);
+/* 20 ms frames the convs have produced so far (the encoder's input length) */
+long arc_moon_stream_frames(const arc_moon_stream* s);
 
 #endif

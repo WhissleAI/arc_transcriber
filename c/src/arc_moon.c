@@ -64,7 +64,9 @@ static const float* own(moon_impl* x, float* p) {
   return p;
 }
 
-arc_moon* arc_moon_load(const char* folder, int threads) {
+arc_moon* arc_moon_load(const char* folder, int threads) { return arc_moon_load_ex(folder, threads, 0); }
+
+arc_moon* arc_moon_load_ex(const char* folder, int threads, int encoder_only) {
   (void)g_unused;
   moon_impl* x = arc_calloc(sizeof *x);
   if (!x) return NULL;
@@ -104,6 +106,8 @@ arc_moon* arc_moon_load(const char* folder, int threads) {
     if (needw(m, arc_namef("model.encoder.layers.%d.mlp.fc2.weight", l), D * FF, &L->fc2)) goto fail;
     if (!(L->fc2b = need(m, arc_namef("model.encoder.layers.%d.mlp.fc2.bias", l), D))) goto fail;
   }
+  m->has_decoder = !encoder_only;
+  if (encoder_only) return m;   /* the decoder's tensors stay unread (its float32 tables are never made) */
   if (needw(m, "model.decoder.embed_tokens.weight", (int64_t)V * D, &m->embed)) goto fail;
   if (!(m->pos_emb = need(m, "model.decoder.pos_emb.weight", (int64_t)4096 * D))) goto fail;
   if (!(m->norm = need(m, "model.decoder.norm.weight", D))) goto fail;
@@ -468,9 +472,9 @@ static void dec_step(dec_state* s, const int* tok) {
       for (int i = 0; i < FF; ++i) r[i] = silu1(r[FF + i]) * r[i];
       /* compact into the first half for fc2 */
     }
-    for (int b = 0; b < B; ++b) {
-      linw(m, s->ff + (size_t)b * 2 * FF, 1, FF, &L->fc2, D, L->fc2b, s->tmp + (size_t)b * D);
-    }
+    /* fc2 over the first halves (rows 2 FF apart), all beams in one pass */
+    if (L->fc2.packed) arc_q4_linear(m->pool, s->ff, B, 2 * FF, &L->fc2.q, L->fc2b, s->tmp, D);
+    else arc_gemm_nt(m->pool, B, D, FF, s->ff, 2 * FF, L->fc2.f, FF, s->tmp, D, L->fc2b, 0);
     for (size_t i = 0; i < (size_t)B * D; ++i) s->x[i] += s->tmp[i];
   }
   if (!s->no_logits) {
@@ -693,11 +697,14 @@ int arc_moon_decode_nbest(arc_moon* m, const float* enc, int T, const int* promp
     for (int i = 0; i < n_prompt; ++i) run[(size_t)b * max_length + i] = prompt[i];
     run[(size_t)b * max_length + n_prompt] = m->bos;
   }
-  /* prefill: the prompt and the start token, one position at a time, the same for every beam */
+  /* prefill: the prompt and the start token, one position at a time, the same for every beam; only the last
+   * position's logits are read, so the output projection (32768 x 320) is skipped before it */
   for (int i = 0; i < start_len; ++i) {
     for (int b = 0; b < nb; ++b) tok[b] = run[(size_t)b * max_length + i];
+    s.no_logits = i < start_len - 1;
     dec_step(&s, tok);
   }
+  s.no_logits = 0;
   int cur = start_len, n_out = -1;
   const int rg_start = start_len;
   if (nb == 1) {
@@ -1010,4 +1017,331 @@ int arc_moon_score(arc_moon* m, const float* enc, int T, const int* prompt, int 
   arc_free(ce);
   dec_free(&s);
   return rc;
+}
+
+/* ------------------------------------------------------------------ streaming encoder
+ * The encoder above, run as audio arrives: every operation is per 5 ms / 20 ms frame except the two causal convs
+ * (which only look back) and the attention windows (16 frames back; layers 0, 1, 4 and 5 also 3 frames ahead, 60 ms
+ * each, 240 ms in all), so each layer keeps its last inputs, keys and values and emits a frame once the frames it
+ * looks ahead to have arrived. A frame's state is computed by the same per-row operations as in arc_moon_encode_ex,
+ * so a streamed clip gives bit-identical states to the whole clip (the end is flushed the same way). */
+
+typedef struct {
+  float* d;
+  int w;
+  long base, n, cap;   /* frames base .. base + n - 1 */
+} fbuf;
+
+static float* fb_at(fbuf* b, long t) { return b->d + (size_t)(t - b->base) * b->w; }
+
+static int fb_room(fbuf* b, long k) {
+  if (b->n + k <= b->cap) return 0;
+  long nc = b->cap ? b->cap : 64;
+  while (nc < b->n + k) nc *= 2;
+  float* d = arc_malloc(sizeof(float) * (size_t)nc * b->w);
+  if (!d) return -1;
+  if (b->n) memcpy(d, b->d, sizeof(float) * (size_t)b->n * b->w);
+  arc_free(b->d);
+  b->d = d;
+  b->cap = nc;
+  return 0;
+}
+
+static int fb_push(fbuf* b, const float* rows, long k) {
+  if (k <= 0) return 0;
+  if (fb_room(b, k)) return -1;
+  memcpy(b->d + (size_t)b->n * b->w, rows, sizeof(float) * (size_t)k * b->w);
+  b->n += k;
+  return 0;
+}
+
+/* forget frames before t */
+static void fb_drop(fbuf* b, long t) {
+  long k = t - b->base;
+  if (k <= 0) return;
+  if (k > b->n) k = b->n;
+  memmove(b->d, b->d + (size_t)k * b->w, sizeof(float) * (size_t)(b->n - k) * b->w);
+  b->n -= k;
+  b->base += k;
+}
+
+typedef struct {
+  fbuf x, q, k, v;   /* the layer's inputs and their queries / keys / values */
+  long done;         /* outputs emitted */
+} ms_layer;
+
+struct arc_moon_stream {
+  arc_moon* m;
+  int tap;
+  float pend[ARC_MOON_FRAME];
+  int n_pend;
+  fbuf e;            /* 5 ms frames after linear + SiLU */
+  fbuf c1;           /* conv1 output after SiLU */
+  long T5, T1, T2;   /* frames so far at each rate */
+  ms_layer L[ARC_MOON_LAYERS];
+  fbuf out, tapo;    /* encoder output and tap frames not yet taken */
+  int finished;
+};
+
+arc_moon_stream* arc_moon_stream_new(arc_moon* m, int tap) {
+  arc_moon_stream* s = arc_calloc(sizeof *s);
+  if (!s) return NULL;
+  s->m = m;
+  s->tap = tap;
+  s->e.w = D;
+  s->c1.w = 2 * D;
+  for (int l = 0; l < NL; ++l) s->L[l].x.w = s->L[l].q.w = s->L[l].k.w = s->L[l].v.w = D;
+  s->out.w = s->tapo.w = D;
+  return s;
+}
+
+void arc_moon_stream_free(arc_moon_stream* s) {
+  if (!s) return;
+  arc_free(s->e.d);
+  arc_free(s->c1.d);
+  for (int l = 0; l < NL; ++l) {
+    arc_free(s->L[l].x.d);
+    arc_free(s->L[l].q.d);
+    arc_free(s->L[l].k.d);
+    arc_free(s->L[l].v.d);
+  }
+  arc_free(s->out.d);
+  arc_free(s->tapo.d);
+  arc_free(s);
+}
+
+long arc_moon_stream_frames(const arc_moon_stream* s) { return s->T2; }
+
+/* outputs [lo, hi) of a causal stride-2 conv (kernel 5, 4 frames of left padding) over in (frames 0 .. nin - 1) */
+static int ms_conv(arc_moon* m, fbuf* in, long lo, long hi, const float* w, const float* b, int Cin, int Cout,
+                   float* y) {
+  long a = 2 * lo - 4, n = 2 * (hi - 1) - a + 1;   /* input frames a .. 2 (hi - 1) */
+  float* win = arc_calloc(sizeof(float) * (size_t)n * Cin);
+  if (!win) return -1;
+  for (long t = a; t < a + n; ++t)
+    if (t >= in->base) memcpy(win + (size_t)(t - a) * Cin, fb_at(in, t), sizeof(float) * Cin);
+  arc_mat wm = {.type = ARC_W_F32, .O = Cout, .K = Cin * 5, .w = w};
+  int r = arc_conv1d(m->pool, win, (int)n, Cin, Cin, &wm, 5, 2, 1, 0, 0, b, y, Cout);
+  arc_free(win);
+  return r == hi - lo ? 0 : -1;
+}
+
+/* layer l: take k new input frames, emit the outputs that are ready (all of them when final) into the next layer
+ * or the output */
+static int ms_layer_step(arc_moon_stream* s, int l, const float* rows, long k, int final);
+
+static int ms_emit(arc_moon_stream* s, int l, const float* rows, long k, int final) {
+  if (l + 1 < NL) return ms_layer_step(s, l + 1, rows, k, final);
+  if (k <= 0) return 0;
+  float* h = arc_malloc(sizeof(float) * (size_t)k * D);
+  if (!h) return -1;
+  memcpy(h, rows, sizeof(float) * (size_t)k * D);
+  arc_layernorm(h, (int)k, D, D, s->m->final_g, NULL, 1e-5f);
+  int r = fb_push(&s->out, h, k);
+  arc_free(h);
+  return r;
+}
+
+static int ms_layer_step(arc_moon_stream* s, int l, const float* rows, long k, int final) {
+  arc_moon* m = s->m;
+  ms_layer* L = &s->L[l];
+  const arc_moon_enc_layer* W = &m->enc[l];
+  if (l == s->tap && k > 0 && fb_push(&s->tapo, rows, k)) return -1;
+  if (k > 0) {
+    float* xn = arc_malloc(sizeof(float) * (size_t)k * D);
+    if (!xn || fb_push(&L->x, rows, k) || fb_room(&L->q, k) || fb_room(&L->k, k) || fb_room(&L->v, k)) {
+      arc_free(xn);
+      return -1;
+    }
+    memcpy(xn, rows, sizeof(float) * (size_t)k * D);
+    arc_layernorm(xn, (int)k, D, D, W->ln1, NULL, 1e-5f);
+    linw(m, xn, (int)k, D, &W->q, D, NULL, L->q.d + (size_t)L->q.n * D);
+    linw(m, xn, (int)k, D, &W->k, D, NULL, L->k.d + (size_t)L->k.n * D);
+    linw(m, xn, (int)k, D, &W->v, D, NULL, L->v.d + (size_t)L->v.n * D);
+    L->q.n += k;
+    L->k.n += k;
+    L->v.n += k;
+    arc_free(xn);
+  }
+  long T = L->x.base + L->x.n;   /* inputs so far */
+  int left = m->win[l][0], right = m->win[l][1], ahead = right > 0 ? right - 1 : 0;
+  long ready = final ? T : T - ahead;
+  long n = ready - L->done;
+  if (n <= 0) return final ? ms_emit(s, l, NULL, 0, final) : 0;
+  float* att = arc_malloc(sizeof(float) * (size_t)n * D);
+  float* tmp = arc_malloc(sizeof(float) * (size_t)n * D);
+  float* h = arc_malloc(sizeof(float) * (size_t)n * D);
+  float* xn = arc_malloc(sizeof(float) * (size_t)n * D);
+  float* ff = arc_malloc(sizeof(float) * (size_t)n * FF);
+  int rc = -1;
+  if (!att || !tmp || !h || !xn || !ff) goto out;
+  const float scale = 1.0f / sqrtf((float)HD);
+  float sc[64];
+  for (long i = 0; i < n; ++i) {
+    long t = L->done + i;
+    long k0 = t - left + 1, k1 = t + ahead;   /* inclusive, as the whole-clip loop */
+    if (k0 < 0) k0 = 0;
+    if (k1 > T - 1) k1 = T - 1;
+    for (int hh = 0; hh < H; ++hh) {
+      const float* qv = fb_at(&L->q, t) + hh * HD;
+      float mx = -FLT_MAX;
+      for (long j = k0; j <= k1; ++j) {
+        const float* kv = fb_at(&L->k, j) + hh * HD;
+        float sv = 0;
+        for (int d = 0; d < HD; ++d) sv += qv[d] * kv[d];
+        sv *= scale;
+        sc[j - k0] = sv;
+        if (sv > mx) mx = sv;
+      }
+      float sum = 0;
+      for (long j = k0; j <= k1; ++j) {
+        sc[j - k0] = expf(sc[j - k0] - mx);
+        sum += sc[j - k0];
+      }
+      float* o = att + (size_t)i * D + hh * HD;
+      for (int d = 0; d < HD; ++d) o[d] = 0;
+      for (long j = k0; j <= k1; ++j) {
+        float wgt = sc[j - k0] / sum;
+        const float* vv = fb_at(&L->v, j) + hh * HD;
+        for (int d = 0; d < HD; ++d) o[d] += wgt * vv[d];
+      }
+    }
+  }
+  linw(m, att, (int)n, D, &W->o, D, NULL, tmp);
+  memcpy(h, fb_at(&L->x, L->done), sizeof(float) * (size_t)n * D);
+  for (size_t i = 0; i < (size_t)n * D; ++i) h[i] += tmp[i];
+  memcpy(xn, h, sizeof(float) * (size_t)n * D);
+  arc_layernorm(xn, (int)n, D, D, W->ln2, NULL, 1e-5f);
+  linw(m, xn, (int)n, D, &W->fc1, FF, W->fc1b, ff);
+  arc_gelu(ff, (size_t)n * FF);
+  linw(m, ff, (int)n, FF, &W->fc2, D, W->fc2b, tmp);
+  for (size_t i = 0; i < (size_t)n * D; ++i) h[i] += tmp[i];
+  L->done = ready;
+  /* keep what later outputs still read: inputs from the next output on, keys / values 15 frames back */
+  fb_drop(&L->x, L->done);
+  fb_drop(&L->q, L->done);
+  fb_drop(&L->k, L->done - left + 1);
+  fb_drop(&L->v, L->done - left + 1);
+  rc = ms_emit(s, l, h, n, final);
+out:
+  arc_free(att);
+  arc_free(tmp);
+  arc_free(h);
+  arc_free(xn);
+  arc_free(ff);
+  return rc;
+}
+
+int arc_moon_stream_push(arc_moon_stream* s, const float* pcm, size_t n, int final) {
+  arc_moon* m = s->m;
+  const int F = ARC_MOON_FRAME;
+  if (s->finished) return n || !final ? -1 : 0;
+  /* 5 ms frames: CMVN, asinh, linear, SiLU */
+  size_t avail = (size_t)s->n_pend + n;
+  long nf = (long)(avail / F);
+  if (nf > 0) {
+    float* fr = arc_malloc(sizeof(float) * (size_t)nf * F);
+    float* e = arc_malloc(sizeof(float) * (size_t)nf * D);
+    if (!fr || !e) {
+      arc_free(fr);
+      arc_free(e);
+      return -1;
+    }
+    size_t used = 0;
+    for (long t = 0; t < nf; ++t) {
+      float sbuf[ARC_MOON_FRAME];
+      for (int i = 0; i < F; ++i) {
+        size_t idx = (size_t)t * F + i;
+        sbuf[i] = idx < (size_t)s->n_pend ? s->pend[idx] : pcm[idx - s->n_pend];
+      }
+      used = (size_t)(t + 1) * F;
+      float* o = fr + (size_t)t * F;
+      float mean = 0;
+      for (int i = 0; i < F; ++i) mean += sbuf[i];
+      mean /= F;
+      float ms = 0;
+      for (int i = 0; i < F; ++i) {
+        float c = sbuf[i] - mean;
+        ms += c * c;
+      }
+      float rms = sqrtf(ms / F + 1e-6f);
+      for (int i = 0; i < F; ++i) o[i] = asinhf(m->comp_k * ((sbuf[i] - mean) / rms));
+    }
+    linear(m, fr, (int)nf, F, m->lin, D, NULL, e);
+    for (size_t i = 0; i < (size_t)nf * D; ++i) e[i] = silu1(e[i]);
+    int rc = fb_push(&s->e, e, nf);
+    arc_free(fr);
+    arc_free(e);
+    if (rc) return -1;
+    s->T5 += nf;
+    /* the rest of this push becomes the pending samples */
+    size_t rest = avail - used;
+    float keep[ARC_MOON_FRAME];
+    for (size_t i = 0; i < rest; ++i) {
+      size_t idx = used + i;
+      keep[i] = idx < (size_t)s->n_pend ? s->pend[idx] : pcm[idx - s->n_pend];
+    }
+    memcpy(s->pend, keep, sizeof(float) * rest);
+    s->n_pend = (int)rest;
+  } else {
+    memcpy(s->pend + s->n_pend, pcm, sizeof(float) * n);
+    s->n_pend += (int)n;
+  }
+  if (final) {
+    s->finished = 1;
+    s->n_pend = 0;   /* the whole-clip encoder drops the last n % 80 samples too */
+  }
+  /* conv1 (+ SiLU), conv2: causal, so an output exists as soon as its last input does */
+  long T1 = s->T5 > 0 ? (s->T5 - 1) / 2 + 1 : 0;
+  if (T1 > s->T1) {
+    long k = T1 - s->T1;
+    float* c = arc_malloc(sizeof(float) * (size_t)k * 2 * D);
+    if (!c || ms_conv(m, &s->e, s->T1, T1, m->conv1, m->conv1b, D, 2 * D, c)) {
+      arc_free(c);
+      return -1;
+    }
+    for (size_t i = 0; i < (size_t)k * 2 * D; ++i) c[i] = silu1(c[i]);
+    int rc = fb_push(&s->c1, c, k);
+    arc_free(c);
+    if (rc) return -1;
+    s->T1 = T1;
+    fb_drop(&s->e, 2 * s->T1 - 4);
+  }
+  long T2 = s->T1 > 0 ? (s->T1 - 1) / 2 + 1 : 0;
+  float* h = NULL;
+  long k = T2 - s->T2;
+  if (k > 0) {
+    h = arc_malloc(sizeof(float) * (size_t)k * D);
+    if (!h || ms_conv(m, &s->c1, s->T2, T2, m->conv2, m->conv2b, 2 * D, D, h)) {
+      arc_free(h);
+      return -1;
+    }
+    s->T2 = T2;
+    fb_drop(&s->c1, 2 * s->T2 - 4);
+  }
+  int rc = (k > 0 || final) ? ms_layer_step(s, 0, h, k > 0 ? k : 0, final) : 0;
+  arc_free(h);
+  return rc;
+}
+
+long arc_moon_stream_take(arc_moon_stream* s, float** out, float** tap_out, long* n_tap) {
+  long n = s->out.n;
+  *out = NULL;
+  if (n) {
+    *out = arc_malloc(sizeof(float) * (size_t)n * D);
+    if (*out) memcpy(*out, s->out.d, sizeof(float) * (size_t)n * D);
+    s->out.base += n;
+    s->out.n = 0;
+  }
+  if (tap_out) {
+    *tap_out = NULL;
+    *n_tap = s->tapo.n;
+    if (s->tapo.n) {
+      *tap_out = arc_malloc(sizeof(float) * (size_t)s->tapo.n * D);
+      if (*tap_out) memcpy(*tap_out, s->tapo.d, sizeof(float) * (size_t)s->tapo.n * D);
+      s->tapo.base += s->tapo.n;
+      s->tapo.n = 0;
+    }
+  }
+  return n;
 }

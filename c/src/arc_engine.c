@@ -91,6 +91,8 @@ struct arc_trunk {
   const arc_json* tag_status;   /* borrowed from cfg */
   arc_wordch* wc;   /* the word channel (NULL: weights without one) */
   arc_link* link;   /* names and numbers (arc_link.c) */
+  /* FiLM scale / shift of every layer for a (domain, delay): computed once (they depend on nothing else) */
+  float* film_gb[NDOM][8];
   /* memory: the SSM state carried between calls (arc_memory) */
   struct ssm_mem* mem;
   int mem_on;
@@ -343,6 +345,8 @@ void arc_engine_free_trunk(arc_engine* e) {
   for (int i = 0; i < t->ntags; ++i) arc_free(t->ids[i]);
   for (int i = 0; i < t->ngroups; ++i) arc_free(t->groups[i]);
   arc_free(t->K);
+  for (int d = 0; d < NDOM; ++d)
+    for (int k = 0; k < 8; ++k) arc_free(t->film_gb[d][k]);
   arc_free(t->mem);
   arc_wordch_free(t->wc);
   arc_link_free(t->link);
@@ -455,9 +459,13 @@ struct ssm_mem {
   ssm_state L[NLY];
 };
 
-/* x [N, 640] (already delay-shifted) -> h [N, 512] */
+/* x [N, 640] (already delay-shifted) -> h [N, 512]. mem: the SSM state to go on from and update (NULL: from zero) */
+static float* trunk_run_mem(struct arc_trunk* t, const float* x, int N, int dom, int di, struct ssm_mem* mem);
 static float* trunk_run(struct arc_trunk* t, const float* x, int N, int dom, int di, int carry) {
-  carry = carry && t->mem_on && t->mem;
+  return trunk_run_mem(t, x, N, dom, di, carry && t->mem_on && t->mem ? t->mem : NULL);
+}
+static float* trunk_run_mem(struct arc_trunk* t, const float* x, int N, int dom, int di, struct ssm_mem* mem) {
+  int carry = mem != NULL;
   float* out = arc_malloc(sizeof(float) * (size_t)N * DM);
   float* hn = arc_malloc(sizeof(float) * (size_t)N * DIN);
   float* h = arc_malloc(sizeof(float) * (size_t)N * DM);
@@ -487,9 +495,13 @@ static float* trunk_run(struct arc_trunk* t, const float* x, int N, int dom, int
     for (int i = 0; i < N; ++i) h[(size_t)i * DM + c] += add;
     e[c] = t->dom_emb[dom * DM + c] + t->delay_film[di * DM + c];
   }
+  float** fc = di >= 0 && di < 8 && dom >= 0 && dom < NDOM ? &t->film_gb[dom][di] : NULL;
+  if (fc && !*fc && (*fc = arc_malloc(sizeof(float) * NLY * 2 * DM)))
+    for (int l = 0; l < NLY; ++l) lin(t->pool, e, 1, DM, &t->film_w[l], 2 * DM, t->film_b[l], *fc + (size_t)l * 2 * DM);
   for (int l = 0; l < NLY; ++l) {
     const ssm_layer* L = &t->L[l];
-    lin(t->pool, e, 1, DM, &t->film_w[l], 2 * DM, t->film_b[l], gb);
+    if (fc && *fc) memcpy(gb, *fc + (size_t)l * 2 * DM, sizeof gb);
+    else lin(t->pool, e, 1, DM, &t->film_w[l], 2 * DM, t->film_b[l], gb);
     for (int i = 0; i < N; ++i)
       for (int c = 0; c < DM; ++c) {
         float* v = &h[(size_t)i * DM + c];
@@ -505,7 +517,7 @@ static float* trunk_run(struct arc_trunk* t, const float* x, int N, int dom, int
     lin(t->pool, nu, N, DM, &L->x_w, DM, L->x_b, xx);
     lin(t->pool, nu, N, DM, &L->th_w, SH * SN / 2, L->th_b, th);
     lin(t->pool, nu, N, DM, &L->in_w, DM, L->in_b, gate);
-    if (carry) memcpy(S, &t->mem->L[l], sizeof *S);   /* go on from the last call's state */
+    if (carry) memcpy(S, &mem->L[l], sizeof *S);   /* go on from the last call's state */
     else memset(S, 0, sizeof *S);
     for (int i = 0; i < N; ++i) {
       for (int hh = 0; hh < SH; ++hh) {
@@ -552,7 +564,7 @@ static float* trunk_run(struct arc_trunk* t, const float* x, int N, int dom, int
       }
       S->started = 1;
     }
-    if (carry) memcpy(&t->mem->L[l], S, sizeof *S);
+    if (carry) memcpy(&mem->L[l], S, sizeof *S);
     for (size_t k = 0; k < (size_t)N * DM; ++k) y[k] *= silu(gate[k]);
     lin(t->pool, y, N, DM, &L->out_w, DM, L->out_b, tmp);
     for (size_t k = 0; k < (size_t)N * DM; ++k) h[k] += tmp[k];
@@ -1367,5 +1379,624 @@ int arc_memory_load(arc_engine* e, const char* path) {
   arc_free(t->mem);
   t->mem = m;
   t->mem_frames = frames;
+  return 0;
+}
+
+/* ------------------------------------------------------------------ streaming read-out (arc_live)
+ * The steps of arc_engine_run / readout as audio arrives: encoder frames pooled to 10 Hz as each 100 ms frame
+ * completes, the device-directed head's per-frame logit, the event head once its 300 ms look-ahead has arrived, the
+ * trunk 300 ms behind the features (its read-out delay) with its own SSM state, and the speaker / utterance state
+ * machine with the running utterance pooling, frame by frame. Every step is the same per-frame computation as the
+ * whole-clip path, so a stream that ends gives what arc_engine_run gives for the same samples. */
+
+typedef struct {
+  float* d;
+  int w;
+  long base, n, cap;
+} lbuf;
+
+static float* lb_at(lbuf* b, long t) { return b->d + (size_t)(t - b->base) * b->w; }
+static int lb_push(lbuf* b, const float* rows, long k) {
+  if (k <= 0) return 0;
+  if (b->n + k > b->cap) {
+    long nc = b->cap ? b->cap : 64;
+    while (nc < b->n + k) nc *= 2;
+    float* d = arc_malloc(sizeof(float) * (size_t)nc * b->w);
+    if (!d) return -1;
+    if (b->n) memcpy(d, b->d, sizeof(float) * (size_t)b->n * b->w);
+    arc_free(b->d);
+    b->d = d;
+    b->cap = nc;
+  }
+  if (rows) memcpy(b->d + (size_t)b->n * b->w, rows, sizeof(float) * (size_t)k * b->w);
+  else memset(b->d + (size_t)b->n * b->w, 0, sizeof(float) * (size_t)k * b->w);
+  b->n += k;
+  return 0;
+}
+static void lb_drop(lbuf* b, long t) {
+  long k = t - b->base;
+  if (k <= 0) return;
+  if (k > b->n) k = b->n;
+  memmove(b->d, b->d + (size_t)k * b->w, sizeof(float) * (size_t)(b->n - k) * b->w);
+  b->n -= k;
+  b->base += k;
+}
+
+/* pool10 over a stream of encoder frames: the open 100 ms frame's sum, max and count */
+typedef struct {
+  long g;          /* encoder frames seen */
+  long f;          /* the open 10 Hz frame (-1: none yet) */
+  float sum[ARC_MOON_D], mx[ARC_MOON_D], cnt;
+  lbuf out;        /* finished frames [640] */
+} pool_st;
+
+static long pool_frame_of(long g) { return (long)ceil(((double)g * 320 + 3920) / 16000.0 * 10 - 1e-9) - 1; }
+
+static int pool_close(pool_st* p, long upto) {   /* finish frames p->out.n .. upto - 1 */
+  while (p->out.base + p->out.n < upto) {
+    long i = p->out.base + p->out.n;
+    float row[2 * ARC_MOON_D];
+    if (i == p->f && p->cnt > 0) {
+      for (int c = 0; c < ARC_MOON_D; ++c) {
+        row[c] = arc_round_half(p->sum[c] / p->cnt);
+        row[ARC_MOON_D + c] = arc_round_half(p->mx[c]);
+      }
+    } else if (p->out.n) memcpy(row, lb_at(&p->out, i - 1), sizeof row);   /* an empty frame repeats the last */
+    else if (i > 0 && p->out.base > 0) return -1;                              /* (kept: never dropped to empty) */
+    else memset(row, 0, sizeof row);
+    if (lb_push(&p->out, row, 1)) return -1;
+  }
+  return 0;
+}
+
+static int pool_push(pool_st* p, const float* H, long n) {
+  for (long i = 0; i < n; ++i, ++p->g) {
+    long f = pool_frame_of(p->g);
+    if (f != p->f) {
+      if (pool_close(p, f)) return -1;   /* every frame before f is complete */
+      p->f = f;
+      p->cnt = 0;
+      for (int c = 0; c < ARC_MOON_D; ++c) {
+        p->sum[c] = 0;
+        p->mx[c] = -INFINITY;
+      }
+    }
+    const float* e = H + (size_t)i * ARC_MOON_D;
+    for (int c = 0; c < ARC_MOON_D; ++c) {
+      p->sum[c] += e[c];
+      if (e[c] > p->mx[c]) p->mx[c] = e[c];
+    }
+    p->cnt += 1;
+  }
+  return 0;
+}
+
+struct arc_live {
+  arc_engine* e;
+  struct arc_trunk* t;
+  int dom, di, d, trunk_on, events_on;
+  pool_st X, XT;
+  long nX;               /* 10 Hz frames complete */
+  int finished;
+  /* device-directed head: logit per frame */
+  lbuf dd;               /* [1] */
+  /* events */
+  lbuf xe, h1;           /* LN([X, XT]) [1280], conv1 + GELU [256] */
+  long n_h1, n_pr;
+  float ev_st[NEV], ev_en[NEV], ev_pm[NEV];
+  int ev_open[NEV], ev_order[NEV], ev_no;
+  /* trunk */
+  struct ssm_mem* mem;
+  long nT;               /* trunk frames done */
+  /* readout state (readout()) */
+  int ncf, ncu, sp_col, dd_col, cc_col;
+  int spk_cur, spk_pend, spk_n, u_in, u_sil, u_spk;
+  double* acc;
+  double cnt;
+  int in_utt, have_p;
+  long utt0, utt_last;
+  float cur_p[MAXTAG];
+  arc_live_utt* U;
+  int nU, capU;
+  long pause_seq;        /* trunk utterances that have paused (first non-speech frame after speech) */
+  /* full frames (the columns of arc_frames_compute): trunk part of each frame read out, waiting for its events */
+  int fullfr, nlab, nlt, qcols[NQ][MAXTAG], nq_cols[NQ];
+  char** labels;
+  lbuf fr_pend, ev_p;    /* [nlt + 5] (columns, then speech, in_utt, dd, cc, t), [NEV] */
+  long n_emit;
+  arc_live_fn fn;
+  void* user;
+};
+
+static const int FRAME_QS[5] = {Q_FRAME, Q_UTT, Q_EV_AT, Q_EV_IMM, Q_EV_REC};
+
+arc_live* arc_live_new(arc_engine* e, const char* domain, int trunk, int events, int delay, arc_live_fn fn, void* user) {
+  struct arc_trunk* t = e ? e->trunk : NULL;
+  if (!t) { arc_seterr("no trunk"); return NULL; }
+  load_aux(t);
+  arc_live* L = arc_calloc(sizeof *L);
+  if (!L) return NULL;
+  L->e = e;
+  L->t = t;
+  L->dom = dom_index(domain);
+  L->d = delay < 0 ? 3 : delay;   /* the read-out delay in frames: one the trunk was trained with */
+  L->di = -1;
+  for (int k = 0; k < t->n_delays; ++k)
+    if (t->delays[k] == L->d) L->di = k;
+  if (L->di < 0) {
+    arc_seterr("read-out delay %d frames: not one Arc was trained with", L->d);
+    arc_free(L);
+    return NULL;
+  }
+  L->trunk_on = trunk;
+  L->fullfr = events < 0;   /* -1: full frames (all columns), and so the events too */
+  L->events_on = events != 0 && t->ev_c1_w;
+  L->X.f = L->XT.f = -1;
+  L->X.out.w = L->XT.out.w = DIN;
+  L->dd.w = 1;
+  L->xe.w = 2 * DIN;
+  L->h1.w = 256;
+  L->fn = fn;
+  L->user = user;
+  L->ncf = t->ncols[Q_FRAME];
+  L->ncu = t->ncols[Q_UTT];
+  L->dd_col = L->cc_col = -1;
+  for (int j = 0; j < L->ncf; ++j)
+    if (!strcmp(t->ids[t->cols[Q_FRAME][j]], "meta.speech")) L->sp_col = j;
+  for (int j = 0; j < L->ncu; ++j)
+    if (!strcmp(t->ids[t->cols[Q_UTT][j]], "discourse.assistant.device_directed")) L->dd_col = j;
+  /* command_complete is an instant query (ev_at), not an utterance column: as arc_audio's live view, the open
+   * utterance's command_complete is this frame's ev_at probability */
+  for (int j = 0; j < t->ncols[Q_EV_AT]; ++j)
+    if (!strcmp(t->ids[t->cols[Q_EV_AT][j]], "discourse.assistant.command_complete")) L->cc_col = j;
+  L->spk_cur = -1;
+  L->spk_pend = -2;
+  L->u_spk = -1;
+  L->utt0 = L->utt_last = -1;
+  if (L->fullfr) {   /* the columns, named as arc_frames_compute names them */
+    static const char* pre[5] = {NULL, NULL, "ev_at", "ev_imm", "ev_rec"};
+    L->labels = arc_calloc(sizeof(char*) * (MAXTAG * 5 + NEV));
+    for (int w = 0; w < 5 && L->labels; ++w) {
+      int q = FRAME_QS[w];
+      for (int j = 0; j < t->ncols[q]; ++j) {
+        if (!shipped(t, t->cols[q][j], L->dom)) continue;
+        L->qcols[q][L->nq_cols[q]++] = j;
+        const char* id = t->ids[t->cols[q][j]];
+        size_t len = strlen(id) + (pre[w] ? strlen(pre[w]) + 1 : 0) + 1;
+        char* lab = arc_malloc(len);
+        if (pre[w]) snprintf(lab, len, "%s:%s", pre[w], id);
+        else memcpy(lab, id, len);
+        L->labels[L->nlab++] = lab;
+      }
+    }
+    L->nlt = L->nlab;
+    for (int j = 0; j < NEV && L->labels; ++j) L->labels[L->nlab++] = arc_strdup(EV_LABELS[j]);
+    L->fr_pend.w = L->nlt + 5;
+    L->ev_p.w = NEV;
+  }
+  L->mem = arc_calloc(sizeof *L->mem);
+  L->acc = arc_calloc(sizeof(double) * DM);
+  if (!L->mem || !L->acc) {
+    arc_live_free(L);
+    return NULL;
+  }
+  return L;
+}
+
+void arc_live_free(arc_live* L) {
+  if (!L) return;
+  arc_free(L->X.out.d);
+  arc_free(L->XT.out.d);
+  arc_free(L->dd.d);
+  arc_free(L->xe.d);
+  arc_free(L->h1.d);
+  arc_free(L->mem);
+  arc_free(L->acc);
+  arc_free(L->U);
+  for (int i = 0; i < L->nlab; ++i) arc_free(L->labels[i]);
+  arc_free(L->labels);
+  arc_free(L->fr_pend.d);
+  arc_free(L->ev_p.d);
+  arc_free(L);
+}
+
+/* full frames whose trunk columns and events are both there (all at the end) */
+static void live_emit_frames(arc_live* L) {
+  long to = L->nT;
+  if (L->events_on && L->n_pr < to) to = L->n_pr;
+  float* row = arc_malloc(sizeof(float) * (size_t)(L->nlab + 1));
+  if (!row) return;
+  for (; L->n_emit < to; ++L->n_emit) {
+    const float* r = lb_at(&L->fr_pend, L->n_emit);
+    memcpy(row, r, sizeof(float) * (size_t)L->nlt);
+    for (int j = 0; j < NEV; ++j) row[L->nlt + j] = L->events_on ? sigm(lb_at(&L->ev_p, L->n_emit)[j]) : 0.0f;
+    const float* x = r + L->nlt;
+    arc_frame fr = {x[4], x[0], (int)x[1], x[2], x[3], L->nlab, (const char* const*)L->labels, row};
+    if (L->fn) L->fn(L->user, &fr, NULL);
+  }
+  arc_free(row);
+  lb_drop(&L->fr_pend, L->n_emit);
+  lb_drop(&L->ev_p, L->n_emit);
+}
+
+int arc_live_tap(arc_live* L) { return L->t->ev_tap; }
+long arc_live_pauses(const arc_live* L) { return L->pause_seq; }
+int arc_live_open(const arc_live* L, long* f0, long* f1) {
+  if (!L->in_utt || !L->have_p) return 0;
+  *f0 = L->utt0;
+  *f1 = L->utt_last;
+  return 1;
+}
+long arc_live_frames(const arc_live* L) { return L->nX; }
+long arc_live_trunk_frames(const arc_live* L) { return L->nT; }
+
+float arc_live_directed(arc_live* L, long a, long b) {
+  if (!L->t->dd_fc_w) return -1;
+  if (a < 0) a = 0;
+  if (b > L->nX) {
+    if (!L->finished) return -2;   /* not there yet */
+    b = L->nX;
+  }
+  if (b <= a || a < L->dd.base) return -1;
+  double s = 0;
+  for (long f = a; f < b; ++f) s += *lb_at(&L->dd, f);
+  return sigm((float)(s / (b - a)));
+}
+
+/* the utterance read-out for a transcript utterance [start, end): the trunk utterance it overlaps most (as
+ * arc_engine_run matches them), the open one included; *settled = 1 when that one has closed and no later one can
+ * overlap more */
+int arc_live_tags(arc_live* L, float start, float end, arc_utt_build* u, int* settled) {
+  struct arc_trunk* t = L->t;
+  const float* best = NULL;
+  float bo = 0;
+  int closed = 0;
+  for (int k = 0; k < L->nU; ++k) {
+    float ov = fminf(end, L->U[k].end) - fmaxf(start, L->U[k].start);
+    if (ov > bo) {
+      bo = ov;
+      best = L->U[k].p;
+      closed = 1;
+    }
+  }
+  if (L->in_utt && L->have_p) {
+    float ov = fminf(end, (L->utt_last + 1) / 10.0f) - fmaxf(start, L->utt0 / 10.0f);
+    if (ov > bo) {
+      bo = ov;
+      best = L->cur_p;
+      closed = 0;
+    }
+  }
+  *settled = (L->finished || L->nT >= (long)(end * 10 + 0.5f)) && (closed || !best) && !(L->in_utt && L->have_p &&
+              L->utt0 / 10.0f < end);
+  u->dd = u->cc = -1;
+  u->intent = u->act = NULL;
+  u->intent_p = u->act_p = -1;
+  if (!best) return 0;
+  for (int j = 0; j < L->ncu; ++j) {
+    int c = t->cols[Q_UTT][j];
+    if (!shipped(t, c, L->dom)) continue;
+    const char* id = t->ids[c];
+    int g = t->group_of[c];
+    if (g < 0) {
+      if (!strcmp(id, "discourse.assistant.device_directed")) u->dd = best[j];
+      else if (!strcmp(id, "discourse.assistant.command_complete")) u->cc = best[j];
+    } else if (!strcmp(t->groups[g], "discourse.intent") && best[j] > u->intent_p) {
+      u->intent = id;
+      u->intent_p = best[j];
+    } else if (!strcmp(t->groups[g], "discourse.act") && best[j] > u->act_p) {
+      u->act = id;
+      u->act_p = best[j];
+    }
+  }
+  return 1;
+}
+
+/* rows [a, b) of h1 (conv k5, pad 2 each side, + GELU) from xe, zeros outside [0, M) */
+static int live_conv(struct arc_trunk* t, lbuf* in, long M, long a, long b, int k, int Cin, const float* w,
+                     const float* bias, int Cout, float* y) {
+  int half = k / 2;
+  long lo = a - half, n = (b - 1 + half) - lo + 1;
+  float* win = arc_calloc(sizeof(float) * (size_t)n * Cin);
+  if (!win) return -1;
+  for (long f = lo; f < lo + n; ++f)
+    if (f >= 0 && f < M && f >= in->base && f < in->base + in->n)
+      memcpy(win + (size_t)(f - lo) * Cin, lb_at(in, f), sizeof(float) * Cin);
+  arc_mat wm = {.type = ARC_W_F32, .O = Cout, .K = Cin * k, .w = w};
+  int r = arc_conv1d(t->pool, win, (int)n, Cin, Cin, &wm, k, 1, 1, 0, 0, bias, y, Cout);
+  arc_free(win);
+  return r == b - a ? 0 : -1;
+}
+
+static void live_event_frame(arc_live* L, long f, const float* pr) {
+  struct arc_trunk* t = L->t;
+  for (int j = 0; j < NEV; ++j) {
+    if (!t->ev_on[j]) continue;
+    float p = sigm(pr[j]);
+    if (p >= t->ev_thr[j]) {
+      if (!L->ev_open[j]) {
+        L->ev_open[j] = 1;
+        L->ev_st[j] = f / 10.0f;
+        L->ev_en[j] = (f + 1) / 10.0f;
+        L->ev_pm[j] = p;
+        L->ev_order[L->ev_no++] = j;
+      } else {
+        L->ev_en[j] = (f + 1) / 10.0f;
+        if (p > L->ev_pm[j]) L->ev_pm[j] = p;
+      }
+    } else if (L->ev_open[j]) {
+      if (L->fn) {
+        arc_event ev = {EV_LABELS[j], L->ev_st[j], L->ev_en[j], L->ev_pm[j]};
+        L->fn(L->user, NULL, &ev);
+      }
+      L->ev_open[j] = 0;
+      for (int k = 0; k < L->ev_no; ++k)
+        if (L->ev_order[k] == j) {
+          memmove(L->ev_order + k, L->ev_order + k + 1, sizeof(int) * (size_t)(L->ev_no - k - 1));
+          L->ev_no--;
+          break;
+        }
+    }
+  }
+}
+
+/* the events for the 10 Hz frames complete so far: conv1 rows need 2 frames ahead, conv2 rows 1 more */
+static int live_events(arc_live* L) {
+  struct arc_trunk* t = L->t;
+  long M = L->nX;
+  long h1_to = L->finished ? M : M - 2;
+  if (h1_to > L->n_h1) {
+    long k = h1_to - L->n_h1;
+    float* h = arc_malloc(sizeof(float) * (size_t)k * 256);
+    if (!h || live_conv(t, &L->xe, M, L->n_h1, h1_to, 5, 2 * DIN, t->ev_c1_w, t->ev_c1_b, 256, h)) {
+      arc_free(h);
+      return -1;
+    }
+    arc_gelu(h, (size_t)k * 256);
+    int rc = lb_push(&L->h1, h, k);
+    arc_free(h);
+    if (rc) return -1;
+    L->n_h1 = h1_to;
+  }
+  long pr_to = L->finished ? M : L->n_h1 - 1;
+  if (pr_to > L->n_pr) {
+    long k = pr_to - L->n_pr;
+    float* pr = arc_malloc(sizeof(float) * (size_t)k * NEV);
+    if (!pr || live_conv(t, &L->h1, L->n_h1, L->n_pr, pr_to, 3, 256, t->ev_c2_w, t->ev_c2_b, NEV, pr)) {
+      arc_free(pr);
+      return -1;
+    }
+    for (long i = 0; i < k; ++i) live_event_frame(L, L->n_pr + i, pr + (size_t)i * NEV);
+    if (L->fullfr && lb_push(&L->ev_p, pr, k)) {
+      arc_free(pr);
+      return -1;
+    }
+    arc_free(pr);
+    L->n_pr = pr_to;
+  }
+  lb_drop(&L->xe, L->n_h1 - 2);
+  lb_drop(&L->h1, L->n_pr - 1);
+  if (L->finished && L->fn)
+    for (int k = 0; k < L->ev_no; ++k) {
+      int j = L->ev_order[k];
+      arc_event ev = {EV_LABELS[j], L->ev_st[j], L->ev_en[j], L->ev_pm[j]};
+      L->fn(L->user, NULL, &ev);
+    }
+  if (L->finished) L->ev_no = 0;
+  return 0;
+}
+
+static int live_close_utt(arc_live* L) {
+  if (L->utt0 >= 0 && L->have_p) {
+    if (L->nU == L->capU) {
+      int nc = L->capU ? L->capU * 2 : 16;
+      arc_live_utt* nu = arc_malloc(sizeof(arc_live_utt) * (size_t)nc);
+      if (!nu) return -1;
+      if (L->nU) memcpy(nu, L->U, sizeof(arc_live_utt) * (size_t)L->nU);
+      arc_free(L->U);
+      L->U = nu;
+      L->capU = nc;
+    }
+    arc_live_utt* u = &L->U[L->nU++];
+    u->start = L->utt0 / 10.0f;
+    u->end = (L->utt_last + 1) / 10.0f;
+    memcpy(u->p, L->cur_p, sizeof(float) * (size_t)L->ncu);
+  }
+  L->in_utt = 0;
+  L->utt0 = -1;
+  L->have_p = 0;
+  return 0;
+}
+
+/* trunk frames [nT, to): the trunk, then readout()'s per-frame steps */
+static int live_trunk(arc_live* L, long to) {
+  struct arc_trunk* t = L->t;
+  long n = to - L->nT;
+  if (n <= 0) return 0;
+  long N = L->nX;
+  float* xs = arc_malloc(sizeof(float) * (size_t)n * DIN);
+  if (!xs) return -1;
+  for (long i = 0; i < n; ++i) {
+    long f = L->nT + i, src = f + L->d < N ? f + L->d : N - 1;
+    memcpy(xs + (size_t)i * DIN, lb_at(&L->X.out, src), sizeof(float) * DIN);
+  }
+  float* Hh = trunk_run_mem(t, xs, (int)n, L->dom, L->di, L->mem);
+  arc_free(xs);
+  if (!Hh) return -1;
+  int ncf = L->ncf, ncu = L->ncu, ns = t->n_slot + t->n_slotx;
+  float* pf = arc_malloc(sizeof(float) * (size_t)n * (ncf ? ncf : 1));
+  float* slot = arc_malloc(sizeof(float) * (size_t)n * (ns ? ns : 1));
+  float* sl1 = arc_malloc(sizeof(float) * (size_t)n * (t->n_slot ? t->n_slot : 1));
+  float* sl2 = t->n_slotx ? arc_malloc(sizeof(float) * (size_t)n * t->n_slotx) : NULL;
+  float* z = arc_malloc(sizeof(float) * (size_t)n * DM);
+  float* z1 = arc_malloc(sizeof(float) * (size_t)n * DM);
+  float* pu = arc_malloc(sizeof(float) * (ncu ? ncu : 1));
+  float* pev[3] = {NULL, NULL, NULL};   /* ev_at / ev_imm / ev_rec on the trunk output (full frames) */
+  int rc = -1;
+  if (!pf || !slot || !sl1 || (t->n_slotx && !sl2) || !z || !z1 || !pu) goto out;
+  logits_q(t, Q_FRAME, Hh, (int)n, L->dom, pf);
+  probs_q(t, Q_FRAME, pf, (int)n, L->dom);
+  for (int w = 0; w < 3 && (L->fullfr || (w == 0 && L->cc_col >= 0)); ++w) {
+    int q = FRAME_QS[2 + w];
+    if (!L->nq_cols[q] && !(w == 0 && L->cc_col >= 0)) continue;
+    pev[w] = arc_malloc(sizeof(float) * (size_t)n * t->ncols[q]);
+    if (!pev[w]) goto out;
+    logits_q(t, q, Hh, (int)n, L->dom, pev[w]);
+    probs_q(t, q, pev[w], (int)n, L->dom);
+  }
+  lin(t->pool, Hh, (int)n, DM, &t->slot_w, t->n_slot, t->slot_b, sl1);
+  if (sl2) lin(t->pool, Hh, (int)n, DM, &t->slotx_w, t->n_slotx, t->slotx_b, sl2);
+  for (long i = 0; i < n; ++i) {
+    memcpy(slot + (size_t)i * ns, sl1 + (size_t)i * t->n_slot, sizeof(float) * t->n_slot);
+    if (sl2) memcpy(slot + (size_t)i * ns + t->n_slot, sl2 + (size_t)i * t->n_slotx, sizeof(float) * t->n_slotx);
+  }
+  lin(t->pool, Hh, (int)n, DM, &t->pool_w0, DM, t->pool_b0, z1);
+  arc_gelu(z1, (size_t)n * DM);
+  lin(t->pool, z1, (int)n, DM, &t->pool_w2, DM, t->pool_b2, z);
+  for (size_t k = 0; k < (size_t)n * DM; ++k) z[k] += Hh[k];
+  for (long i = 0; i < n; ++i) {
+    long fi = L->nT + i;
+    /* _spk_utt */
+    const float* zs = slot + (size_t)i * ns;
+    int am = 0;
+    for (int k = 1; k < ns; ++k)
+      if (zs[k] > zs[am]) am = k;
+    int sv = am - 1;
+    if (sv != L->spk_cur) {
+      if (sv == L->spk_pend) L->spk_n++;
+      else {
+        L->spk_pend = sv;
+        L->spk_n = 1;
+      }
+      if (L->spk_n >= 5 || (L->spk_cur == -1 && sv >= 0 && L->spk_n >= 2)) {
+        L->spk_cur = sv;
+        L->spk_pend = -2;
+        L->spk_n = 0;
+      }
+    } else {
+      L->spk_pend = -2;
+      L->spk_n = 0;
+    }
+    float psp = pf[(size_t)i * ncf + L->sp_col];
+    int speech = psp >= 0.5f;
+    int sp = speech ? L->spk_cur : -1, ust = 0, ucl = 0;
+    if (speech) {
+      if (!L->u_in || (sp >= 0 && L->u_spk >= 0 && sp != L->u_spk)) {
+        ucl = L->u_in;
+        ust = 1;
+        L->u_in = 1;
+        L->u_spk = sp;
+      } else if (sp >= 0 && L->u_spk < 0) L->u_spk = sp;
+      L->u_sil = 0;
+    } else if (L->u_in) {
+      L->u_sil++;
+      if (L->u_sil >= 5) {
+        ucl = 1;
+        L->u_in = 0;
+        L->u_spk = -1;
+      }
+    }
+    /* utterance pooling: running mean since the utterance start (double sums) */
+    float* zi = z + (size_t)i * DM;
+    if (ust) {
+      for (int c = 0; c < DM; ++c) L->acc[c] = zi[c];
+      L->cnt = 1;
+    } else {
+      for (int c = 0; c < DM; ++c) L->acc[c] += zi[c];
+      L->cnt += 1;
+    }
+    for (int c = 0; c < DM; ++c) zi[c] = (float)(L->acc[c] / (L->cnt > 1 ? L->cnt : 1));
+    logits_q(t, Q_UTT, zi, 1, L->dom, pu);
+    probs_q(t, Q_UTT, pu, 1, L->dom);
+    /* _decode_frame / _close_utt */
+    if (ucl && live_close_utt(L)) goto out;
+    if (ust) {
+      L->in_utt = 1;
+      L->utt0 = fi;
+    }
+    if (speech && L->in_utt) {
+      L->utt_last = fi;
+      memcpy(L->cur_p, pu, sizeof(float) * (size_t)ncu);
+      L->have_p = 1;
+    } else if (!speech && L->in_utt && L->have_p && L->utt_last == fi - 1)
+      L->pause_seq++;   /* the read-out now holds what the utterance ends with, unless speech resumes */
+    float ddv = L->in_utt && L->dd_col >= 0 ? pu[L->dd_col] : -1.0f;
+    float ccv = L->in_utt && L->cc_col >= 0 && pev[0] ? pev[0][(size_t)i * t->ncols[Q_EV_AT] + L->cc_col] : -1.0f;
+    if (L->fullfr) {   /* this frame's columns, sent once its events are there */
+      if (lb_push(&L->fr_pend, NULL, 1)) goto out;
+      float* r = lb_at(&L->fr_pend, fi);
+      int c = 0;
+      for (int k = 0; k < L->nq_cols[Q_FRAME]; ++k) r[c++] = pf[(size_t)i * ncf + L->qcols[Q_FRAME][k]];
+      for (int k = 0; k < L->nq_cols[Q_UTT]; ++k) r[c++] = pu[L->qcols[Q_UTT][k]];
+      for (int w = 0; w < 3; ++w) {
+        int q = FRAME_QS[2 + w];
+        for (int k = 0; k < L->nq_cols[q]; ++k) r[c++] = pev[w][(size_t)i * t->ncols[q] + L->qcols[q][k]];
+      }
+      r[c] = psp;
+      r[c + 1] = (float)L->in_utt;
+      r[c + 2] = ddv;
+      r[c + 3] = ccv;
+      r[c + 4] = fi / 10.0f;
+    } else if (L->fn) {
+      arc_frame fr = {fi / 10.0f, psp, L->in_utt, ddv, ccv, 0, NULL, NULL};
+      L->fn(L->user, &fr, NULL);
+    }
+  }
+  L->nT = to;
+  rc = 0;
+out:
+  arc_free(Hh);
+  arc_free(pf);
+  arc_free(slot);
+  arc_free(sl1);
+  arc_free(sl2);
+  arc_free(z);
+  arc_free(z1);
+  arc_free(pu);
+  for (int w = 0; w < 3; ++w) arc_free(pev[w]);
+  return rc;
+}
+
+int arc_live_push(arc_live* L, const float* H, long n, const float* tap, long n_tap, int final) {
+  struct arc_trunk* t = L->t;
+  if (L->finished) return 0;
+  if (pool_push(&L->X, H, n)) return -1;
+  if (L->events_on && pool_push(&L->XT, tap, n_tap)) return -1;
+  long N = L->X.f > 0 ? L->X.f : 0;   /* frames before the open one are complete */
+  if (final) {
+    L->finished = 1;
+    N = L->X.g ? pool_frame_of(L->X.g - 1) + 1 : 0;
+  }
+  if (pool_close(&L->X, N)) return -1;
+  if (L->events_on && pool_close(&L->XT, N)) return -1;
+  for (long f = L->nX; f < N; ++f) {
+    const float* x = lb_at(&L->X.out, f);
+    if (t->dd_fc_w) {
+      float row[DIN];
+      memcpy(row, x, sizeof row);
+      arc_layernorm(row, 1, DIN, DIN, t->dd_ln_w, t->dd_ln_b, 1e-5f);
+      float v = t->dd_fc_b[0];
+      for (int c = 0; c < DIN; ++c) v += row[c] * t->dd_fc_w[c];
+      if (lb_push(&L->dd, &v, 1)) return -1;
+    }
+    if (L->events_on) {
+      float xe[2 * DIN];
+      memcpy(xe, x, sizeof(float) * DIN);
+      memcpy(xe + DIN, lb_at(&L->XT.out, f), sizeof(float) * DIN);
+      arc_layernorm(xe, 1, 2 * DIN, 2 * DIN, t->ev_ln_w, t->ev_ln_b, 1e-5f);
+      if (lb_push(&L->xe, xe, 1)) return -1;
+    }
+  }
+  L->nX = N;
+  if (L->events_on && live_events(L)) return -1;
+  if (L->trunk_on && live_trunk(L, L->finished ? N : N - L->d)) return -1;
+  if (L->finished && L->trunk_on && L->in_utt && live_close_utt(L)) return -1;
+  if (L->fullfr) live_emit_frames(L);
+  /* keep 2 frames of features for the trunk's look-ahead and the pooling's repeat; the dd logits stay (4 bytes per
+   * 100 ms) so any utterance can be scored */
+  long keep = L->nT - 1 < N - 1 ? L->nT - 1 : N - 1;
+  if (!L->trunk_on) keep = N - 1;
+  if (keep > 0) lb_drop(&L->X.out, keep);
+  if (L->events_on && N - 1 > 0) lb_drop(&L->XT.out, N - 1);
   return 0;
 }
