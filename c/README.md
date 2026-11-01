@@ -96,6 +96,7 @@ arc_stream* s = arc_stream_open(e, &c);
 arc_stream_push(s, pcm, n);                         /* as audio arrives */
 arc_ext_word w[] = {{"turn", 0.42f, 0.61f}, {"it", 0.61f, 0.70f}, {"up", 0.70f, 0.95f}};
 arc_stream_words(s, w, 3, 1);                       /* the recogniser's final words, in stream time */
+arc_stream_covered(s, 0.95f);                       /* its final result reaches 0.95 s: earlier utterances need no more words */
 arc_stream_finish(s);
 arc_stream_close(s);
 ```

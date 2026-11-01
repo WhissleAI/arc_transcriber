@@ -59,6 +59,8 @@ struct arc_stream {
   int finished, failed;
 };
 
+static int pump(arc_stream* s);
+
 /* ------------------------------------------------------------------ helpers */
 
 static int grow(void** p, int* cap, int n, size_t sz) {
@@ -268,6 +270,15 @@ int arc_stream_words(arc_stream* s, const arc_ext_word* w, int n, int final) {
   clear_interim(s);
   external_partial(s);
   return 0;
+}
+
+int arc_stream_covered(arc_stream* s, float t) {
+  if (!s || s->c.mode != ARC_STREAM_EXTERNAL) {
+    arc_seterr("arc_stream_covered: not an ARC_STREAM_EXTERNAL stream");
+    return -1;
+  }
+  if (t > s->covered) s->covered = t;
+  return s->finished ? 0 : pump(s);
 }
 
 int arc_stream_text(arc_stream* s, const char* text, int final) {

@@ -17,6 +17,24 @@ macos/build/arc-speech arc-v1.1/mini clip.wav [...]    # fed at real time from t
 so the same words can be merged with Arc on another machine. No microphone or speech-recognition permission is needed
 for files.
 
+Each final result also goes in as `arc_stream_covered(s, end)`: the recogniser has finalised everything up to there, so
+Arc's utterances that end before it get their FINAL at once instead of waiting for more words.
+
+Forcing a final at every ENDPOINT is a trade-off. Arc's segmenter also closes on pauses inside a sentence, and a final
+forced there can cost words in the transcriber's next result (on a LibriSpeech clip, "the words of Shelley's fragment"
+came back as ". of Shelley's fragment"). `--no-finalize` leaves finals to the transcriber: the text is better and Arc's
+utterances wait for it.
+
+## Measured on a Mac
+
+M3 Pro, macOS 26.2, LibriSpeech test-clean clips (and the same clips with pink noise at 10 dB SNR), Whisper's English
+normaliser. Apple's text is from `arc-speech --no-finalize` (the transcriber finalises on its own).
+
+| | WER, 100 clean clips | WER, 100 noisy clips | time to first word / final / settled tags | CPU |
+|---|---|---|---|---|
+| SpeechTranscriber (+ Arc heads for tags) | 1.2 % | 2.2 % | to be measured | to be measured |
+| Arc full (`c/build/arc-stream`, same output as on the Pi) | 6.2 % | to be measured | see [the Pi table](../raspberry-pi/README.md#measured-on-a-raspberry-pi-5) | to be measured |
+
 ## Android
 
 The same C entry points serve Android's `SpeechRecognizer` (`createOnDeviceSpeechRecognizer`, API 31+): an engine

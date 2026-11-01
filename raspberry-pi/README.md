@@ -37,14 +37,34 @@ arc_destroy(e);
 
 ## Measured on a Raspberry Pi 5
 
-Preliminary (work in progress). Pi 5 (4 GB), Debian 13, GCC 14, wall supply, **no cooler**; libarc from this repo
-(arc_transcriber 1.2.1) with the `mini/` weights of `WhissleAI/arc-v1.1` v1.2.0. `bench.sh` reproduces the stream rows.
+Pi 5 (4 GB), Debian 13, GCC 14, wall supply, **no cooler**; libarc from this repo (arc_transcriber 1.2.1) with the
+`mini/` weights of `WhissleAI/arc-v1.1` v1.2.0. Streams: 40 LibriSpeech test-clean clips (276 s), 100 ms chunks,
+`arc-stream` (what `bench.sh` runs), each run started below 62 °C. Latencies are p50 / p90 in ms after the end of
+speech (first partial: after its start); "frame lag" is how late a FRAME record comes after the frame's end.
 
-| | 1 thread | 4 threads |
-|---|---|---|
-| Offline, everything (transcript, trunk, events, word times, names, numbers), RTF: before → now (identical output) | 0.429 → 0.286 | 0.199 → 0.131 |
-| Stream, heads only (no decoder): RTF, peak RSS | 0.26, 66 MB | |
-| Stream, full (partials every 0.4 s): RTF, peak RSS | | 0.47, 126 MB |
+| | threads | RTF | CPU s per audio s | peak RSS | first partial | final | settled tags | frame lag | SoC max °C |
+|---|---|---|---|---|---|---|---|---|---|
+| heads only | 1 | 0.26 | 0.26 | 66 MB | – | 322 / 422 (endpoint) | 1022 / 1222 | 391 | 82 |
+| heads only | 2 | 0.16 | 0.31 | 66 MB | – | 320 / 420 | 1013 / 1212 | 383 | 84 ¹ |
+| heads only | 4 | 0.13 | 0.46 | 64 MB | – | 313 / 413 | 1009 / 1209 | 380 | 86 ¹ |
+| full, partials every 1 s | 1 | 0.75 | 0.75 | 136 MB | 937 | 1137 / 2014 | 1022 / 1222 | 393 | 85 ¹ |
+| full, partials every 1 s | 2 | 0.49 | 0.89 | 136 MB | 882 | 763 / 1847 | 1013 / 1213 | 384 | 87 ¹ |
+| full, partials every 1 s | 4 | 0.37 | 1.19 | 136 MB | 856 | 689 / 1762 | 1010 / 1209 | 381 | 87 ¹ |
+| full, partials every 0.4 s | 4 | 0.59 | 1.89 | 135 MB | 625 | 719 / 1804 | 1010 / 1213 | 381 | 89 ¹ |
+| full, no partials | 4 | 0.24 | 0.75 | 129 MB | – | 712 / 1720 | 1009 / 1209 | 381 | 87 ¹ |
+| heads only, 200 ms chunks | 1 | 0.19 | 0.19 | 67 MB | – | 431 / 532 | 1032 / 1331 | 446 | 81 |
 
-**A Pi 5 needs a cooler** for sustained use: without one it reaches 83–85 °C and throttles in back-to-back runs.
-`bench.sh` prints the temperature and throttling flags for every row.
+¹ the soft temperature limit or throttling was active during the run (clock down to 1.5 GHz).
+
+- Settled tags come ~1 s after speech: the default read-out delay (0.3 s) plus the 0.5 s pause that closes an utterance.
+  Provisional tags (the same values, sent at the first frame without speech) and other read-out delays
+  (`--delay-ms 0..800`): to be measured.
+- In full mode a final decode runs inside the `arc_stream_push` that closes the utterance (up to 2–3 s on 1–4 threads):
+  push from a worker thread, not the audio callback. Heads-only pushes take under 35 ms.
+- Offline, everything (transcript, trunk, events, word times, names, numbers), RTF before → after the kernel changes
+  (identical output): 0.429 → 0.286 at 1 thread, 0.199 → 0.131 at 4 (examples/example_synth.wav).
+- WER (full stream, 4 threads, Whisper's English normaliser): 6.7 % on 174 of the 200 test-clean clips; the full 200, a
+  noisy copy of the set and beam 1 vs 4: to be measured.
+
+**A Pi 5 needs a cooler** for sustained use: without one it reaches 82–89 °C within a few minutes at 2–4 threads and
+throttles. `bench.sh` prints the temperature and throttling flags for every row.

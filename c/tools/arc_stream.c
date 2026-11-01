@@ -17,7 +17,8 @@
  * of the loudest frame (and above -55 dBFS).
  *
  * --mode external replays another recogniser's output: DIR/<file basename>.jsonl, lines
- *   {"at": 1.23, "final": 0, "words": [{"text": "hello", "start": 0.4, "end": 0.7}, ...]}  or  {"at":..., "text": "..."}
+ *   {"at": 1.23, "final": 0, "words": [{"text": "hello", "start": 0.4, "end": 0.7}, ...], "upto": 0.9}  or
+ *   {"at":..., "text": "..."}   ("upto": a final result's end, arc_stream_covered)
  * each pushed (arc_stream_words / arc_stream_text) once the audio reaches "at" seconds.
  * Part of arc_transcriber (Whissle Inc.), CC BY-NC 4.0; see LICENSE. */
 #if defined(__APPLE__)
@@ -186,6 +187,7 @@ typedef struct {
   arc_ext_word* w;
   int n;
   char* text;
+  double upto;   /* "upto": the recogniser has finalised up to here (-1: not given) */
 } ext_ev;
 
 static ext_ev* load_ext(const char* dir, const char* wav, int* n_out, arc_json*** keep, int* n_keep) {
@@ -209,6 +211,7 @@ static ext_ev* load_ext(const char* dir, const char* wav, int* n_out, arc_json**
     memset(e, 0, sizeof *e);
     e->at = arc_json_num(arc_json_get(j, "at"), 0);
     e->final = (int)arc_json_num(arc_json_get(j, "final"), 1);
+    e->upto = arc_json_num(arc_json_get(j, "upto"), -1);
     const arc_json* ws = arc_json_get(j, "words");
     if (ws && ws->type == ARC_JARR) {
       e->w = malloc(sizeof(arc_ext_word) * (size_t)(ws->n + 1));
@@ -338,6 +341,7 @@ int main(int argc, char** argv) {
         ext_ev* x = &ev[next_ev++];
         if (x->w) arc_stream_words(s, x->w, x->n, x->final);
         else arc_stream_text(s, x->text, x->final);
+        if (x->final && x->upto >= 0) arc_stream_covered(s, (float)x->upto);
       }
       double d = now_ms() - r.push_t0;
       wall += d;
@@ -348,6 +352,7 @@ int main(int argc, char** argv) {
       r.push_t0 = now_ms();
       if (x->w) arc_stream_words(s, x->w, x->n, x->final);
       else arc_stream_text(s, x->text, x->final);
+      if (x->final && x->upto >= 0) arc_stream_covered(s, (float)x->upto);
     }
     r.push_t0 = now_ms();
     if (arc_stream_finish(s)) {
