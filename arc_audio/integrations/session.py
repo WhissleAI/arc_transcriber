@@ -128,8 +128,8 @@ class Session:
             cov = self.asr.covered
             while self.audio and self.audio[0][0] + len(self.audio[0][1]) / SR < cov - 1.0:
                 self.audio.pop(0)
-            await self.asr.send(chunk)
-        if self.fb is not None:
+            await self.asr.send(chunk)        # a failure here starts the fallback, which takes this chunk too
+        else:
             self._fb_take(self.fb.feed(chunk))
         return self._add(self.s.feed(chunk))
 

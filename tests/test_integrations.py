@@ -354,7 +354,35 @@ def test_session_falls_back_to_arc_decoder():
     out, arc = asyncio.run(go())
     assert out["asr"]["status"] == "fallback" and out["asr"]["fallback_from"] == 0.0
     assert [s.mode for s in arc.streams] == ["external", "builtin"]
-    assert out["words"] and all(w["source"] == "arc" for w in out["words"])
+    assert len(out["words"]) == 5 and all(w["source"] == "arc" for w in out["words"])     # one per chunk, none twice
+    assert arc.streams[1].n == 5 * 1600
+
+
+def test_session_falls_back_mid_stream_from_the_first_unfinalised_audio():
+    """the provider finalises the first second, then the connection dies for good: Arc's decoder takes the audio from
+    there (no chunk twice), and the provider's words stay."""
+    from arc_audio.integrations import Session
+
+    async def go():
+        srv = MockDeepgram(drop_after=15)
+        async with serve(srv.handler, "127.0.0.1", 0, process_request=srv.process_request) as ws_srv:
+            port = ws_srv.sockets[0].getsockname()[1]
+            arc = FakeArc()
+            os.environ["DEEPGRAM_API_KEY"] = os.environ.get("DEEPGRAM_API_KEY") or "test-key-not-real"
+            async with Session(arc, "deepgram", url=f"ws://127.0.0.1:{port}/v1/listen", backoff_s=0.01, max_retries=0,
+                               stall_timeout_s=None) as s:
+                for _ in range(30):
+                    await s.feed(np.zeros(1600, np.float32))
+                    await asyncio.sleep(0.01)
+                return await s.finish(), arc
+    out, arc = asyncio.run(go())
+    a = out["asr"]
+    assert a["status"] == "fallback" and a["fallback_from"] == pytest.approx(1.0)
+    src = [w["source"] for w in out["words"]]
+    assert src[0] == "external" and "arc" in src and out["words"][0]["text"] == "w1"
+    assert arc.streams[1].n == 20 * 1600                                     # the audio from 1.0 s on, once
+    starts = [w["start"] for w in out["words"] if w["source"] == "arc"]
+    assert starts == sorted(starts) and len(starts) == len(set(starts)) and starts[0] >= 0.0
 
 
 # ---------------------------------------------------------------- live (opt-in)

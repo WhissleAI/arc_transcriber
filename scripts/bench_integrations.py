@@ -204,7 +204,7 @@ def replay_all(a):
     for c, k, p in items:
         wav = None
         own = os.path.join(a.out, "arc", c, k + ".json")
-        if not os.path.exists(own):
+        if a.own and not os.path.exists(own):
             wav = load_audio(p)
             acc = arc_own(arc, wav, a.domain)
             os.makedirs(os.path.dirname(own), exist_ok=True)
@@ -311,6 +311,7 @@ def main():
     p.add_argument("--domain", default="unknown"); p.add_argument("--threads", type=int, default=2)
     p.add_argument("--model", default="WhissleAI/arc-v1.1"); p.add_argument("--shard", type=int, default=0)
     p.add_argument("--shards", type=int, default=1)
+    p.add_argument("--no-own", dest="own", action="store_false", help="skip Arc's own stream (the tag reference)")
     p = sub.add_parser("report"); p.add_argument("set"); p.add_argument("capture"); p.add_argument("replay")
     p.add_argument("--providers", nargs="+", default=["deepgram", "assemblyai", "speechmatics"]); p.add_argument("--json")
     a = ap.parse_args()
