@@ -2,7 +2,9 @@
  * streaming read-out (arc_live) and Arc's utterance segmenter; finals decoded as arc_transcribe decodes them,
  * partials read greedily from the streamed encoder states, or an external recogniser's words grouped into Arc's
  * utterances (arc_audio Stream with transcript="external": words whose midpoint lies within 0.3 s of the utterance,
- * once the recogniser's final words reach 0.3 s past its end or word_wait_s has passed).
+ * once the recogniser's final words reach 0.3 s past its end, or the audio ends; word_wait_s > 0 gives up sooner).
+ * Final words that fall in no utterance (between two, or after one that gave up waiting) come out as utterances of
+ * their own, in time order: before the next utterance, or joined to it when they end within 0.8 s of its start.
  * Part of arc_transcriber (Whissle Inc.), CC BY-NC 4.0; see LICENSE. */
 #include <math.h>
 #include <stdio.h>
@@ -25,6 +27,8 @@ typedef struct {
   int text_done;       /* FINAL sent */
   int untimed;         /* EXTERNAL: final text without times was given to it */
   int turn_end;        /* closed by arc_stream_end_turn */
+  int orphan;          /* EXTERNAL: made of final words that fell in no utterance (they are all there already) */
+  float wa, wb;        /* EXTERNAL: its words are the unused final words with midpoints in [wa, wb] */
   arc_result* r;       /* FINAL record (kept for the TAGS one) */
 } putt;
 
@@ -122,6 +126,8 @@ static int close_utt(arc_stream* s, int f0, int f1, int turn_end) {
   p->f1 = f1;
   p->turn_end = turn_end;
   p->untimed = s->open_untimed;
+  p->wa = f0 / 10.0f - 0.3f;
+  p->wb = (f1 + 1) / 10.0f + 0.3f;
   s->open_id = -1;
   s->open_untimed = 0;
   if (s->c.on_output) {
@@ -158,11 +164,10 @@ static void clear_interim(arc_stream* s) {
   s->n_iw = 0;
 }
 
-/* words not yet in an utterance whose midpoint lies within [a - 0.3, b + 0.3] */
-static int in_span(const xword* w, float a, float b) {
-  float m = (w->start + w->end) / 2;
-  return m >= a - 0.3f && m <= b + 0.3f;
-}
+static float mid(const xword* w) { return (w->start + w->end) / 2; }
+
+/* a word of utterance p: its midpoint within p's window ([start - 0.3, end + 0.3] unless widened) */
+static int in_span(const xword* w, const putt* p) { return mid(w) >= p->wa && mid(w) <= p->wb; }
 
 /* the text of words (finals, then interim ones after them) from time a on, for a partial */
 static char* join_from(arc_stream* s, float a, int with_interim) {
@@ -298,6 +303,54 @@ int arc_stream_text(arc_stream* s, const char* text, int final) {
 
 /* ------------------------------------------------------------------ finals */
 
+/* EXTERNAL: utterance p can take its words: the recogniser has finalised past its end (covered), its words came
+ * without times, it is made of words already there, or the audio has ended. An utterance is held until then, however
+ * long the recogniser takes: closing it without its words would leave them to come out later, after the utterances
+ * that follow (the beginning of a long phrase at the end of the text). word_wait_s > 0 gives up after that long. */
+static int ext_ready(const arc_stream* s, const putt* p) {
+  float en = (p->f1 + 1) / 10.0f;
+  if (s->finished || p->untimed || p->orphan || s->covered >= en + 0.3f) return 1;
+  return s->c.word_wait_s > 0 && (float)s->total / ARC_SAMPLE_RATE >= en + s->c.word_wait_s;
+}
+
+/* EXTERNAL: final words not used that lie before utterance pu[i]'s window (every utterance before it is done, so they
+ * fell in none: between utterances, or after one that gave up waiting). Words ending within 0.8 s of the utterance's
+ * window join it; earlier ones (grouped at gaps over 0.8 s, as arc_audio's group_words) become an utterance of their
+ * own, inserted before it. 1 when one was inserted (pu[i] is now that one), 0 when none, -1 on failure. */
+static int orphans_before(arc_stream* s, int i) {
+  float wa = s->pu[i].wa;
+  int a = -1, b = -1;   /* the first orphan group [a, b) */
+  for (int k = 0; k < s->n_fw; ++k) {
+    const xword* w = &s->fw[k];
+    if (w->used || mid(w) >= wa) continue;
+    if (a < 0) a = b = k;
+    else if (w->start - s->fw[b - 1].end > 0.8f) break;
+    b = k + 1;
+  }
+  if (a < 0) return 0;
+  /* the group's last word (a later orphan may sit between b and the window: then the group is not the last one) */
+  int last = 1;
+  for (int k = b; k < s->n_fw; ++k)
+    if (!s->fw[k].used && mid(&s->fw[k]) < wa) last = 0;
+  if (last && wa + 0.3f - s->fw[b - 1].end <= 0.8f) {
+    s->pu[i].wa = mid(&s->fw[a]);   /* they join the utterance */
+    return 0;
+  }
+  if (grow((void**)&s->pu, &s->cap_pu, s->n_pu, sizeof(putt))) return -1;
+  memmove(s->pu + i + 1, s->pu + i, sizeof(putt) * (size_t)(s->n_pu - i));
+  s->n_pu++;
+  putt* p = &s->pu[i];
+  memset(p, 0, sizeof *p);
+  p->id = s->next_id++;
+  p->orphan = 1;
+  p->f0 = (int)(s->fw[a].start * 10);
+  p->f1 = (int)(s->fw[b - 1].end * 10) - 1;
+  if (p->f1 < p->f0) p->f1 = p->f0;
+  p->wa = mid(&s->fw[a]);
+  p->wb = mid(&s->fw[b - 1]);
+  return 1;
+}
+
 /* one utterance's FINAL, when it can be made; 1 when sent */
 static int try_final(arc_stream* s, putt* p) {
   arc_engine* e = s->e;
@@ -325,19 +378,17 @@ static int try_final(arc_stream* s, putt* p) {
     arc_hist_add(e, p->f0 / 10.0, (p->f1 + 1) / 10.0, u->text);
   } else if (s->c.mode == ARC_STREAM_EXTERNAL) {
     float st = p->f0 / 10.0f, en = (p->f1 + 1) / 10.0f;
-    float wait = s->c.word_wait_s > 0 ? s->c.word_wait_s : 6.0f;
-    float now = (float)s->total / ARC_SAMPLE_RATE;
-    if (!s->finished && !p->untimed && s->covered < en + 0.3f && now < en + wait) return 0;
+    if (!ext_ready(s, p)) return 0;
     if (!(R = arc_result_new(1))) return -1;
     arc_utt_build* u = &R->u[0];
     u->f0 = p->f0;
     u->f1 = p->f1;
     int nw = 0;
-    for (int i = 0; i < s->n_fw; ++i) nw += !s->fw[i].used && in_span(&s->fw[i], st, en);
+    for (int i = 0; i < s->n_fw; ++i) nw += !s->fw[i].used && in_span(&s->fw[i], p);
     u->aw = arc_calloc(sizeof(arc_wordb) * (size_t)(nw + 1));
     size_t len = 1;
     for (int i = 0; i < s->n_fw; ++i)
-      if (!s->fw[i].used && in_span(&s->fw[i], st, en)) {
+      if (!s->fw[i].used && in_span(&s->fw[i], p)) {
         xword* w = &s->fw[i];
         w->used = 1;
         u->aw[u->n_aw++] = (arc_wordb){arc_strdup(w->w), w->start, w->end, -1, 0};
@@ -396,6 +447,11 @@ static int pump(arc_stream* s) {
   int i = 0;
   while (i < s->n_pu) {
     putt* p = &s->pu[i];
+    if (!p->text_done && s->c.mode == ARC_STREAM_EXTERNAL && ext_ready(s, p)) {
+      int r = orphans_before(s, i);
+      if (r < 0) return -1;
+      p = &s->pu[i];   /* the list may have moved; pu[i] may be the orphans' utterance now */
+    }
     if (!p->text_done) {
       int r = try_final(s, p);
       if (r < 0) return -1;
@@ -657,20 +713,27 @@ int arc_stream_finish(arc_stream* s) {
   s->finished = 1;
   if (feed_encoder(s, NULL, 0, 1)) return -1;
   if (pump(s)) return -1;
-  /* EXTERNAL: final words that fell in no utterance, grouped at gaps over 0.8 s (arc_audio group_words) */
+  /* EXTERNAL: final words after every utterance (or still unused), as utterances of their own, grouped at gaps over
+   * 0.8 s (arc_audio group_words), in time order: an empty utterance placed after them all collects them */
   if (s->c.mode == ARC_STREAM_EXTERNAL) {
-    int i = 0;
-    while (i < s->n_fw) {
-      if (s->fw[i].used) {
-        ++i;
-        continue;
+    int any = 0;
+    for (int k = 0; k < s->n_fw && !any; ++k) any = !s->fw[k].used;
+    if (any) {
+      if (grow((void**)&s->pu, &s->cap_pu, s->n_pu, sizeof(putt))) return -1;
+      putt* p = &s->pu[s->n_pu++];
+      memset(p, 0, sizeof *p);
+      p->id = -1;   /* a sentinel: never sent */
+      p->orphan = 1;
+      p->wa = p->wb = 1e30f;
+      for (;;) {
+        int r = orphans_before(s, s->n_pu - 1);
+        if (r < 0) return -1;
+        if (!r) break;
+        if (try_final(s, &s->pu[s->n_pu - 2]) < 0) return -1;
       }
-      int j = i + 1;
-      while (j < s->n_fw && !s->fw[j].used && s->fw[j].start - s->fw[j - 1].end <= 0.8f) ++j;
-      int f0w = (int)(s->fw[i].start * 10), f1w = (int)(s->fw[j - 1].end * 10) - 1;
-      if (f1w < f0w) f1w = f0w;
-      if (close_utt(s, f0w, f1w, 0) || pump(s)) return -1;
-      i = j;
+      /* the sentinel, and whatever is done, out */
+      s->n_pu--;
+      if (pump(s)) return -1;
     }
   }
   return 0;

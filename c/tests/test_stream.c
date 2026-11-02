@@ -7,7 +7,9 @@
  *   - the events identical;
  *   - ARC_STREAM_HEADS (an engine without the decoder): the same utterances' times and tags;
  *   - FRAME records: every column (arc_frame.labels / p) identical to arc_frames_compute's;
- *   - ARC_STREAM_EXTERNAL fed Arc's own aligned words (each 0.3 s after it ends): the same utterances' words.
+ *   - ARC_STREAM_EXTERNAL fed Arc's own aligned words (each 0.3 s after it ends): the same utterances' words;
+ *   - a recogniser that finalises late (the clip, 8 s of silence, the clip again, then all the words at once, one of
+ *     them in the silence): every word once, in time order (the FINALs' texts in the order they are sent).
  * Records live only during the callback: keep copies. Bit-identical on aarch64 (all steps are the same per-frame computations); x86 may differ in the last bits
  * through the AVX2 GELU, so there the tolerance is 1e-5.
  * Part of arc_transcriber (Whissle Inc.), CC BY-NC 4.0; see LICENSE. */
@@ -35,6 +37,7 @@ typedef struct {
   } u[256];
   int ne;
   arc_event ev[256];
+  char seq[16384];   /* the FINALs' texts in the order they were sent */
 } got_t;
 
 static void tags_str(const arc_utt* u, char* out, size_t cap) {
@@ -52,6 +55,10 @@ static void on_out(const arc_stream_out* o, void* user) {
   if (o->id >= 256) return;
   if (o->id >= g->n) g->n = o->id + 1;
   const arc_utt* u = o->utt;
+  if (o->kind == ARC_OUT_FINAL && o->utt->text[0]) {
+    size_t k = strlen(g->seq);
+    snprintf(g->seq + k, sizeof g->seq - k, "%s%s", k ? " " : "", o->utt->text);
+  }
   if (o->kind == ARC_OUT_FINAL) {
     g->u[o->id].start = u->start;
     g->u[o->id].end = u->end;
@@ -131,6 +138,38 @@ static int run_ext(arc_engine* e, const float* pcm, size_t n, const arc_result* 
   return rc;
 }
 
+/* EXTERNAL, a recogniser that finalises late: the clip, 8 s of silence (past arc_audio's 6 s word wait), the clip
+ * again, then every word at once (r's words for both copies, and one word in the silence), then the end */
+static void add_w(arc_stream* s, int* rc, const char* text, float a, float b, char* want, size_t cap) {
+  arc_ext_word x = {text, a, b};
+  if (!*rc) *rc = arc_stream_words(s, &x, 1, 1);
+  size_t k = strlen(want);
+  snprintf(want + k, cap - k, "%s%s", k ? " " : "", text);
+}
+static int run_ext_late(arc_engine* e, const float* pcm, size_t n, const arc_result* r, got_t* g, char* want, size_t cap) {
+  memset(g, 0, sizeof *g);
+  arc_stream_config c = {ARC_STREAM_EXTERNAL, "assistant", on_out, g, 0, 0, -1, 0, 0, 0, 0, 0};
+  arc_stream* s = arc_stream_open(e, &c);
+  if (!s) return -1;
+  size_t ns = 8 * ARC_SAMPLE_RATE;
+  float* z = calloc(ns, sizeof(float));
+  int rc = !z || arc_stream_push(s, pcm, n) || arc_stream_push(s, z, ns) || arc_stream_push(s, pcm, n);
+  float shift = (float)(n + ns) / ARC_SAMPLE_RATE, mid = (float)n / ARC_SAMPLE_RATE + 3.0f;
+  want[0] = 0;
+  for (int copy = 0; copy < 2; ++copy) {
+    for (int ui = 0; ui < r->n_utts; ++ui)
+      for (int wi = 0; wi < r->utts[ui].n_words; ++wi) {
+        const arc_word* w = &r->utts[ui].words[wi];
+        add_w(s, &rc, w->text, w->start + copy * shift, w->end + copy * shift, want, cap);
+      }
+    if (!copy) add_w(s, &rc, "zebra", mid, mid + 0.4f, want, cap);
+  }
+  if (!rc) rc = arc_stream_finish(s);
+  arc_stream_close(s);
+  free(z);
+  return rc;
+}
+
 /* full FRAME records (every column) against arc_frames_compute: same labels, same values */
 typedef struct {
   int n, nl, bad_label;
@@ -204,7 +243,7 @@ int main(int argc, char** argv) {
   }
   int bad = 0, nutt = 0;
   static got_t g, gh, gx;
-  int ext_ok = 0, ext_n = 0, frames_ok = 0;
+  int ext_ok = 0, ext_n = 0, frames_ok = 0, late_ok = 0;
   for (int fi = 2; fi < argc; ++fi) {
     size_t n;
     int rate;
@@ -273,6 +312,14 @@ int main(int argc, char** argv) {
       ext_ok += hit;
       if (!hit) printf("%s: external utterance %d \"%s\" not found\n", argv[fi], i, want);
     }
+    /* the same words, late: every one once, in order */
+    static char want[16384];
+    if (run_ext_late(eh, pcm, n, rw, &gx, want, sizeof want)) {
+      fprintf(stderr, "%s: external late: %s\n", argv[fi], arc_last_error());
+      return 1;
+    }
+    if (!strcmp(gx.seq, want)) late_ok++;
+    else printf("%s: external words given late:\n  want \"%s\"\n  got  \"%s\"\n", argv[fi], want, gx.seq);
     arc_result_free(rw);
     frames_ok += check_frames(eh, pcm, n, argv[fi]);
     arc_result_free(r);
@@ -280,6 +327,8 @@ int main(int argc, char** argv) {
   }
   printf("external words: %d/%d utterances grouped as Arc's own\n", ext_ok, ext_n);
   bad += ext_ok != ext_n;
+  printf("external words given late: %d/%d files, every word once and in order\n", late_ok, argc - 2);
+  bad += late_ok != argc - 2;
   printf("frames: %d/%d files: every column identical to arc_frames_compute\n", frames_ok, argc - 2);
   bad += frames_ok != argc - 2;
   printf("%d/%d files identical (%d utterances: text, tags, read-out, directed head, events; heads-only too)\n",

@@ -284,8 +284,11 @@ typedef struct {
   float partial_window_s;    /* FULL: partials decode at most the last ... s of the utterance (0: 7) */
   int beams;                 /* FULL: beams of the final decode (0: the release's 4; 1 greedy) */
   int bias_names;            /* FULL: as arc_options.bias_names */
-  float word_wait_s;         /* EXTERNAL: wait at most ... s after an utterance for the recogniser's final words
-                              * (0: 6, arc_audio's setting for external words) */
+  float word_wait_s;         /* EXTERNAL: an utterance's FINAL waits for the recogniser's final words to reach 0.3 s
+                              * past its end (arc_stream_covered or timed final words), or the end of the audio.
+                              * 0 (the default): no limit. > 0: give up ... s after it ends; words that come later
+                              * then go out as an utterance of their own (out of time order). A recogniser that holds
+                              * its finals until told to (Apple's) needs the ENDPOINT's finalise, or the FINALs wait. */
   int delay_ms;              /* the read-out delay: how far the trunk reads ahead of the frame it labels. One Arc was
                               * trained with: 0 (= the default, 300), 100, 200, 300, 500, 800, or ARC_DELAY_NONE.
                               * Shorter: every tag sooner, judged on less of what follows. */
@@ -298,7 +301,10 @@ arc_stream* arc_stream_open(arc_engine* e, const arc_stream_config* c);   /* NUL
 int arc_stream_push(arc_stream* s, const float* pcm, size_t n);
 /* EXTERNAL: words of another recogniser, times in seconds from the stream's first sample. final = 0: an interim
  * hypothesis (replaces the previous one); 1: final words. A word with start < 0 has no times (Android's
- * SpeechRecognizer): such words go to the utterance open now, or else to the last one, spread over its time. */
+ * SpeechRecognizer): such words go to the utterance open now, or else to the last one, spread over its time.
+ * Final words that fall in no utterance of Arc's (a gap between two, after the last) come out in time order as
+ * utterances of their own (FINAL without an ENDPOINT before it), or join the next one when they end within 0.8 s of
+ * its start. */
 typedef struct {
   const char* text;
   float start, end;
