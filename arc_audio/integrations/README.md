@@ -93,4 +93,22 @@ Speechmatics' pricing page).
 10 dB SNR) to each provider at real-time pace, records every message with its arrival time, and replays the
 recordings into Arc EXTERNAL streams on the same clock.
 
-BENCH_TABLE
+Arc EXTERNAL (libarc `arc-stream --mode external`, the recordings replayed on the same clock), vs the provider alone
+and vs Arc's own transcript stream on the same audio:
+
+| provider | audio | clips | WER provider | WER Arc EXTERNAL | same text | provider time to final p50 / p90 | Arc utterances | same act / intent as Arc's own stream | max device-directed difference |
+|---|---|---|---|---|---|---|---|---|---|
+| Deepgram | clean | 50 | 2.80 % | 2.80 % | 50/50 | 0.05 / 0.12 s | 88 | 100 % / 100 % | 0.0000 |
+| Deepgram | noisy | 50 | 3.61 % | 3.61 % | 50/50 | 0.05 / 0.12 s | 105 | 100 % / 100 % | 0.0000 |
+| AssemblyAI | clean | 50 | 2.71 % | 2.71 % | 50/50 | 0.04 / 0.24 s | 88 | 100 % / 100 % | 0.0000 |
+| AssemblyAI | noisy | 50 | 3.97 % | 3.97 % | 50/50 | 0.03 / 0.23 s | 105 | 100 % / 100 % | 0.0000 |
+| Speechmatics | clean | 50 | 2.44 % | 2.44 % | 50/50 | 0.27 / 0.37 s | 88 | 100 % / 100 % | 0.0000 |
+| Speechmatics | noisy | 50 | 2.89 % | 2.89 % | 50/50 | 0.26 / 0.33 s | 105 | 100 % / 100 % | 0.0000 |
+
+- The merged text is the provider's, word for word, on every clip (libarc holds an utterance until the recogniser has
+  finalised past it). libarc's utterance tags come from the audio only, so they match Arc's own stream exactly.
+- arc_audio's Python EXTERNAL stream (what `Session` uses) gave the provider's text word for word as well on the
+  clips replayed through it (18 Deepgram clean clips). Its trunk also reads the words it is given (the word channel),
+  so its tags with another recogniser's words are close to, not identical with, those over Arc's own transcript.
+- Time to final: from the last audio chunk sent to the provider's last final, with the finalise message sent at the
+  end of the audio. WER: Whisper's English normaliser. Noisy: pink noise at 10 dB SNR.
