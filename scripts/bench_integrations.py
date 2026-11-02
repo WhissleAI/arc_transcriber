@@ -10,6 +10,10 @@
     python scripts/bench_integrations.py replay OUT/set OUT/capture OUT/replay --providers deepgram assemblyai speechmatics
     # 4. the table
     python scripts/bench_integrations.py report OUT/set OUT/capture OUT/replay
+    # 3b / 4b. the same replay through libarc's EXTERNAL stream (c/, `make -C c`), much faster than Python:
+    python scripts/bench_integrations.py export-words OUT/set OUT/capture OUT/words      # arc-stream --words-dir lines
+    python scripts/bench_integrations.py c-run OUT/set OUT/words OUT/c --mini /path/arc-v1.1/mini
+    python scripts/bench_integrations.py c-report OUT/set OUT/capture OUT/c
 
 The replay sends each recorded message to the adapter's own parser (the code path of a live session) at the audio
 time it arrived, so Arc sees the words exactly as late as it would have live. WER uses Whisper's English normaliser
@@ -229,30 +233,24 @@ def replay_all(a):
 
 
 # ---------------------------------------------------------------- 4. report
+DD = "discourse.assistant.device_directed"
+
+
 def tag_parity(A, B, thr=0.5):
-    """utterances of two read-outs paired by time overlap: how many have the same tags at p >= thr and the same label in
-    every group (act, intent, ...), and the largest |p difference| over all tags and group labels."""
-    same = n = 0
-    dmax = 0.0
+    """Arc utterances of two read-outs (EXTERNAL vs Arc's own transcript) paired by time overlap. Arc's trunk also reads
+    the words it is given (the word channel), so the read-outs are close but not identical. Returns per pair: the same
+    act, the same intent, the same tags at p >= thr, |device-directed p difference|."""
+    out = []
     for u in A:
-        best = max(B, key=lambda v: min(u["end"], v["end"]) - max(u["start"], v["start"]), default=None)
-        if best is None or min(u["end"], best["end"]) <= max(u["start"], best["start"]):
-            n += 1
+        v = max(B, key=lambda v: min(u["end"], v["end"]) - max(u["start"], v["start"]), default=None)
+        if v is None or min(u["end"], v["end"]) <= max(u["start"], v["start"]):
+            out.append(None)
             continue
-        n += 1
-        ta = {t for t, p in u["tags"].items() if (p if isinstance(p, (int, float)) else 0) >= thr}
-        tb = {t for t, p in best["tags"].items() if (p if isinstance(p, (int, float)) else 0) >= thr}
-        ga = {g: x["label"] for g, x in (u.get("groups") or {}).items()}
-        gb = {g: x["label"] for g, x in (best.get("groups") or {}).items()}
-        same += ta == tb and ga == gb
-        for g in set(ga) & set(gb):
-            if ga[g] == gb[g]:
-                dmax = max(dmax, abs(u["groups"][g]["p"] - best["groups"][g]["p"]))
-        for t in set(u["tags"]) | set(best["tags"]):
-            pa, pb = u["tags"].get(t, 0.0), best["tags"].get(t, 0.0)
-            if isinstance(pa, (int, float)) and isinstance(pb, (int, float)):
-                dmax = max(dmax, abs(pa - pb))
-    return same, n, dmax
+        g = lambda x, k: ((x.get("groups") or {}).get(k) or {}).get("label")
+        ts = lambda x: {t for t, p in x["tags"].items() if isinstance(p, (int, float)) and p >= thr}
+        out.append(dict(act=g(u, "discourse.act") == g(v, "discourse.act"), intent=g(u, "discourse.intent") == g(v, "discourse.intent"),
+                        tags=ts(u) == ts(v), dd=abs(float(u["tags"].get(DD, 0.0)) - float(v["tags"].get(DD, 0.0)))))
+    return out
 
 
 def report(a):
@@ -263,7 +261,7 @@ def report(a):
     rows = []
     for prov in a.providers:
         for c in ("clean", "noisy"):
-            R, P, M, ttf, same, n, dmax, nfail, eq = [], [], [], [], 0, 0, 0.0, 0, 0
+            R, P, M, ttf, pairs, nfail, eq = [], [], [], [], [], 0, 0
             for k in sorted(refs):
                 f = os.path.join(a.replay, prov, c, k + ".json")
                 if not os.path.exists(f):
@@ -280,20 +278,161 @@ def report(a):
                     ttf.append(j["time_to_final"])
                 own = os.path.join(a.replay, "arc", c, k + ".json")
                 if os.path.exists(own):
-                    s_, n_, d_ = tag_parity(j["tags"], json.load(open(own))["tags"])
-                    same += s_; n += n_; dmax = max(dmax, d_)
+                    pairs += tag_parity(j["tags"], json.load(open(own))["tags"])
+            if not R:
+                continue
+            pp = [x for x in pairs if x]
+            pct = lambda key: 100 * sum(x[key] for x in pp) / len(pp) if pp else float("nan")
+            rows.append(dict(provider=prov, cond=c, n=len(R), wer_provider=100 * jiwer.wer(R, P), wer_merged=100 * jiwer.wer(R, M),
+                             same_text=eq, ttf_p50=float(np.percentile(ttf, 50)) if ttf else None,
+                             ttf_p90=float(np.percentile(ttf, 90)) if ttf else None, n_utts=len(pairs), unpaired=len(pairs) - len(pp),
+                             act=pct("act"), intent=pct("intent"), tags=pct("tags"),
+                             dd_mean=float(np.mean([x["dd"] for x in pp])) if pp else float("nan"),
+                             dd_p90=float(np.percentile([x["dd"] for x in pp], 90)) if pp else float("nan"), failed=nfail))
+    print("| provider | audio | clips | WER provider | WER Arc EXTERNAL | same text | time to final p50 / p90 |")
+    print("|---|---|---|---|---|---|---|")
+    for r in rows:
+        t = f"{r['ttf_p50']:.2f} / {r['ttf_p90']:.2f} s" if r["ttf_p50"] is not None else "-"
+        print(f"| {r['provider']} | {r['cond']} | {r['n']} | {r['wer_provider']:.2f} % | {r['wer_merged']:.2f} % | {r['same_text']}/{r['n']} | {t} |")
+    print()
+    print("| provider | audio | Arc utterances | same act | same intent | same tags (p >= 0.5) | device-directed abs diff mean / p90 |")
+    print("|---|---|---|---|---|---|---|")
+    for r in rows:
+        print(f"| {r['provider']} | {r['cond']} | {r['n_utts']} | {r['act']:.0f} % | {r['intent']:.0f} % | {r['tags']:.0f} % | "
+              f"{r['dd_mean']:.3f} / {r['dd_p90']:.3f} |")
+    if a.json:
+        json.dump(rows, open(a.json, "w"), indent=1)
+
+
+# ---------------------------------------------------------------- 3b / 4b. libarc (c/tools/arc_stream.c --mode external)
+def export_words(a):
+    """each capture -> the arc-stream replay lines {"at", "final", "words", "upto"}, through the adapter's own parser."""
+    from arc_audio.integrations import get
+    _, items = clips(a.set)
+    for prov in a.providers:
+        for c, k, p in items:
+            cap = os.path.join(a.capture, prov, c, k + ".jsonl")
+            if not os.path.exists(cap):
+                continue
+            meta, recs = load_capture(cap)
+            lines, cur = [], {}
+            asr = get(prov)(on_words=lambda ev: cur.setdefault("w", []).extend(ev),
+                            on_covered=lambda t: cur.__setitem__("upto", t))
+            for r in recs:
+                if r["kind"] != "rx":
+                    continue
+                cur.clear()
+                asr.offset = r.get("offset", 0.0)
+                try:
+                    asr.handle(r["msg"])
+                except Exception:
+                    continue
+                W = cur.get("w", [])
+                fin = [dict(text=w["text"], start=w["start"], end=w["end"]) for w in W if w["is_final"]]
+                inter = [dict(text=w["text"], start=w["start"], end=w["end"]) for w in W if not w["is_final"]]
+                if fin or "upto" in cur:
+                    lines.append(dict(at=r["t"], final=1, words=fin, **({"upto": cur["upto"]} if "upto" in cur else {})))
+                if W:                                                  # the interim now (empty: none left)
+                    lines.append(dict(at=r["t"], final=0, words=inter))
+            d = os.path.join(a.out, prov, c)
+            os.makedirs(d, exist_ok=True)
+            with open(os.path.join(d, k + ".jsonl"), "w") as f:
+                for l in lines:
+                    f.write(json.dumps(l) + "\n")
+
+
+def c_run(a):
+    """arc-stream over every clip: Arc's own stream (--mode full, the tag reference) and one EXTERNAL stream per
+    provider; --jobs processes of one file list each, outputs joined per provider and condition."""
+    import subprocess
+    _, items = clips(a.set)
+    exe = a.exe or os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "c", "build", "arc-stream")
+    for mode, prov in [("full", "arc")] + [("external", p) for p in a.providers]:
+        for c in ("clean", "noisy"):
+            out = os.path.join(a.out, prov, c + ".jsonl")
+            if os.path.exists(out) and not a.force:
+                continue
+            os.makedirs(os.path.dirname(out), exist_ok=True)
+            wavs = [p for cc, k, p in items if cc == c]
+            procs = []
+            for j in range(a.jobs):
+                part = wavs[j::a.jobs]
+                cmd = [exe, a.mini] + part + ["--mode", mode, "--threads", str(a.threads), "--records", "--domain", a.domain]
+                if mode == "external":
+                    cmd += ["--words-dir", os.path.join(a.words, prov, c)]
+                procs.append((subprocess.Popen(cmd, stdout=open(f"{out}.{j}", "w")), f"{out}.{j}"))
+            for pr, f in procs:
+                if pr.wait() != 0:
+                    raise SystemExit(f"arc-stream failed: {f}")
+            with open(out, "w") as f:
+                for _, part in procs:
+                    f.write(open(part).read())
+                    os.remove(part)
+            print(prov, c, flush=True)
+
+
+def c_load(path):
+    """arc-stream --records output -> {clip: dict(text, utts)}; utts: the settled tags of each utterance id."""
+    res, cur = {}, {}
+    for l in open(path):
+        try:
+            j = json.loads(l)
+        except ValueError:
+            continue
+        if "file" in j:
+            res[os.path.basename(j["file"]).rsplit(".", 1)[0]] = dict(text=j.get("text", ""), utts=cur)
+            cur = {}
+        elif j.get("kind") in ("final", "tags", "FINAL", "TAGS"):
+            u = cur.setdefault(j["id"], {})
+            if j.get("kind").lower() == "final" or j.get("tags_final", 1) or "dd" not in u:
+                u.update(start=j["start"], end=j["end"], dd=j.get("device_directed"), intent=j.get("intent"), act=j.get("act"))
+            if j.get("kind").lower() == "final":
+                u["text"] = j.get("text", "")
+    return res
+
+
+def c_report(a):
+    import jiwer
+    from whisper_normalizer.english import EnglishTextNormalizer
+    norm = EnglishTextNormalizer()
+    refs, _ = clips(a.set)
+    rows = []
+    for prov in a.providers:
+        for c in ("clean", "noisy"):
+            f = os.path.join(a.c, prov, c + ".jsonl")
+            fo = os.path.join(a.c, "arc", c + ".jsonl")
+            if not os.path.exists(f):
+                continue
+            X, O = c_load(f), c_load(fo) if os.path.exists(fo) else {}
+            R, P, M, ttf, eq, tag = [], [], [], [], 0, []
+            for k in sorted(refs):
+                cap = os.path.join(a.capture, prov, c, k + ".jsonl")
+                if k not in X or not os.path.exists(cap):
+                    continue
+                meta, recs = load_capture(cap)
+                alone, last = provider_alone(prov, recs)
+                R.append(norm(refs[k])); P.append(norm(" ".join(w["text"] for w in alone))); M.append(norm(X[k]["text"]))
+                eq += P[-1] == M[-1]
+                if last is not None and "t_end" in meta:
+                    ttf.append(max(0.0, last - meta["t_end"]))
+                for i, u in X[k]["utts"].items():
+                    v = max((O.get(k) or {}).get("utts", {}).values(), default=None,
+                            key=lambda v: min(u["end"], v["end"]) - max(u["start"], v["start"]))
+                    if v is None or min(u["end"], v["end"]) <= max(u["start"], v["start"]):
+                        continue
+                    tag.append((u["act"] == v["act"], u["intent"] == v["intent"], abs((u["dd"] or 0) - (v["dd"] or 0))))
             if not R:
                 continue
             rows.append(dict(provider=prov, cond=c, n=len(R), wer_provider=100 * jiwer.wer(R, P), wer_merged=100 * jiwer.wer(R, M),
-                             same_text=eq, ttf_p50=float(np.percentile(ttf, 50)) if ttf else None,
-                             ttf_p90=float(np.percentile(ttf, 90)) if ttf else None, tag_same=same, tag_n=n, tag_dmax=dmax,
-                             failed=nfail))
-    print("| provider | audio | clips | WER provider | WER Arc EXTERNAL | same text | time to final p50 / p90 | utterance tags as Arc's own | max abs tag p diff |")
-    print("|---|---|---|---|---|---|---|---|---|")
+                             same_text=eq, ttf_p50=float(np.percentile(ttf, 50)), ttf_p90=float(np.percentile(ttf, 90)),
+                             n_utts=len(tag), act=100 * np.mean([t[0] for t in tag]) if tag else float("nan"),
+                             intent=100 * np.mean([t[1] for t in tag]) if tag else float("nan"),
+                             dd_max=max([t[2] for t in tag], default=float("nan"))))
+    print("| provider | audio | clips | WER provider | WER Arc EXTERNAL (libarc) | same text | time to final p50 / p90 | Arc utterances | same act / intent as Arc's own | max device-directed diff |")
+    print("|---|---|---|---|---|---|---|---|---|---|")
     for r in rows:
-        t = f"{r['ttf_p50']:.2f} / {r['ttf_p90']:.2f} s" if r["ttf_p50"] is not None else "-"
-        print(f"| {r['provider']} | {r['cond']} | {r['n']} | {r['wer_provider']:.2f} % | {r['wer_merged']:.2f} % | {r['same_text']}/{r['n']} | {t} | "
-              f"{r['tag_same']}/{r['tag_n']} | {r['tag_dmax']:.3f} |")
+        print(f"| {r['provider']} | {r['cond']} | {r['n']} | {r['wer_provider']:.2f} % | {r['wer_merged']:.2f} % | {r['same_text']}/{r['n']} | "
+              f"{r['ttf_p50']:.2f} / {r['ttf_p90']:.2f} s | {r['n_utts']} | {r['act']:.0f} % / {r['intent']:.0f} % | {r['dd_max']:.4f} |")
     if a.json:
         json.dump(rows, open(a.json, "w"), indent=1)
 
@@ -314,6 +453,14 @@ def main():
     p.add_argument("--no-own", dest="own", action="store_false", help="skip Arc's own stream (the tag reference)")
     p = sub.add_parser("report"); p.add_argument("set"); p.add_argument("capture"); p.add_argument("replay")
     p.add_argument("--providers", nargs="+", default=["deepgram", "assemblyai", "speechmatics"]); p.add_argument("--json")
+    p = sub.add_parser("export-words"); p.add_argument("set"); p.add_argument("capture"); p.add_argument("out")
+    p.add_argument("--providers", nargs="+", default=["deepgram", "assemblyai", "speechmatics"])
+    p = sub.add_parser("c-run"); p.add_argument("set"); p.add_argument("words"); p.add_argument("out"); p.add_argument("--mini", required=True)
+    p.add_argument("--providers", nargs="+", default=["deepgram", "assemblyai", "speechmatics"]); p.add_argument("--exe")
+    p.add_argument("--threads", type=int, default=1); p.add_argument("--jobs", type=int, default=4)
+    p.add_argument("--domain", default="unknown"); p.add_argument("--force", action="store_true")
+    p = sub.add_parser("c-report"); p.add_argument("set"); p.add_argument("capture"); p.add_argument("c")
+    p.add_argument("--providers", nargs="+", default=["deepgram", "assemblyai", "speechmatics"]); p.add_argument("--json")
     a = ap.parse_args()
     if a.cmd == "make-set":
         make_set(a)
@@ -321,8 +468,10 @@ def main():
         asyncio.run(capture_all(a))
     elif a.cmd == "replay":
         replay_all(a)
-    else:
+    elif a.cmd == "report":
         report(a)
+    else:
+        dict(**{"export-words": export_words, "c-run": c_run, "c-report": c_report})[a.cmd](a)
 
 
 if __name__ == "__main__":
