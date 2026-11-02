@@ -107,7 +107,7 @@ async def capture_all(a):
 
     async def run(c, k, p):
         out = os.path.join(a.out, a.provider, c, k + ".jsonl")
-        if os.path.exists(out) and not a.force and not (a.redo_failed and json.loads(open(out).readline())["meta"].get("failed")):
+        if os.path.exists(out) and not a.force and not (a.redo_failed and any(json.loads(open(out).readline())["meta"].get(x) for x in ("failed", "exception"))):
             return
         os.makedirs(os.path.dirname(out), exist_ok=True)
         async with sem:

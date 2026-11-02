@@ -64,7 +64,7 @@ Parsed`) and list it in `registry.py`. `parse` is a pure function, so it can be 
 `DEEPGRAM_API_KEY`. Defaults: `model=nova-3`, `interim_results=true`, `endpointing=300` ms, `utterance_end_ms=1000`,
 `punctuate=true` (add `smart_format=True` as an option for written-form numbers). Finals arrive as `is_final` results
 during speech; `Finalize` returns the rest at once.
-Latency: BENCH_DG. Cost: billed per second of audio streamed (pay-as-you-go nova-3 streaming is listed at
+Latency (bench below): the last final 0.05 s after the end of the audio (p50; p90 0.12 s) with `Finalize`. Cost: billed per second of audio streamed (pay-as-you-go nova-3 streaming is listed at
 about $0.0077 per minute at the time of writing; check Deepgram's pricing page).
 
 ### AssemblyAI
@@ -75,7 +75,7 @@ name tags read directly; `format_turns=True` takes the finals from the formatted
 Words become final one by one inside a turn (`word_is_final`) and go to Arc as they do. Send audio at about real-time
 pace in 50-1000 ms chunks (the service asks for it). The service ignores unknown parameters, so the adapter logs the
 model the session reports in `Begin`. Free and low tiers limit concurrent sessions; the adapter waits and retries.
-Latency: BENCH_AA. Cost: billed per hour of session (connection) time, not only speech: close sessions you do not
+Latency (bench below): 0.04 s p50, 0.24 s p90 after the end of the audio with `ForceEndpoint`. Cost: billed per hour of session (connection) time, not only speech: close sessions you do not
 use (about $0.15 per hour for Universal Streaming at the time of writing; check AssemblyAI's pricing page).
 
 ### Speechmatics
@@ -84,7 +84,7 @@ use (about $0.15 per hour for Universal Streaming at the time of writing; check 
 `model=enhanced` (`standard` costs less), `enable_partials=true`, `max_delay=0.7` s (the lowest; finals then come 0.7-2 s after
 the word), `max_delay_mode=flexible`. `--endpoint-ms` sets `end_of_utterance_silence_trigger`. Accounts limit
 concurrent sessions (the server's `Info` message says how many); on `quota_exceeded` the adapter waits 5 s and retries.
-Latency: BENCH_SM. Cost: billed per hour of audio, by model (enhanced costs more than standard; check
+Latency (bench below): 0.27 s p50, 0.37 s p90 after the end of the audio with `ForceEndOfUtterance` (`max_delay` 0.7 s). Cost: billed per hour of audio, by model (enhanced costs more than standard; check
 Speechmatics' pricing page).
 
 ## Bench
