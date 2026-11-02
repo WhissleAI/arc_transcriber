@@ -212,6 +212,24 @@ Live modes with a real service need `pip install "arc-transcriber[live]"` (webso
 `arc.predict(wav, transcript="external", words=words)` or `stream.add_words(words)`. The adapters are tested offline with recorded
 message fixtures (`tests/test_asr_adapters.py`).
 
+### Cloud streaming recognisers (Deepgram, AssemblyAI, Speechmatics)
+
+[`arc_audio/integrations/`](arc_audio/integrations/README.md) streams the audio to a cloud recogniser and merges its
+words into an Arc EXTERNAL stream (Arc's tags, directedness, end of turn and acts on the provider's words), with
+finalise-at-end, reconnects, timeouts and a fallback to Arc's own decoder:
+
+```bash
+pip install "arc-transcriber[integrations] @ git+https://github.com/WhissleAI/arc_transcriber"
+export DEEPGRAM_API_KEY=...          # or ASSEMBLYAI_API_KEY, SPEECHMATICS_API_KEY
+python -m arc_audio.integrations.deepgram clip.wav
+```
+
+| provider | key | notes |
+|---|---|---|
+| Deepgram nova-3 | `DEEPGRAM_API_KEY` | interim results, endpointing, `Finalize` at the end of the input |
+| AssemblyAI Universal Streaming | `ASSEMBLYAI_API_KEY` | per-word finals inside a turn, `ForceEndpoint` at the end; billed by session time |
+| Speechmatics real-time | `SPEECHMATICS_API_KEY` | `max_delay` 0.7 s, `ForceEndOfUtterance` at the end; EU endpoint by default |
+
 ## C library (Arc Mini)
 
 [`c/`](c/README.md) holds **libarc**, a dependency-free C11 library (one header, `c/include/arc.h`) that runs Arc Mini from
@@ -244,6 +262,8 @@ macOS, 100 LibriSpeech test-clean clips (latency and CPU: to be measured):
 pip install "arc-transcriber[test] @ git+https://github.com/WhissleAI/arc_transcriber"
 pytest -q                      # CPU, Arc Mini; downloads WhissleAI/arc-v1.1 on first use, skipped when offline
 ARC_TEST_PARAKEET=1 pytest -q  # also Arc Transcriber (full) (ARC_MODEL=/local/arc-v1.1 to use a local copy of the model repo)
+pytest -q tests/test_integrations.py   # cloud recognisers: recorded messages and a local mock server (no keys)
+ARC_LIVE_ASR=deepgram,assemblyai,speechmatics pytest -q tests/test_integrations.py   # + live, with the keys set
 pytest -q tests/test_written.py   # written form: text rules anywhere; spoken clips with macOS `say`; GPU feature path on MPS / CUDA
 python scripts/check_parity.py --backbone mini --candidate out.json      # check an exported model against the golden outputs
 python scripts/check_parity.py --run --backbone full -o full.json --model /local/arc-v1.1   # write a candidate with arc_audio
