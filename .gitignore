@@ -10,3 +10,8 @@ dist/
 out*/
 evals/_work/
 evals/*/results/raw/
+# secrets: API keys live in the environment, never in the repo
+.env
+.env.*
+*.env
+!*.env.example

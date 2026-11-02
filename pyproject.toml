@@ -15,6 +15,8 @@ dependencies = ["torch>=2.1", "transformers>=5.19", "safetensors", "numpy", "sou
 
 [project.optional-dependencies]
 live = ["websockets>=12", "sounddevice"]    # --asr deepgram/verbit --live, --mic
+integrations = ["websockets>=14,<16"]       # arc_audio.integrations: Deepgram, AssemblyAI, Speechmatics streaming
+bench = ["websockets>=14,<16", "jiwer>=3,<5", "whisper-normalizer>=0.0.10,<0.2"]   # scripts/bench_integrations.py
 resample = ["scipy"]
 test = ["pytest>=8"]
 
@@ -22,7 +24,7 @@ test = ["pytest>=8"]
 arc-transcribe = "arc_transcriber.cli:main"
 
 [tool.setuptools]
-packages = ["arc_audio", "arc_audio.seq", "arc_transcriber"]
+packages = ["arc_audio", "arc_audio.seq", "arc_audio.integrations", "arc_transcriber"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
