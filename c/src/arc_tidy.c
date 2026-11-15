@@ -501,3 +501,188 @@ int arc_dedupe_names(arc_tname* r, int n) {
   arc_free(ord);
   return nk;
 }
+
+/* ------------------------------------------------------------------ never link across numbers (tidy.number_relink) */
+
+typedef struct {
+  char** base;   /* the non-number words */
+  int nb;
+  char*** num;   /* each number token's ways to be written / heard */
+  int* nn;
+  int nnum;
+} nform;
+
+static int num_word(const char* q) {
+  static const char* const X[] = {"hundred", "thousand", "million", "billion", "oh", NULL};
+  for (int k = 0; k < 20; ++k)
+    if (!strcmp(q, UNITS20[k])) return 1;
+  for (int k = 0; TENS[k]; ++k)
+    if (!strcmp(q, TENS[k])) return 1;
+  for (int k = 0; X[k]; ++k)
+    if (!strcmp(q, X[k])) return 1;
+  return 0;
+}
+
+/* tidy._num_tok: 1 and the token's forms in (*e, *ne) for a number ("12" -> 12 twelve, "ii" -> ii two, "fourteen",
+ * "twenty-four" -> twenty four); 0 for a word ("i", "v", "x" alone are words) */
+static int num_tok(const char* c, char*** e, int* ne) {
+  int cap = 0;
+  *e = NULL;
+  *ne = 0;
+  size_t L = strlen(c);
+  int dig = L > 0 && L <= 9;
+  for (size_t i = 0; i < L && dig; ++i) dig = isdigit((unsigned char)c[i]) != 0;
+  int rom = 0;
+  if (!dig && L >= 2) {
+    char** t = NULL;
+    int nt = 0, tc = 0;
+    spoken_add(c, &t, &nt, &tc);
+    rom = nt > 0;
+    for (int i = 0; i < nt; ++i) arc_free(t[i]);
+    arc_free(t);
+  }
+  if (dig || rom) {
+    ent_add(e, ne, &cap, c);
+    spoken_add(c, e, ne, &cap);
+    return 1;
+  }
+  int any = 0, all = 1;
+  char* d = arc_strdup(c);
+  for (char *p = d, *q; p; p = q) {
+    q = strchr(p, '-');
+    if (q) *q++ = 0;
+    if (!*p) continue;
+    any = 1;
+    if (!num_word(p)) all = 0;
+  }
+  if (any && all) {
+    for (char *p = d, *q; p; p = q) {   /* d was cut at each '-' above: walk the parts again */
+      q = p + strlen(p);
+      q = q < d + L ? q + 1 : NULL;
+      if (*p) ent_add(e, ne, &cap, p);
+    }
+  }
+  arc_free(d);
+  if (any && all) return 1;
+  for (int i = 0; i < *ne; ++i) arc_free((*e)[i]);
+  arc_free(*e);
+  *e = NULL;
+  *ne = 0;
+  return 0;
+}
+
+static void nform_build(const char* text, nform* f) {
+  memset(f, 0, sizeof *f);
+  char** w;
+  int nw = arc_split_words_tidy(text ? text : "", &w);
+  f->base = arc_malloc(sizeof(char*) * (size_t)(nw + 1));
+  f->num = arc_malloc(sizeof(char**) * (size_t)(nw + 1));
+  f->nn = arc_malloc(sizeof(int) * (size_t)(nw + 1));
+  for (int i = 0; i < nw; ++i) {
+    char* c = arc_malloc(strlen(w[i]) + 1);
+    arc_clean_word(w[i], c);
+    lower(c);
+    size_t L = strlen(c);
+    if (L >= 2 && c[L - 2] == '\'' && c[L - 1] == 's') c[L - 2] = 0;
+    if (!c[0]) {
+      arc_free(c);
+      continue;
+    }
+    char** e;
+    int ne;
+    if (num_tok(c, &e, &ne)) {
+      f->num[f->nnum] = e;
+      f->nn[f->nnum++] = ne;
+      arc_free(c);
+    } else
+      f->base[f->nb++] = c;
+  }
+  for (int i = 0; i < nw; ++i) arc_free(w[i]);
+  arc_free(w);
+}
+
+static void nform_free(nform* f) {
+  for (int i = 0; i < f->nb; ++i) arc_free(f->base[i]);
+  for (int i = 0; i < f->nnum; ++i) {
+    for (int j = 0; j < f->nn[i]; ++j) arc_free(f->num[i][j]);
+    arc_free(f->num[i]);
+  }
+  arc_free(f->base);
+  arc_free(f->num);
+  arc_free(f->nn);
+}
+
+/* tidy.numbers_agree: every number heard in the span is one of the name's */
+static int nums_agree(const nform* s, const nform* n) {
+  for (int i = 0; i < s->nnum; ++i) {
+    int hit = 0;
+    for (int a = 0; a < s->nn[i] && !hit; ++a)
+      for (int j = 0; j < n->nnum && !hit; ++j)
+        for (int b = 0; b < n->nn[j] && !hit; ++b) hit = !strcmp(s->num[i][a], n->num[j][b]);
+    if (!hit) return 0;
+  }
+  return 1;
+}
+
+static int same_base(const nform* a, const nform* b) {
+  if (a->nb != b->nb) return 0;
+  for (int i = 0; i < a->nb; ++i)
+    if (strcmp(a->base[i], b->base[i])) return 0;
+  return 1;
+}
+
+int arc_tidy_number_relink(const char* span, const char* const* lforms, int nlf, const int* rows,
+                           const char* const* const* cforms, const int* ncf, int nc, int* out) {
+  nform s;
+  nform_build(span, &s);
+  if (!s.nnum) {
+    nform_free(&s);
+    return -1;
+  }
+  nform* lf = arc_malloc(sizeof(nform) * (size_t)(nlf + 1));
+  int has_num = 0, agree = 0;
+  for (int i = 0; i < nlf; ++i) {
+    nform_build(lforms[i], &lf[i]);
+    has_num |= lf[i].nnum > 0;
+    agree |= nums_agree(&s, &lf[i]);
+  }
+  int n = -1;
+  if (has_num && !agree) {
+    n = 0;
+    for (int r = 0; r < nc; ++r) {
+      int ok = 0;
+      for (int f = 0; f < ncf[r] && !ok; ++f) {
+        nform c;
+        nform_build(cforms[r][f], &c);
+        if (c.nnum && nums_agree(&s, &c))
+          for (int i = 0; i < nlf && !ok; ++i) ok = same_base(&c, &lf[i]);
+        nform_free(&c);
+      }
+      if (ok) out[n++] = rows[r];
+    }
+  }
+  for (int i = 0; i < nlf; ++i) nform_free(&lf[i]);
+  arc_free(lf);
+  nform_free(&s);
+  return n;
+}
+
+int arc_tidy_number_exact(const char* span, const int* rows, const char* const* const* cforms, const int* ncf, int nc,
+                          int* out) {
+  nform s;
+  nform_build(span, &s);
+  int n = 0;
+  if (s.nnum && s.nb)
+    for (int r = 0; r < nc; ++r) {
+      int ok = 0;
+      for (int f = 0; f < ncf[r] && !ok; ++f) {
+        nform c;
+        nform_build(cforms[r][f], &c);
+        ok = same_base(&c, &s) && c.nnum == s.nnum && nums_agree(&s, &c);
+        nform_free(&c);
+      }
+      if (ok) out[n++] = rows[r];
+    }
+  nform_free(&s);
+  return n;
+}

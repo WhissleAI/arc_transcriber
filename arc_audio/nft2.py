@@ -975,12 +975,14 @@ def heard_by_decoder(src_words, dst_words):
     return f
 
 
-def list_spans(spans, dst_words, lk, min_chars=4, add=True, heard=None, add_ratio=0.5):
+def list_spans(spans, dst_words, lk, min_chars=4, add=True, heard=None, add_ratio=0.5, long_chars=0):
     """names-list entries spelled out in the RNNT words (longest first, non-overlapping): entity tags overlapping an occurrence are
     replaced by ONE tag over the whole entry with the entry's kind ('Maury' + 'Homer' PERSON on 'mare humorum' -> 'mare humorum' LUNAR,
     'apollo twelve' MISSION in 'apollo twelve lander' -> the lander); with add, untagged occurrences (>= min_chars letters) get the tag
     when the decoder heard something alike there (heard(i, j) vs the entry: difflib ratio >= add_ratio; the RNNT is biased toward the
-    list, the decoder is not, so this drops list words the RNNT made up: 'you're just getting' -> 'stubby')"""
+    list, the decoder is not, so this drops list words the RNNT made up: 'you're just getting' -> 'stubby'). Entries of >= long_chars
+    letters (0: off, the default) spelled out exactly are added without that check. Opt-in: it links more names said in a
+    space lesson, but on general speech the bias writes long list names ('space launch system') that it would then tag."""
     import difflib
     keys = [_wkey(w) for w in dst_words]
     sp = list(spans)
@@ -993,7 +995,8 @@ def list_spans(spans, dst_words, lk, min_chars=4, add=True, heard=None, add_rati
             ov = [s for s in sp if s[1] < i + n and s[2] > i]
             ent = [s for s in ov if s[0].startswith('ENTITY_')]
             if not ent and add and not ov and len(''.join(k)) >= min_chars and heard is not None:
-                ok = difflib.SequenceMatcher(None, heard(i, i + n), ''.join(k), autojunk=False).ratio() >= add_ratio
+                ok = (long_chars > 0 and len(''.join(k)) >= long_chars) or \
+                    difflib.SequenceMatcher(None, heard(i, i + n), ''.join(k), autojunk=False).ratio() >= add_ratio
             else:
                 ok = False
             if ent or ok:
@@ -1025,7 +1028,8 @@ class Nft2Finals:
         self.arc, self.tr = (arc, tr)
         c = (arc.cfg.get('transcription') or {}).get('nft2') or {}
         self.c = dict(dict(alpha=2.0, context_score=1.0, case_from_decoder=True, whole_max_s=20.0, edge_pad_s=0.15, char_align=True,
-                           unify_types=True, list_spans=True, list_add=True, list_min_chars=3, list_add_ratio=0.5, tail_pad_s=0.5), **c)
+                           unify_types=True, list_spans=True, list_add=True, list_min_chars=3, list_add_ratio=0.5, list_add_long_chars=0,
+                           tail_pad_s=0.5), **c)
         if alpha is not None:
             self.c['alpha'] = float(alpha)
         self.bias = bool(bias)
@@ -1085,7 +1089,8 @@ class Nft2Finals:
             wsp = unify_types(wsp, dst)
         if self.lk and self.c.get('list_spans'):
             wsp = list_spans(wsp, dst, self.lk, int(self.c['list_min_chars']), bool(self.c.get('list_add')),
-                             heard_by_decoder(txt.split(), dst), float(self.c['list_add_ratio']))
+                             heard_by_decoder(txt.split(), dst), float(self.c['list_add_ratio']),
+                             int(self.c.get('list_add_long_chars') or 0))
         if self.c.get('case_from_decoder') and txt:
             words = case_from(words, txt.split())
         ev = annotate([dict(w, is_final=True) for w in words], wsp)

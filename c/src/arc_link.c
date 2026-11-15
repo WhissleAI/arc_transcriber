@@ -847,6 +847,61 @@ static void generic_guard(name_rec* r, const char* span_text) {
   r->n.kb_index = -1;
 }
 
+/* arc_space Engine._number_guard: never link across numbers: "Apollo fourteen" linked to "Apollo 12" moves to the
+ * list's "Apollo 14" (same words, the heard number), else is not in the list (no such entry) or abstains (several);
+ * an abstained span that is exactly one entry's words and number (the list holds Apollo 12 / 14 / 15) links to it */
+static void number_guard(arc_link* l, name_rec* r, const char* span_text, const int* allowed, int na) {
+  if (!r->n.state) return;
+  int abst = !strcmp(r->n.state, "abstain") && !(r->n.via && !strcmp(r->n.via, "generic_guard"));
+  if (!abst && (strcmp(r->n.state, "linked") || r->n.kb_index < 0)) return;
+  const char*** cf = arc_malloc(sizeof(char**) * (size_t)(na + 1));
+  int* ncf = arc_malloc(sizeof(int) * (size_t)(na + 1));
+  int* out = arc_malloc(sizeof(int) * (size_t)(na + 1));
+  for (int k = 0; k < na; ++k) {
+    const arc_kbent* c = &l->kb[allowed[k]];
+    const char** f = arc_malloc(sizeof(char*) * (size_t)(c->n_aliases + 1));
+    int nf = 0;
+    f[nf++] = c->name ? c->name : "";
+    for (int j = 0; j < c->n_aliases; ++j) f[nf++] = c->aliases[j];
+    cf[k] = f;
+    ncf[k] = nf;
+  }
+  int n;
+  const char** lf = NULL;
+  if (abst) {   /* siblings in the list (Apollo 12 / 14 / 15): the heard number decides */
+    n = arc_tidy_number_exact(span_text, allowed, (const char* const* const*)cf, ncf, na, out);
+    if (n == 1) {
+      r->n.entity = l->kb[out[0]].name;
+      r->n.kb_index = out[0];
+      r->n.state = "linked";
+      r->n.via = "number";
+    }
+    n = -1;
+  } else {
+    const arc_kbent* e = &l->kb[r->n.kb_index];
+    lf = arc_malloc(sizeof(char*) * (size_t)(e->n_aliases + 1));
+    int nlf = 0;
+    lf[nlf++] = e->name ? e->name : "";
+    for (int j = 0; j < e->n_aliases; ++j) lf[nlf++] = e->aliases[j];
+    n = arc_tidy_number_relink(span_text, lf, nlf, allowed, (const char* const* const*)cf, ncf, na, out);
+  }
+  if (n == 1) {   /* p stays the link's own: the name was right, the heard number picks the entry */
+    r->n.entity = l->kb[out[0]].name;
+    r->n.kb_index = out[0];
+    r->n.via = "number";
+  } else if (n >= 0) {
+    r->n.entity = NULL;
+    r->n.state = n ? "abstain" : "not_in_list";
+    r->n.via = "number";
+    r->n.kb_index = -1;
+  }
+  for (int k = 0; k < na; ++k) arc_free((void*)cf[k]);
+  arc_free(cf);
+  arc_free(ncf);
+  arc_free(out);
+  arc_free(lf);
+}
+
 static int read_name(run_ctx* x, const pend* pd, name_rec* r) {
   arc_link* l = x->l;
   const arc_wstore* W = x->W;
@@ -926,7 +981,10 @@ static int read_name(run_ctx* x, const pend* pd, name_rec* r) {
       r->n.state = top >= 2 ? "linked" : "not_in_list";
       if (top >= 2) r->n.kb_index = top - 2;
     }
-    if (x->c->e->space_names) generic_guard(r, span_text);
+    if (x->c->e->space_names) {
+      generic_guard(r, span_text);
+      number_guard(l, r, span_text, allowed, na);
+    }
     arc_free(z);
     arc_free(Sf);
     arc_free(heard);

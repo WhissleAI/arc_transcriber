@@ -74,6 +74,9 @@ routing, not the raw transcript words.
    the app should ask the user.
 7. Names shorter than 3 letters are not added as new tags by list matching. They can still be linked when the tagger tags
    them.
+8. **Numbered names can sit side by side** (`Apollo 11` … `Apollo 17`, `Luna 9` / `Luna 24`). The heard number picks the
+   entry, and a name is never linked to an entry with a different number. A number that is not in your list, such as
+   "apollo fifteen" when only 12 and 14 are listed, comes back as `not_in_list`.
 
 ## 4. Reading the result
 
