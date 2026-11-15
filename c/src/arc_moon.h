@@ -53,12 +53,15 @@ typedef struct arc_moon {
   int n_rot;               /* 32 */
   int bos, eos;
   int has_decoder;          /* 0: loaded with encoder_only */
+  int has_encoder;          /* 0: decoder only (another backbone's memory, e.g. NFT2) */
 } arc_moon;
 
 /* folder: the moonshine-streaming-tiny folder (model.q4.safetensors or model.safetensors). */
 arc_moon* arc_moon_load(const char* folder, int threads);
 /* encoder_only: the encoder alone (the decoder's tensors are not read; decoding functions must not be called) */
 arc_moon* arc_moon_load_ex(const char* folder, int threads, int encoder_only);
+/* encoder / decoder: which parts to read (a decoder-only folder: model.decoder.* and no encoder tensors) */
+arc_moon* arc_moon_load_parts(const char* folder, int threads, int encoder, int decoder);
 void arc_moon_free(arc_moon* m);
 
 /* Encoder over a whole utterance: pcm[n] at 16 kHz (n a multiple of 80, at least 80). Returns the states

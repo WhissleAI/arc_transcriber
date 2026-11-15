@@ -40,8 +40,10 @@ static const char* EV_LABELS[] = {
     "meta.channel.mulaw", "meta.channel.mp3", "meta.channel.opus", "meta.room.small", "meta.room.medium",
     "meta.room.large", "meta.clipping", "meta.snr.high", "meta.snr.mid", "meta.snr.low", "scene.scream",
     "scene.crying", "scene.glass_break", "scene.distress_call", "scene.distress", "meta.people_present",
-    "meta.media_command", "meta.hidden_command"};
-#define NEV 50
+    "meta.media_command", "meta.hidden_command", "scene.quindar_tone", "meta.channel.radio", "meta.dropout",
+    "meta.app_playback"};
+#define N_EV_LABELS (int)(sizeof EV_LABELS / sizeof *EV_LABELS)
+#define NEV_MAX 64   /* event labels a head may have (EV_LABELS); the head's own count is t->nev */
 
 typedef struct {
   const float *norm, *in_b, *B_b, *C_b, *x_b, *dt_b, *th_b, *lam_b, *out_b, *Bn, *Cn, *Bbias, *Cbias, *A_log;
@@ -74,9 +76,10 @@ struct arc_trunk {
   const float *dd_ln_w, *dd_ln_b, *dd_fc_w, *dd_fc_b;
   const float *ev_ln_w, *ev_ln_b, *ev_c1_w, *ev_c1_b, *ev_c2_w, *ev_c2_b;
   float dd_thr;
-  float ev_thr[NEV];
-  int ev_on[NEV];
+  float ev_thr[NEV_MAX];
+  int ev_on[NEV_MAX];
   int ev_tap;
+  int nev;   /* event labels of the head (events.c2), EV_LABELS[:nev] */
   /* ontology (tags.json) */
   int ntags;
   char* ids[MAXTAG];
@@ -217,13 +220,17 @@ int arc_engine_load_trunk(arc_engine* e, const char* dir) {
   char path[1200];
   snprintf(path, sizeof path, "%s/model.q4.safetensors", dir);
   if (!(t->st = arc_store_open(path))) return -1;
-  snprintf(path, sizeof path, "%s/heads.safetensors", dir);
+  snprintf(path, sizeof path, "%s/%s", dir, e->aux_file ? e->aux_file : "heads.safetensors");
   FILE* hf = fopen(path, "rb");
   if (hf) {
     fclose(hf);
     t->aux = arc_store_open(path);
   }
   t->pool = e->moon->pool;
+  if (t->aux) {
+    int64_t esh[8];
+    t->nev = arc_store_shape(t->aux, "events.c2.weight", esh) == 3 && esh[0] <= N_EV_LABELS ? (int)esh[0] : 0;
+  }
   if (load_tags(t, dir)) return -1;
   arc_store* s = t->st;
 #define G(field, nm, n) if (!(t->field = W(s, nm, n))) return -1
@@ -316,7 +323,7 @@ int arc_engine_load_trunk(arc_engine* e, const char* dir) {
   t->dd_thr = (float)arc_json_num(arc_json_get(arc_json_get(e->cfg, "device_directed"), "threshold"), 0.5);
   const arc_json* ae = arc_json_get(e->cfg, "audio_events");
   t->ev_tap = (int)arc_json_num(arc_json_get(ae, "tap"), 2);
-  for (int i = 0; i < NEV; ++i) {
+  for (int i = 0; i < N_EV_LABELS; ++i) {
     t->ev_thr[i] = (float)arc_json_num(arc_json_get(arc_json_get(ae, "thresholds"), EV_LABELS[i]), 0.5);
     const char* st = arc_json_str(arc_json_get(arc_json_get(ae, "status"), EV_LABELS[i]), "experimental");
     t->ev_on[i] = !strcmp(st, "stable") || !strcmp(st, "beta");   /* events='default' */
@@ -369,8 +376,8 @@ static void load_aux(struct arc_trunk* t) {
   t->ev_ln_b = W(t->aux, "events.ln.bias", 2 * DIN);
   t->ev_c1_w = W(t->aux, "events.c1.weight", 256 * 2 * DIN * 5);
   t->ev_c1_b = W(t->aux, "events.c1.bias", 256);
-  t->ev_c2_w = W(t->aux, "events.c2.weight", NEV * 256 * 3);
-  t->ev_c2_b = W(t->aux, "events.c2.bias", NEV);
+  t->ev_c2_w = t->nev ? W(t->aux, "events.c2.weight", t->nev * 256 * 3) : NULL;
+  t->ev_c2_b = W(t->aux, "events.c2.bias", t->nev);
 }
 
 static float sigm(float x) { return 1.0f / (1.0f + expf(-x)); }
@@ -870,7 +877,6 @@ static int dom_index(const char* d) {
 
 int arc_engine_run(arc_engine* e, const float* pcm, size_t n, const arc_options* o, arc_result_build* R) {
   struct arc_trunk* t = e->trunk;
-  int dom = dom_index(o->domain);
   int nn = (int)(n / 80 * 80);
   if (nn < 80) return 0;
   load_aux(t);
@@ -878,9 +884,22 @@ int arc_engine_run(arc_engine* e, const float* pcm, size_t n, const arc_options*
   float* tap = NULL;
   float* H = arc_moon_encode_ex(e->moon, pcm, nn, &Te, t->ev_tap, o->events ? &tap : NULL);
   if (!H) return -1;
-  int N;
+  int N, Nt = 0;
   float* X = pool10(H, Te, &N);
   arc_free(H);
+  float* XT = tap ? pool10(tap, Te, &Nt) : NULL;
+  arc_free(tap);
+  int rc = arc_engine_run_feats(e, X, X, XT, N, Nt, o, R);
+  arc_free(XT);
+  arc_free(X);
+  return rc;
+}
+
+int arc_engine_run_feats(arc_engine* e, const float* X, const float* Xe, const float* XT, int N, int Nt,
+                         const arc_options* o, arc_result_build* R) {
+  struct arc_trunk* t = e->trunk;
+  int dom = dom_index(o->domain);
+  load_aux(t);
   /* the device-directed head over each transcript utterance's frames */
   if (t->dd_fc_w)
     for (int i = 0; i < R->n; ++i) {
@@ -891,7 +910,7 @@ int arc_engine_run(arc_engine* e, const float* pcm, size_t n, const arc_options*
       double s = 0;
       float row[DIN];
       for (int f = a; f < b; ++f) {
-        memcpy(row, X + (size_t)f * DIN, sizeof row);
+        memcpy(row, Xe + (size_t)f * DIN, sizeof row);
         arc_layernorm(row, 1, DIN, DIN, t->dd_ln_w, t->dd_ln_b, 1e-5f);
         float v = t->dd_fc_b[0];
         for (int c = 0; c < DIN; ++c) v += row[c] * t->dd_fc_w[c];
@@ -900,31 +919,29 @@ int arc_engine_run(arc_engine* e, const float* pcm, size_t n, const arc_options*
       R->u[i].dir_head = sigm((float)(s / (b - a)));
     }
   /* sound events: LN -> conv k5 -> GELU -> conv k3 over [features, tapped features] */
-  if (o->events && t->ev_c1_w && tap) {
-    int Nt;
-    float* XT = pool10(tap, Te, &Nt);
+  if (o->events && t->ev_c1_w && t->ev_c2_w && XT) {
     int M = N < Nt ? N : Nt;
     float* xe = arc_malloc(sizeof(float) * (size_t)M * 2 * DIN);
     for (int f = 0; f < M; ++f) {
-      memcpy(xe + (size_t)f * 2 * DIN, X + (size_t)f * DIN, sizeof(float) * DIN);
+      memcpy(xe + (size_t)f * 2 * DIN, Xe + (size_t)f * DIN, sizeof(float) * DIN);
       memcpy(xe + (size_t)f * 2 * DIN + DIN, XT + (size_t)f * DIN, sizeof(float) * DIN);
     }
     arc_layernorm(xe, M, 2 * DIN, 2 * DIN, t->ev_ln_w, t->ev_ln_b, 1e-5f);
     float* h1 = arc_malloc(sizeof(float) * (size_t)M * 256);
-    float* pr = arc_malloc(sizeof(float) * (size_t)M * NEV);
+    float* pr = arc_malloc(sizeof(float) * (size_t)M * t->nev);
     arc_mat c1 = {.type = ARC_W_F32, .O = 256, .K = 2 * DIN * 5, .w = t->ev_c1_w};
-    arc_mat c2 = {.type = ARC_W_F32, .O = NEV, .K = 256 * 3, .w = t->ev_c2_w};
+    arc_mat c2 = {.type = ARC_W_F32, .O = t->nev, .K = 256 * 3, .w = t->ev_c2_w};
     arc_conv1d(t->pool, xe, M, 2 * DIN, 2 * DIN, &c1, 5, 1, 1, 2, 2, t->ev_c1_b, h1, 256);
     arc_gelu(h1, (size_t)M * 256);
-    arc_conv1d(t->pool, h1, M, 256, 256, &c2, 3, 1, 1, 1, 1, t->ev_c2_b, pr, NEV);
+    arc_conv1d(t->pool, h1, M, 256, 256, &c2, 3, 1, 1, 1, 1, t->ev_c2_b, pr, t->nev);
     /* EventTracker: open while p >= threshold, closed when it drops; at the end the open ones in opening order */
-    float st[NEV], en[NEV], pm[NEV];
-    int open[NEV], order[NEV], no = 0;
+    float st[NEV_MAX], en[NEV_MAX], pm[NEV_MAX];
+    int open[NEV_MAX], order[NEV_MAX], no = 0;
     memset(open, 0, sizeof open);
     for (int f = 0; f < M; ++f)
-      for (int j = 0; j < NEV; ++j) {
+      for (int j = 0; j < t->nev; ++j) {
         if (!t->ev_on[j]) continue;
-        float p = sigm(pr[(size_t)f * NEV + j]);
+        float p = sigm(pr[(size_t)f * t->nev + j]);
         if (p >= t->ev_thr[j]) {
           if (!open[j]) {
             open[j] = 1;
@@ -948,12 +965,10 @@ int arc_engine_run(arc_engine* e, const float* pcm, size_t n, const arc_options*
         }
       }
     for (int k = 0; k < no; ++k) arc_result_add_event(R, EV_LABELS[order[k]], st[order[k]], en[order[k]], pm[order[k]]);
-    arc_free(XT);
     arc_free(xe);
     arc_free(h1);
     arc_free(pr);
   }
-  arc_free(tap);
   /* the trunk, read out into utterances (delay 0.3 s: frames shifted, the last one repeated) */
   if (o->trunk || o->names || o->numbers) {
     int d = 3, di = 0;
@@ -973,7 +988,8 @@ int arc_engine_run(arc_engine* e, const float* pcm, size_t n, const arc_options*
     if (Hh && t->wc && ws.n) {
       Hf = arc_malloc(sizeof(float) * (size_t)N * DM);
       arc_wc_word* wcw = arc_malloc(sizeof(arc_wc_word) * (size_t)ws.n);
-      for (int k = 0; k < ws.n; ++k) wcw[k] = (arc_wc_word){ws.w[k].w, ws.w[k].f0, ws.w[k].f1, 1};
+      /* word_channel.src_by_source: the builtin transcript's words 1, an external recogniser's (NFT2's RNNT) 0 */
+      for (int k = 0; k < ws.n; ++k) wcw[k] = (arc_wc_word){ws.w[k].w, ws.w[k].f0, ws.w[k].f1, e->word_external ? 0 : 1};
       arc_wordch_fuse(t->wc, t->pool, e->tok, wcw, ws.n, Hh, N, d, 3000, Hf);
       arc_free(wcw);
     }
@@ -994,7 +1010,6 @@ int arc_engine_run(arc_engine* e, const float* pcm, size_t n, const arc_options*
         if (Hf != Hh) arc_free(Hf);
         arc_free(Hh);
         arc_free(xs);
-        arc_free(X);
         return -1;
       }
     }
@@ -1037,7 +1052,6 @@ int arc_engine_run(arc_engine* e, const float* pcm, size_t n, const arc_options*
     arc_free(Hh);
     arc_free(xs);
   }
-  arc_free(X);
   return 0;
 }
 
@@ -1093,13 +1107,13 @@ int arc_engine_stages(arc_engine* e, const float* pcm, size_t n, const char* dom
     }
     arc_layernorm(xe, N, 2 * DIN, 2 * DIN, t->ev_ln_w, t->ev_ln_b, 1e-5f);
     float* h1 = arc_malloc(sizeof(float) * (size_t)N * 256);
-    out->ev = arc_malloc(sizeof(float) * (size_t)N * NEV);
+    out->ev = arc_malloc(sizeof(float) * (size_t)N * t->nev);
     arc_mat c1 = {.type = ARC_W_F32, .O = 256, .K = 2 * DIN * 5, .w = t->ev_c1_w};
-    arc_mat c2 = {.type = ARC_W_F32, .O = NEV, .K = 256 * 3, .w = t->ev_c2_w};
+    arc_mat c2 = {.type = ARC_W_F32, .O = t->nev, .K = 256 * 3, .w = t->ev_c2_w};
     arc_conv1d(t->pool, xe, N, 2 * DIN, 2 * DIN, &c1, 5, 1, 1, 2, 2, t->ev_c1_b, h1, 256);
     arc_gelu(h1, (size_t)N * 256);
-    arc_conv1d(t->pool, h1, N, 256, 256, &c2, 3, 1, 1, 1, 1, t->ev_c2_b, out->ev, NEV);
-    for (size_t k = 0; k < (size_t)N * NEV; ++k) out->ev[k] = sigm(out->ev[k]);
+    arc_conv1d(t->pool, h1, N, 256, 256, &c2, 3, 1, 1, 1, 1, t->ev_c2_b, out->ev, t->nev);
+    for (size_t k = 0; k < (size_t)N * t->nev; ++k) out->ev[k] = sigm(out->ev[k]);
     arc_free(xe);
     arc_free(h1);
   }
@@ -1257,7 +1271,7 @@ arc_frames* arc_frames_compute(arc_engine* e, const float* pcm, size_t n, const 
   /* frame and utt columns under their tag ids; the instant queries (ev_at detects, ev_imm forecasts, ev_rec confirms:
    * speaker.change, discourse.assistant.command_complete) as "ev_at:<id>"; then the sound events */
   static const char* want[] = {"frame", "utt", "ev_at", "ev_imm", "ev_rec"};
-  int nl = NEV;
+  int nl = e->trunk->nev;
   for (int i = 0; i < st.nq; ++i)
     for (int w = 0; w < 5; ++w)
       if (!strcmp(st.fr[i].q, want[w])) nl += st.fr[i].ncols;
@@ -1279,11 +1293,11 @@ arc_frames* arc_frames_compute(arc_engine* e, const float* pcm, size_t n, const 
       }
       c += k;
     }
-  for (int j = 0; j < NEV; ++j) {
+  for (int j = 0; j < e->trunk->nev; ++j) {
     size_t len = strlen(EV_LABELS[j]) + 1;
     labels[c + j] = arc_malloc(len);
     memcpy(labels[c + j], EV_LABELS[j], len);
-    for (int r = 0; r < st.N; ++r) p[(size_t)r * nl + c + j] = st.ev ? st.ev[(size_t)r * NEV + j] : 0.0f;
+    for (int r = 0; r < st.N; ++r) p[(size_t)r * nl + c + j] = st.ev ? st.ev[(size_t)r * e->trunk->nev + j] : 0.0f;
   }
   f->n_frames = st.N;
   f->n_labels = nl;
@@ -1483,8 +1497,8 @@ struct arc_live {
   /* events */
   lbuf xe, h1;           /* LN([X, XT]) [1280], conv1 + GELU [256] */
   long n_h1, n_pr;
-  float ev_st[NEV], ev_en[NEV], ev_pm[NEV];
-  int ev_open[NEV], ev_order[NEV], ev_no;
+  float ev_st[NEV_MAX], ev_en[NEV_MAX], ev_pm[NEV_MAX];
+  int ev_open[NEV_MAX], ev_order[NEV_MAX], ev_no;
   /* trunk */
   struct ssm_mem* mem;
   long nT;               /* trunk frames done */
@@ -1502,7 +1516,7 @@ struct arc_live {
   /* full frames (the columns of arc_frames_compute): trunk part of each frame read out, waiting for its events */
   int fullfr, nlab, nlt, qcols[NQ][MAXTAG], nq_cols[NQ];
   char** labels;
-  lbuf fr_pend, ev_p;    /* [nlt + 5] (columns, then speech, in_utt, dd, cc, t), [NEV] */
+  lbuf fr_pend, ev_p;    /* [nlt + 5] (columns, then speech, in_utt, dd, cc, t), [NEV_MAX] */
   long n_emit;
   arc_live_fn fn;
   void* user;
@@ -1555,7 +1569,7 @@ arc_live* arc_live_new(arc_engine* e, const char* domain, int trunk, int events,
   L->utt0 = L->utt_last = -1;
   if (L->fullfr) {   /* the columns, named as arc_frames_compute names them */
     static const char* pre[5] = {NULL, NULL, "ev_at", "ev_imm", "ev_rec"};
-    L->labels = arc_calloc(sizeof(char*) * (MAXTAG * 5 + NEV));
+    L->labels = arc_calloc(sizeof(char*) * (MAXTAG * 5 + NEV_MAX));
     for (int w = 0; w < 5 && L->labels; ++w) {
       int q = FRAME_QS[w];
       for (int j = 0; j < t->ncols[q]; ++j) {
@@ -1570,9 +1584,9 @@ arc_live* arc_live_new(arc_engine* e, const char* domain, int trunk, int events,
       }
     }
     L->nlt = L->nlab;
-    for (int j = 0; j < NEV && L->labels; ++j) L->labels[L->nlab++] = arc_strdup(EV_LABELS[j]);
+    for (int j = 0; j < t->nev && L->labels; ++j) L->labels[L->nlab++] = arc_strdup(EV_LABELS[j]);
     L->fr_pend.w = L->nlt + 5;
-    L->ev_p.w = NEV;
+    L->ev_p.w = t->nev;
   }
   L->mem = arc_calloc(sizeof *L->mem);
   L->acc = arc_calloc(sizeof(double) * DM);
@@ -1609,7 +1623,7 @@ static void live_emit_frames(arc_live* L) {
   for (; L->n_emit < to; ++L->n_emit) {
     const float* r = lb_at(&L->fr_pend, L->n_emit);
     memcpy(row, r, sizeof(float) * (size_t)L->nlt);
-    for (int j = 0; j < NEV; ++j) row[L->nlt + j] = L->events_on ? sigm(lb_at(&L->ev_p, L->n_emit)[j]) : 0.0f;
+    for (int j = 0; j < L->t->nev; ++j) row[L->nlt + j] = L->events_on ? sigm(lb_at(&L->ev_p, L->n_emit)[j]) : 0.0f;
     const float* x = r + L->nlt;
     arc_frame fr = {x[4], x[0], (int)x[1], x[2], x[3], L->nlab, (const char* const*)L->labels, row};
     if (L->fn) L->fn(L->user, &fr, NULL);
@@ -1710,7 +1724,7 @@ static int live_conv(struct arc_trunk* t, lbuf* in, long M, long a, long b, int 
 
 static void live_event_frame(arc_live* L, long f, const float* pr) {
   struct arc_trunk* t = L->t;
-  for (int j = 0; j < NEV; ++j) {
+  for (int j = 0; j < t->nev; ++j) {
     if (!t->ev_on[j]) continue;
     float p = sigm(pr[j]);
     if (p >= t->ev_thr[j]) {
@@ -1761,12 +1775,12 @@ static int live_events(arc_live* L) {
   long pr_to = L->finished ? M : L->n_h1 - 1;
   if (pr_to > L->n_pr) {
     long k = pr_to - L->n_pr;
-    float* pr = arc_malloc(sizeof(float) * (size_t)k * NEV);
-    if (!pr || live_conv(t, &L->h1, L->n_h1, L->n_pr, pr_to, 3, 256, t->ev_c2_w, t->ev_c2_b, NEV, pr)) {
+    float* pr = arc_malloc(sizeof(float) * (size_t)k * t->nev);
+    if (!pr || live_conv(t, &L->h1, L->n_h1, L->n_pr, pr_to, 3, 256, t->ev_c2_w, t->ev_c2_b, t->nev, pr)) {
       arc_free(pr);
       return -1;
     }
-    for (long i = 0; i < k; ++i) live_event_frame(L, L->n_pr + i, pr + (size_t)i * NEV);
+    for (long i = 0; i < k; ++i) live_event_frame(L, L->n_pr + i, pr + (size_t)i * t->nev);
     if (L->fullfr && lb_push(&L->ev_p, pr, k)) {
       arc_free(pr);
       return -1;

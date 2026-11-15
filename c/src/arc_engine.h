@@ -36,6 +36,8 @@ typedef struct {
   float intent_p;
   const char* act;
   float act_p;
+  char* decoder_text;  /* NFT2: the Arc decoder's text (malloc'd) */
+  int directed;        /* NFT2: directed_head >= the threshold (1 / 0), -1: not computed */
   int n_alts;          /* the final decode's distinct beams (arc_utt.alts) */
   char** alts;
   float* alt_scores;
@@ -103,8 +105,16 @@ struct arc_engine {
   arc_align_cfg align;
   /* trunk, heads, ontology (arc_engine.c) */
   arc_trunk* trunk;
+  /* backbone variants (0 / NULL for Arc Mini) */
+  const char* aux_file;   /* the device-directed / event heads' file ("heads.safetensors"; NFT2: adapters.safetensors) */
+  int word_external;      /* the transcript's words are an external recogniser's (NFT2's RNNT): word channel and
+                           * pointer src 0, name_policy "external" */
+  int space_names;        /* arc_space engine rules: decoder-only name types through an existing mention row
+                           * (DEC_FALLBACK) and the generic-word guard */
+  double len_base;        /* transcription len_base (4) */
 };
 
+arc_engine* arc_engine_create_nft2(const char* dir, int threads);   /* arc_api.c; NULL + arc_seterr */
 /* arc_api.c, for streams: the final decode of one segment (as arc_transcribe), a greedy read of encoder states,
  * and the auto_prev history */
 int arc_decode_segment(arc_engine* e, const float* seg, int n_in, double t_now, int beams, int bias, int words,
@@ -140,6 +150,11 @@ void arc_engine_set_pool(arc_engine* e, arc_pool* p);
 void arc_engine_free_trunk(arc_engine* e);
 /* Features over the whole clip, the trunk, the utterance readout and events into R. */
 int arc_engine_run(arc_engine* e, const float* pcm, size_t n, const arc_options* o, arc_result_build* R);
+/* The same from pooled 10 Hz features computed elsewhere (another backbone): X [N, 640] for the trunk (float16-
+ * rounded), Xe [N, 640] for the device-directed and event heads, XT [Nt, 640] the tapped features (NULL: no
+ * events). */
+int arc_engine_run_feats(arc_engine* e, const float* X, const float* Xe, const float* XT, int N, int Nt,
+                         const arc_options* o, arc_result_build* R);
 
 /* For arc_link.c: tag ontology and head access. */
 int arc_engine_tag_index(arc_engine* e, const char* id);   /* -1 if absent */

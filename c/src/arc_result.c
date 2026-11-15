@@ -71,6 +71,7 @@ arc_result_build* arc_result_new(int n_utts) {
   for (int i = 0; i < n_utts; ++i) {
     b->u[i].dd = b->u[i].cc = b->u[i].dir_head = -1.0f;
     b->u[i].intent_p = b->u[i].act_p = -1.0f;
+    b->u[i].directed = -1;
   }
   return b;
 }
@@ -155,12 +156,15 @@ arc_result* arc_result_finish(arc_result_build* b, float audio_s, float wall_ms)
       alt_sc[k] = u->alt_scores[k];
       arc_free(u->alts[k]);
     }
+    o->decoder_text = arc_arena_strdup(a, u->decoder_text);
+    o->directed = u->directed;
     o->n_alts = u->n_alts;
     o->alts = alts;
     o->alt_scores = alt_sc;
     arc_free(u->alts);
     arc_free(u->alt_scores);
     arc_free(u->text);
+    arc_free(u->decoder_text);
     arc_free(u->spans);
     arc_free_words(u->words, u->n_words);
     for (int k = 0; k < u->n_aw; ++k) arc_free(u->aw[k].w);
