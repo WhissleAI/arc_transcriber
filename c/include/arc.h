@@ -66,6 +66,10 @@ typedef struct {
   int n_alts;
   const char* const* alts;
   const float* alt_scores;
+  /* Arc Transcriber Space (arc_nft2_*): the Arc decoder's own text (words come from the RNNT; their tags and casing
+   * from this text), and directed_head >= the model's threshold (1 / 0; -1: not computed) */
+  const char* decoder_text;
+  int directed;
 } arc_utt;
 
 /* A name heard in the transcript and, when it is one of the list's (arc_set_names), linked to it (Arc's "names"). */
@@ -321,6 +325,94 @@ int arc_stream_end_turn(arc_stream* s);
 /* End of the audio: everything still open is closed and sent. */
 int arc_stream_finish(arc_stream* s);
 void arc_stream_close(arc_stream* s);
+
+/* ================================================================ Arc Transcriber Space (NFT2)
+ *
+ * The NFT2 backbone (the nft2/ folder of WhissleAI/arc-transcriber-space): a cache-aware streaming FastConformer with
+ * its own RNNT decoder gives the words (biased towards the names list); Arc's decoder reads the same encoder (layer 9
+ * tap, through Arc's adapters) with a context prompt and its inline tags are moved onto the RNNT words; Arc's net
+ * links names to the list. What arc_audio's Arc.predict(wav, domain, transcript="nft2", names, context) returns:
+ * utterances with words (RNNT times, decoder casing / punctuation, inline tags), names (tag, heard, entity, state,
+ * p), numbers, sound events and the device-directed head (arc_utt.directed_head, .directed).
+ *
+ * The encoder and RNNT nets run on ONNX Runtime (build with make ARC_ORT=/path/to/onnxruntime); everything else is
+ * libarc's C. Without ONNX Runtime arc_nft2_create fails with a message. One model runs one call at a time.
+ *
+ *   arc_nft2* m = arc_nft2_create("arc-transcriber-space/nft2", 4, err, sizeof err);
+ *   arc_name_entry kb[] = {{"Tycho", "lunar_feature", NULL, NULL, 0}, {"Apollo 12", "mission", NULL, NULL, 0}};
+ *   arc_nft2_set_names(m, kb, 2);
+ *   arc_result* r = arc_nft2_transcribe(m, pcm, n, NULL);   // domain "assistant", context dom "space"
+ *   ... r->utts[i].words[j].tag, r->names[k].entity / state
+ *   arc_result_free(r);
+ *   arc_nft2_destroy(m); */
+typedef struct arc_nft2 arc_nft2;
+
+/* dir: the nft2/ folder (config.json, adapters.safetensors, model.q4.safetensors, tags.json, decoder/,
+ * encoder_onnx/). threads: encoder threads and libarc's pool (0 = 4). NULL + message on failure. */
+arc_nft2* arc_nft2_create(const char* dir, int threads, char* err, size_t err_len);
+void arc_nft2_destroy(arc_nft2* m);
+/* The encoder / RNNT backend compiled in: "onnxruntime 1.23.2", or "none". */
+const char* arc_nft2_backend(void);
+
+/* The names list (kinds: lunar_feature site celestial spacecraft vehicle mission crew person place organization
+ * product team law; aliases optional; see the names-list guide). Used three ways: RNNT biasing over every name and
+ * alias, the decoder's kb prompt (names in order, about 56 tokens; unless the context has its own kb) and linking.
+ * Kept until changed; n = 0 clears it. */
+int arc_nft2_set_names(arc_nft2* m, const arc_name_entry* names, int n);
+
+/* The decoder's context prompt (ctxprompt.build_prompt_v2): [dom][session][kb][prev]. */
+typedef struct {
+  const char* slot;      /* "S1" */
+  const char* role;      /* "device_user" or NULL */
+} arc_nft2_ses_speaker;
+typedef struct {
+  const char* value;     /* as written ("3", "1969") */
+  const char* kind;      /* "count", "date" ... or NULL ("number") */
+  int minutes;           /* age in minutes, -1 = not given */
+} arc_nft2_ses_number;
+typedef struct {
+  const char* surface;   /* "Tycho" */
+  const char* type;      /* person team org place law product term id (typed marker), other text, or NULL */
+  int minutes;           /* -1 = not given */
+} arc_nft2_ses_entity;
+typedef struct {
+  const char* dom;       /* topic words; NULL: the model's default ("space"); "": none */
+  const char* prev;      /* earlier text, as said */
+  int auto_prev;         /* 1: when prev is NULL, the last minute of this model's own transcripts */
+  const char* const* kb;        /* an explicit kb (names / terms) and their kinds; n_kb = 0: the names list */
+  const char* const* kb_kind;   /* may be NULL */
+  int n_kb;
+  const arc_nft2_ses_speaker* speakers;   /* session memory, most salient first; any may be 0 */
+  int n_speakers;
+  const arc_nft2_ses_number* numbers;
+  int n_numbers;
+  const arc_nft2_ses_entity* entities;
+  int n_entities;
+} arc_nft2_context;
+/* Copies the context; NULL clears it (the model's default dom stays). Kept until changed. */
+int arc_nft2_set_context(arc_nft2* m, const arc_nft2_context* c);
+
+typedef struct {
+  const char* domain;   /* Arc's domain; NULL = "assistant" (the app's) */
+  int no_bias;          /* 1: RNNT words not biased towards the names list */
+  int no_events;        /* 1: no sound events */
+} arc_nft2_options;
+
+/* A whole clip (16 kHz mono float). Up to 20 s it is one utterance; longer clips are
+ * cut by Arc's segmenter and each utterance decoded with 0.15 s of audio either side. NULL on failure
+ * (arc_last_error). */
+arc_result* arc_nft2_transcribe(arc_nft2* m, const float* pcm, size_t n, const arc_nft2_options* o);
+
+/* Audio as it arrives: Arc's segmenter cuts utterances (0.4 s pauses, at most 15 s) and each closed utterance is
+ * decoded at once. feed returns those utterances (words, tags; names / events come with flush), or a result with
+ * n_utts 0. flush closes the open utterance and returns the whole stream: every utterance, names linked over all of
+ * them, numbers, events and the device-directed head (as arc_nft2_transcribe on the same audio and utterances). The
+ * stream keeps its audio until closed. Names and context are the model's at the time each utterance closes. */
+typedef struct arc_nft2_stream arc_nft2_stream;
+arc_nft2_stream* arc_nft2_stream_open(arc_nft2* m, const arc_nft2_options* o);
+arc_result* arc_nft2_stream_feed(arc_nft2_stream* s, const float* pcm, size_t n);
+arc_result* arc_nft2_stream_flush(arc_nft2_stream* s);
+void arc_nft2_stream_close(arc_nft2_stream* s);
 
 #ifdef __cplusplus
 }

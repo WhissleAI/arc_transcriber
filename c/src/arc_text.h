@@ -60,6 +60,9 @@ typedef struct {
 } arc_ctx;
 /* mode: "full" (kb + prev) or "prev". Returns the count of prompt ids written (<= max_tokens). */
 int arc_ctx_prompt(const arc_tok* t, const arc_ctx* c, const char* mode, int max_tokens, int* out);
+/* The same with build_prompt's prev_max / kb_max / use_dom (ctxprompt.build_prompt_v2 calls it for its kb layer). */
+int arc_ctx_prompt_ex(const arc_tok* t, const arc_ctx* c, const char* mode, int max_tokens, int prev_max, int kb_max,
+                      int use_dom, int* out);
 /* Earlier text as the prompt carries it: lower case, digits as words, only letters and inner apostrophes. */
 char* arc_norm_prev(const char* text);
 /* English cardinal words for an integer or decimal string ("4.30" -> "four point three"), as num2words. */

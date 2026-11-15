@@ -95,6 +95,44 @@ fail:
   return NULL;
 }
 
+/* The Arc layer of an NFT2 folder (arc_nft2.c): config, the decoder alone (decoder/), its tokenizer, the trunk and
+ * heads (events / device-directed in adapters.safetensors), with the transcript settings Arc.nft2_finals uses
+ * (decoders.tagged: greedy, len_base / tokens_per_s / len_mult; the space tags 32636..32639 allowed). */
+arc_engine* arc_engine_create_nft2(const char* dir, int threads) {
+  arc_engine* e = arc_calloc(sizeof *e);
+  if (!e) return NULL;
+  if (threads <= 0) threads = 4;
+  e->dir = arc_strdup(dir);
+  e->aux_file = "adapters.safetensors";
+  e->word_external = 1;
+  e->space_names = 1;
+  if (load_cfg(e, dir)) goto fail;
+  const arc_json* tr = arc_json_get(e->cfg, "transcription");
+  const arc_json* tg = arc_json_get(arc_json_get(tr, "decoders"), "tagged");
+  e->tokens_per_s = arc_json_num(arc_json_get(tg, "tokens_per_s"), e->tokens_per_s);
+  e->len_mult = arc_json_num(arc_json_get(tg, "len_mult"), 1.0);
+  e->len_base = arc_json_num(arc_json_get(tg, "len_base"), arc_json_num(arc_json_get(tr, "len_base"), 4.0));
+  e->beams = (int)arc_json_num(arc_json_get(tg, "final_beams"), 1);
+  /* tagdec.NEVER_EMIT with the space tags: the reserved slots and 32640.. */
+  e->n_sup = 0;
+  e->sup[e->n_sup++] = 32630;
+  e->sup[e->n_sup++] = 32631;
+  for (int i = 32640; i < ARC_MOON_VOCAB; ++i) e->sup[e->n_sup++] = i;
+  e->procs.n_suppress = e->loop_guard ? e->n_sup : 0;
+  char path[1200];
+  snprintf(path, sizeof path, "%s/%s", dir,
+           arc_json_str(arc_json_get(arc_json_get(e->cfg, "encoder"), "subfolder"), "decoder"));
+  if (!(e->moon = arc_moon_load_parts(path, threads, 0, 1))) goto fail;
+  char tp[1300];
+  snprintf(tp, sizeof tp, "%s/tokenizer.json", path);
+  if (!(e->tok = arc_tok_load(tp))) goto fail;
+  if (arc_engine_load_trunk(e, dir)) goto fail;
+  return e;
+fail:
+  arc_destroy(e);
+  return NULL;
+}
+
 int arc_set_threads(arc_engine* e, int threads) {
   if (threads <= 0) threads = 4;
   if (arc_pool_size(e->moon->pool) == threads) return 0;

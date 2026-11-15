@@ -48,7 +48,7 @@ struct arc_link {
   arc_nt_kbsnap* snap;
   /* config */
   const arc_json *nwt_vocab, *unit_vocab;
-  int ptr_src;   /* ptr.src_by_source of the builtin transcript's words (moonshine) */
+  int ptr_src;   /* ptr.src_by_source of the transcript's words (moonshine; external for NFT2's RNNT words) */
 };
 
 static float gelu1(float x) { return 0.5f * x * (1.0f + erff(x * 0.70710678118654752f)); }
@@ -134,7 +134,8 @@ arc_link* arc_link_load(struct arc_engine* e, arc_store* s) {
   const arc_json* nm = arc_json_get(e->cfg, "numerals");
   l->nwt_vocab = arc_json_get(nm, "nwt_vocab");
   l->unit_vocab = arc_json_get(nm, "unit_vocab");
-  l->ptr_src = (int)arc_json_num(arc_json_get(arc_json_get(arc_json_get(e->cfg, "ptr"), "src_by_source"), "moonshine"), 0);
+  l->ptr_src = (int)arc_json_num(arc_json_get(arc_json_get(arc_json_get(e->cfg, "ptr"), "src_by_source"),
+                                              e->word_external ? "external" : "moonshine"), 0);
   return l;
 }
 
@@ -489,7 +490,9 @@ static int tag_info_of(const char* t, tag_info* o) {
       {"ENTITY_WORK", "entity.mention.work_product"}, {"ENTITY_EVENT", "entity.mention.event_name"},
       {"ENTITY_LEGAL", "entity.mention.legal_ref"}, {"ENTITY_GAME", "entity.mention.game_entity"},
       {"ENTITY_MAP", "entity.mention.game_map"}, {"ENTITY_LAW", "entity.mention.law"},
-      {"ENTITY_PRODUCT", "entity.mention.product"}, {"ENTITY_TERM", "entity.mention.term"}};
+      {"ENTITY_PRODUCT", "entity.mention.product"}, {"ENTITY_TERM", "entity.mention.term"},
+      {"ENTITY_LUNAR", "entity.mention.lunar_feature"}, {"ENTITY_SPACECRAFT", "entity.mention.spacecraft"},
+      {"ENTITY_MISSION", "entity.mention.mission"}, {"ENTITY_CELESTIAL", "entity.mention.celestial"}};
   static const char* NUMBER_KIND[][2] = {
       {"NUMBER", NULL}, {"NUMBER_CLOCK", "clock"}, {"NUMBER_COUNT", "count"}, {"NUMBER_DATE", "date"},
       {"NUMBER_DURATION", "duration"}, {"NUMBER_FIELDPOS", "field_position"}, {"NUMBER_ID", "id_pii"},
@@ -516,6 +519,7 @@ static int tag_info_of(const char* t, tag_info* o) {
 /* a span of tagged words (tagdec.spans_of_words), as Engine._dec_pd keeps it */
 typedef struct {
   tag_info ti;
+  const char* out_tid; /* the reported tag when the mention reads through another tag's row (DEC_FALLBACK) */
   int i;               /* tag index of the mention (names) */
   int a, b;            /* frames */
   double start, end;   /* rounded to 3 */
@@ -792,6 +796,57 @@ static void policy(run_ctx* x, name_rec* r, const char* span_text, const int* al
   arc_free(toks);
 }
 
+/* arc_space Engine._generic_guard: a link made from generic words only ("Rimae", "Mare", "South crater") is a guess
+ * between list entries sharing that word: abstain unless the entity is those words */
+static const char* const GENERIC_NAME_WORDS[] = {
+    "rima", "rimae", "rupes", "mare", "maria", "mons", "montes", "mount", "mountain", "lacus", "sinus", "palus",
+    "oceanus", "vallis", "valles", "catena", "catenae", "dorsum", "dorsa", "promontorium", "crater", "craters", "north",
+    "south", "east", "west", "northern", "southern", "the", "a", "of", "de", "rille", "rilles", "sea", "bay", "lake",
+    "ocean", "valley", "ridge", "ridges", "basin", NULL};
+
+static void lower_strip(const char* t, char* out, size_t cap) {   /* t.strip(".,!?'\"").lower() */
+  size_t a = 0, b = strlen(t);
+  while (a < b && strchr(".,!?'\"", t[a])) a++;
+  while (b > a && strchr(".,!?'\"", t[b - 1])) b--;
+  size_t k = 0;
+  for (size_t i = a; i < b && k + 1 < cap; ++i) out[k++] = (char)tolower((unsigned char)t[i]);
+  out[k] = 0;
+}
+
+static void generic_guard(name_rec* r, const char* span_text) {
+  if (!r->n.state || strcmp(r->n.state, "linked") || !r->n.entity) return;
+  char** toks;
+  int nt = arc_split_words(span_text, &toks), nk = 0, all = 1;
+  char kw[64][128];
+  for (int i = 0; i < nt; ++i) {
+    if (is_filler(toks[i])) continue;
+    char w[128];
+    lower_strip(toks[i], w, sizeof w);
+    if (!w[0]) continue;
+    if (!in_set(w, GENERIC_NAME_WORDS)) all = 0;
+    if (nk < 64) snprintf(kw[nk++], sizeof kw[0], "%s", w);
+  }
+  arc_free_words(toks, nt);
+  if (!nk || !all) return;
+  char** ent;
+  int ne = arc_split_words(r->n.entity, &ent), sub = 1;
+  for (int i = 0; i < ne && sub; ++i) {
+    char w[128];
+    size_t k = 0;
+    for (const char* c = ent[i]; *c && k + 1 < sizeof w; ++c) w[k++] = (char)tolower((unsigned char)*c);
+    w[k] = 0;
+    int found = 0;
+    for (int j = 0; j < nk && !found; ++j) found = !strcmp(w, kw[j]);
+    sub = found;
+  }
+  arc_free_words(ent, ne);
+  if (sub) return;
+  r->n.entity = NULL;
+  r->n.state = "abstain";
+  r->n.via = "generic_guard";
+  r->n.kb_index = -1;
+}
+
 static int read_name(run_ctx* x, const pend* pd, name_rec* r) {
   arc_link* l = x->l;
   const arc_wstore* W = x->W;
@@ -802,7 +857,7 @@ static int read_name(run_ctx* x, const pend* pd, name_rec* r) {
   double hp = head_p(x, pd->i, pd->a, pd->b, &hok);
   r->start = W->w[pd->keys[0]].start;
   r->end = W->w[pd->keys[pd->nk - 1]].end;
-  r->n.tag = pd->ti.tid;
+  r->n.tag = pd->out_tid ? pd->out_tid : pd->ti.tid;
   r->n.src = "decoder";
   r->n.kb_index = -1;
   r->n.model_p = -1;
@@ -871,6 +926,7 @@ static int read_name(run_ctx* x, const pend* pd, name_rec* r) {
       r->n.state = top >= 2 ? "linked" : "not_in_list";
       if (top >= 2) r->n.kb_index = top - 2;
     }
+    if (x->c->e->space_names) generic_guard(r, span_text);
     arc_free(z);
     arc_free(Sf);
     arc_free(heard);
@@ -1145,7 +1201,7 @@ int arc_link_run(arc_link* l, const arc_link_ctx* c, const arc_wstore* W, arc_re
                                  "meeting", "court_appellate", "court_trial", "assistant", "assistant_noisy",
                                  "short_clips", "unknown"};
   domain = DOMS[c->dom >= 0 && c->dom < 16 ? c->dom : 15];
-  arc_nt_policy_cfg(c->e->cfg, domain, "builtin", &x.pol);
+  arc_nt_policy_cfg(c->e->cfg, domain, c->e->word_external ? "external" : "builtin", &x.pol);
   if (l->nkb) {
     arc_nt_resc_params rp;
     arc_nt_resc_params_cfg(c->e->cfg, domain, &x.pol, &rp);
@@ -1198,7 +1254,19 @@ int arc_link_run(arc_link* l, const arc_link_ctx* c, const arc_wstore* W, arc_re
     frames_of(p->start, p->end, &p->a, &p->b);
     if (p->ti.is_name) {
       if (!strcmp(p->ti.dtag, "ENTITY_LEGAL")) done[k] = 1;
-      else if ((p->i = arc_engine_tag_index(c->e, p->ti.tid)) < 0) done[k] = 1;
+      else if ((p->i = arc_engine_tag_index(c->e, p->ti.tid)) < 0) {
+        /* arc_space DEC_FALLBACK: decoder-only name types read through an existing mention row */
+        static const char* const FB[][2] = {{"entity.mention.lunar_feature", "entity.mention.place"},
+                                            {"entity.mention.celestial", "entity.mention.place"},
+                                            {"entity.mention.spacecraft", "entity.mention.work_product"},
+                                            {"entity.mention.mission", "entity.mention.event_name"}};
+        for (int q = 0; q < 4 && c->e->space_names && p->i < 0; ++q)
+          if (!strcmp(p->ti.tid, FB[q][0]) && (p->i = arc_engine_tag_index(c->e, FB[q][1])) >= 0) {
+            p->out_tid = p->ti.tid;
+            p->ti.tid = FB[q][1];
+          }
+        if (p->i < 0) done[k] = 1;
+      }
     }
   }
   for (int s0 = 0;; s0 += 3000) {

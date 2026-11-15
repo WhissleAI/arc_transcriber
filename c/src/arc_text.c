@@ -294,7 +294,9 @@ static const char* TAGS[] = {"ENTITY_PERSON", "ENTITY_TEAM", "ENTITY_ORG", "ENTI
                              "NUMBER_JERSEY", "NUMBER_MEASURE", "NUMBER_MONEY", "NUMBER_ODDS", "NUMBER_ORDINAL",
                              "NUMBER_PERCENT", "NUMBER_REF", "NUMBER_SCORE", "NUMBER_STAT", "NUMBER_TIME", "END",
                              "ENTITY_LAW", "ENTITY_PRODUCT", "ENTITY_TERM", "_RESERVED_A", "_RESERVED_B",
-                             "CONTACT_PHONE", "CONTACT_EMAIL", "CONTACT_URL", "CONTACT_ADDRESS"};
+                             "CONTACT_PHONE", "CONTACT_EMAIL", "CONTACT_URL", "CONTACT_ADDRESS",
+                             /* Arc Transcriber Space (NFT2) decoders; Mini suppresses 32636.. so never writes them */
+                             "ENTITY_LUNAR", "ENTITY_SPACECRAFT", "ENTITY_MISSION", "ENTITY_CELESTIAL"};
 #define N_TAGS (int)(sizeof TAGS / sizeof *TAGS)
 #define BASE_ID 32600
 #define END_ID (BASE_ID + 26)
@@ -493,10 +495,14 @@ static int type_id(const char* y) {
 }
 
 int arc_ctx_prompt(const arc_tok* t, const arc_ctx* c, const char* mode, int max_tokens, int* out) {
-  const int prev_max = 48, kb_max = 40;
+  return arc_ctx_prompt_ex(t, c, mode, max_tokens, 48, 40, 1, out);
+}
+
+int arc_ctx_prompt_ex(const arc_tok* t, const arc_ctx* c, const char* mode, int max_tokens, int prev_max, int kb_max,
+                      int use_dom, int* out) {
   if (!c || !strcmp(mode, "none")) return 0;
   int buf[4096], n = 0, tmp[1024];
-  if (c->dom && *c->dom) {
+  if (use_dom && c->dom && *c->dom) {
     char d[256];
     snprintf(d, sizeof d, "%s", c->dom);
     for (char* p = d; *p; ++p)

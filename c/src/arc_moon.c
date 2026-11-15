@@ -67,6 +67,10 @@ static const float* own(moon_impl* x, float* p) {
 arc_moon* arc_moon_load(const char* folder, int threads) { return arc_moon_load_ex(folder, threads, 0); }
 
 arc_moon* arc_moon_load_ex(const char* folder, int threads, int encoder_only) {
+  return arc_moon_load_parts(folder, threads, 1, !encoder_only);
+}
+
+arc_moon* arc_moon_load_parts(const char* folder, int threads, int encoder, int decoder) {
   (void)g_unused;
   moon_impl* x = arc_calloc(sizeof *x);
   if (!x) return NULL;
@@ -78,6 +82,8 @@ arc_moon* arc_moon_load_ex(const char* folder, int threads, int encoder_only) {
   else snprintf(path, sizeof path, "%s/model.safetensors", folder);
   if (!(m->st = arc_store_open(path))) goto fail;
   m->pool = arc_pool_create(threads);
+  m->has_encoder = encoder;
+  if (encoder) {
   const float* lk = need(m, "model.encoder.embedder.comp.log_k", 1);
   if (!lk) goto fail;
   m->comp_k = expf(lk[0]);
@@ -106,8 +112,9 @@ arc_moon* arc_moon_load_ex(const char* folder, int threads, int encoder_only) {
     if (needw(m, arc_namef("model.encoder.layers.%d.mlp.fc2.weight", l), D * FF, &L->fc2)) goto fail;
     if (!(L->fc2b = need(m, arc_namef("model.encoder.layers.%d.mlp.fc2.bias", l), D))) goto fail;
   }
-  m->has_decoder = !encoder_only;
-  if (encoder_only) return m;   /* the decoder's tensors stay unread (its float32 tables are never made) */
+  }
+  m->has_decoder = decoder;
+  if (!decoder) return m;   /* the decoder's tensors stay unread (its float32 tables are never made) */
   if (needw(m, "model.decoder.embed_tokens.weight", (int64_t)V * D, &m->embed)) goto fail;
   if (!(m->pos_emb = need(m, "model.decoder.pos_emb.weight", (int64_t)4096 * D))) goto fail;
   if (!(m->norm = need(m, "model.decoder.norm.weight", D))) goto fail;

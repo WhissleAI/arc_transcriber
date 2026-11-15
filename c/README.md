@@ -4,7 +4,9 @@ A dependency-free C11 library (libc, libm, threads) that runs **Arc Mini**, the 
 the release folder as published (`WhissleAI/arc-v1.1`, `mini/`), with no Python, PyTorch or ONNX. One header,
 [`include/arc.h`](include/arc.h). It produces what `Arc.predict` produces offline for Arc Mini: the transcript with
 inline tags and word times, names linked to a list, numbers with values, utterance tags (device-directed, intent,
-dialogue act), sound events and per-frame probabilities. The full **Arc Transcriber** backbone (Parakeet) is not
+dialogue act), sound events and per-frame probabilities. It also runs **Arc Transcriber Space** (NFT2). For that model,
+ONNX Runtime runs the encoder and RNNT networks, and it is an optional build dependency; see
+[Arc Transcriber Space](#arc-transcriber-space-nft2-arc_nft2_). The full **Arc Transcriber** backbone (Parakeet) is not
 supported yet; see [the plan](#plan-arc-transcriber-full-backbone).
 
 **Verified against** `arc_audio` in this repository and the published `mini/` weights (`WhissleAI/arc-v1.1`). Newer code
@@ -15,6 +17,7 @@ or weights mean re-running the checks below.
 ```
 make -C c            # build/libarc.a, build/arc-transcribe, build/arc-score, build/arc-parity, build/arc-trim, tests
 make -C c test       # unit tests that need no weights
+make -C c ARC_ORT=/path/to/onnxruntime   # also Arc Transcriber Space (c/build/nft2/), see below
 ```
 
 ```c
@@ -224,6 +227,105 @@ calling the model twice with one encoder output drifts every call after the firs
 build/test_score arc-v1.1/mini ../examples tests/data/score_ref.jsonl
 ```
 
+## Arc Transcriber Space (NFT2): `arc_nft2_*`
+
+**Arc Transcriber Space** (`WhissleAI/arc-transcriber-space`, folder `nft2/`) is Arc for questions about the Moon and
+space. It uses a cache-aware streaming FastConformer encoder (17 layers, d 512, int8) with an RNNT head for the words.
+The Arc decoder reads the same encoder (through Arc's adapters) to tag spans, and Arc's names / numbers / events heads
+run on top. libarc runs it as `Arc.predict(wav, domain, transcript="nft2", names=..., context=...)` does with the ONNX
+encoder:
+
+- libarc's own C does the log-mel front end, the chunked streaming loop with its pre-encode cache, greedy RNNT decoding
+  with names-list biasing (`BoostTrie`, alpha 1.5), the sentencepiece pieces and word times, Arc's adapters
+  (`MemProj`, `FrameProj` arc / tap, `pool_range`), the context prompt (`build_prompt_v2`), the Arc decoder, tagging the
+  RNNT words (char-level alignment, one type per surface, names-list spans, decoder casing), and the trunk and linking.
+- **ONNX Runtime** (C API, CPU) runs only the networks in `nft2/encoder_onnx/`: `encoder_first.onnx` / `encoder.onnx`
+  (weights in `encoder.weights`, memory-mapped once and shared by both sessions) and the RNNT `decoder.onnx`,
+  `joint_enc.onnx`, `joint_net.onnx`. They sit behind a small internal interface
+  ([`src/arc_nft2_be.h`](src/arc_nft2_be.h)), so a native C backend can replace ONNX Runtime later without changing
+  anything else.
+
+ONNX Runtime is optional. The default `make` stays dependency-free, and `arc_nft2_create` then fails with a message.
+
+```
+# ONNX Runtime 1.23 for your platform, from github.com/microsoft/onnxruntime/releases (onnxruntime-<os>-<arch>-1.23.x.tgz)
+make -C c ARC_ORT=/path/to/onnxruntime-linux-x64-1.23.2      # builds into c/build/nft2/
+c/build/nft2/arc-nft2 arc-transcriber-space/nft2 question.wav --names moon_names.json
+```
+
+```c
+arc_nft2* m = arc_nft2_create("arc-transcriber-space/nft2", 4, err, sizeof err);
+const char* al[] = {"Oceanus Procellarum"};
+arc_name_entry kb[] = {{.name = "Tycho", .kind = "lunar_feature"},
+                       {.name = "Ocean of Storms", .kind = "lunar_feature", .aliases = al, .n_aliases = 1}};
+arc_nft2_set_names(m, kb, 2);              // biasing, the decoder prompt and linking; kept until changed
+arc_result* r = arc_nft2_transcribe(m, pcm, n, NULL);   // 16 kHz mono float
+// r->utts[i].text: the RNNT words with the decoder's casing; .words[k].tag: ENTITY_LUNAR, ENTITY_SPACECRAFT, ...
+// r->utts[i].decoder_text: the Arc decoder's own text; .directed / .directed_head: the device-directed head
+// r->names[i].entity: the list's name when linked ("Ocean of Storms" for "oceanus procellarum"), .state
+arc_result_free(r);
+arc_nft2_destroy(m);
+```
+
+- **Context** (`arc_nft2_set_context`): `dom` (NULL: the model's default `"space"`, `""`: none), `prev` or `auto_prev`
+  (the last minute's text), `kb` with kinds (default: the names list itself), and session memory (`speakers`,
+  `numbers`, `entities`), as in arc_audio's `context=` dict.
+- **Options** (`arc_nft2_options`): `domain` for the trunk (default `"assistant"`), `no_bias`, `no_events`.
+- **Clips**: up to 20 s are one utterance; longer clips are cut by the segmenter (with 0.15 s of padding). The features
+  for names, numbers, events and the device-directed head come from 30 s chunks with 4 s of context, as on the server.
+- **Streams** (`arc_nft2_stream_open / feed / flush / close`): feed any amount of audio. `feed` returns each
+  utterance once the segmenter closes it (0.4 s into a pause). `flush` returns the whole stream with names, numbers,
+  events and the device-directed head. The result is identical to `arc_nft2_transcribe` on the same audio when that
+  audio is longer than 20 s.
+- **Names lists**: names and aliases are matched after spoken-form normalization (`Apollo 12` → `apollo twelve`;
+  every character other than a–z, digits, `'`, `-` and space is dropped). Always set `kind` (`lunar_feature`, `site`,
+  `celestial`, `spacecraft`, `mission`, `crew`, ...). Give aliases for names that are not said as written: `Artemis II`
+  needs `"Artemis 2"`, and non-ASCII names need an ASCII alias. The full guide is
+  [docs/NAMES_LISTS.md](../docs/NAMES_LISTS.md).
+
+### How it was checked
+
+`tools/dump_nft2.py` runs arc_audio (`Arc.predict`, `transcript="nft2"`, ONNX encoder) on a manifest of clips and
+writes every stage. `build/nft2/arc-nft2 --manifest ... --json --dump DIR` writes the same stages from libarc, and
+`tools/compare_nft2.py` compares the two. The test set has 23 clips (156 s): the 4 bundled synthetic samples with the
+example names list, 7 real recordings of lunar-geology conversations (narrowband radio), 4 children's questions, 7
+synthetic questions, and a 34.7 s clip that exercises segmentation and the 30 s feature chunks.
+
+- **The same log-mel frames give the same output everywhere.** With `dump_nft2.py --mel-from DIR`, the reference
+  encodes libarc's log-mel frames, and all 23 of 23 clips match on every discrete output: RNNT token ids and frames,
+  decoder prompt and tokens, decoder text, transcript words with times and tags, names (heard, entity, state, type,
+  times), numbers, events and the device-directed decision. The encoder output and tap are bit-identical. Floats after
+  them differ by at most 2.4e-6 (decoder memory), 4.3e-6 (pooled features) and 6e-5 (tap features), from summation
+  order. Probabilities match to 4 decimals.
+- **End to end against PyTorch's front end**: 14 of 23 clips are identical on every output. arc_audio computes the
+  log-mel with `torch.stft` (float32 MKL FFT). libarc's FFT is closer to an exact float64 log-mel (max error 1e-5 to
+  2.4e-4, where torch's is 5e-5 to 5.8e-4), and the two differ by at most 6e-4. The encoder quantizes its activations
+  dynamically to int8, which turns that into up to 0.8 in the encoder output. The visible effects: 6 clips move one
+  word boundary by one 80 ms RNNT frame (the same words, tags and links), 1 real clip reads one extra word ("Alright.")
+  at the start of an utterance, and 2 real clips shift the boundaries of narrowband / telephone channel events. Linked
+  entities and device-directed decisions are the same on all 23 clips. The same spread appears between any two FFT
+  implementations, so it is not specific to C.
+- `sample_3` ("Why is Tycho so bright?") gives an empty RNNT transcript in both arc_audio and libarc. The decoder reads
+  it correctly (`decoder_text`, ENTITY_LUNAR).
+- Arc Mini is unchanged: on this branch, `arc-parity`, `arc-transcribe --json` and `arc-stream` give byte-identical
+  output to `main`, and `make test` passes. An AddressSanitizer build runs the offline and stream paths clean, with no
+  leaks.
+
+### Speed and memory (x86-64 Linux, 4 threads, ONNX Runtime 1.23.2, a shared machine with other jobs running)
+
+| | libarc | arc_audio (Python, same ONNX encoder) |
+|---|---|---|
+| load | 2.0–2.4 s | 6.4 s |
+| 3.2 s question | 0.73 s | 0.95 s |
+| 8.9 s recording | 1.86 s | 2.2 s |
+| 34.7 s recording | 12.1 s | 13.1–14.1 s |
+| all 23 clips (156 s) | RTF 0.31 | |
+| peak RSS | 845 MB | 2.1 GB |
+
+Most of the time goes to the encoder in ONNX Runtime: about 1.1 s of the 1.86 s for the 8.9 s recording. The Arc decoder
+takes 0.44 s and the RNNT 0.09 s. A clip longer than 20 s is encoded twice, once per utterance and once for the 30 s
+feature chunks, as arc_audio does.
+
 ## Not ported yet
 
 arc_audio has these and libarc does not: in streams, early commit and names / numbers (linking needs the word times
@@ -284,8 +386,10 @@ decoder / beam search · `arc_tok.*` tokenizer · `arc_text.*` segmentation, tag
 `arc_align.*` word times · `arc_engine.*` features, heads, trunk, read-outs, stages · `arc_wordch.*` word channel ·
 `arc_link.*` names and numbers · `arc_ntext.*` name text matching · `arc_num.*` number values · `arc_tidy.*` output
 tidying · `arc_result.c` results · `arc_store.*` Arc weights and 4-bit kernels · `arc_base.*`, `arc_kernels.c`,
-`arc_weights.c` shared C helpers (JSON, safetensors mmap, thread pool, GEMM with NEON / AVX2) ·
-`tools/` arc-transcribe, arc-parity, arc-trim and the reference dumpers · `tests/` tests and fixtures.
+`arc_nft2.*` Arc Transcriber Space (front end, streaming
+encoder loop, RNNT greedy + biasing, adapters, finals) · `arc_nft2_be.h` its encoder / RNNT backend interface, with
+`arc_nft2_ort.c` (ONNX Runtime) and `arc_nft2_none.c` (none) · `arc_weights.c` shared C helpers (JSON, safetensors mmap, thread pool, GEMM with NEON / AVX2) ·
+`tools/` arc-transcribe, arc-parity, arc-trim, arc-nft2, the reference dumpers and compare_nft2.py · `tests/` tests and fixtures.
 
 ## Licence
 
