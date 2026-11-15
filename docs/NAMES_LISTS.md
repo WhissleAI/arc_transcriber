@@ -29,7 +29,7 @@ All three compare **normalized** text. Write lists with the rules below, or name
   - general kinds: `place`, `organization`, `product`, `team`, `law`
 
   An entry with no kind or an unknown kind is still biased and linked, but the tagger cannot type it. Untyped lists lose
-  most of the tag accuracy: space-tag F1 drops from about .86 to about .71.
+  much of the tagging accuracy.
 - **`aliases`** (optional): other ways people say the name. Each alias is biased and matched like the name. A match on an
   alias still returns `name` as `entity`.
 
