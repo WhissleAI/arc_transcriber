@@ -178,12 +178,19 @@ class Transcriber:
         self.ctx_max = int(max_tokens)
 
     def _prompt_ids(self):
-        if not self.ctx and (not self.auto_prev):
+        if not self.ctx and (not self.auto_prev) and (not self.c.get('context_default')):
             return []
         from .ctxprompt import build_prompt, prev_text
-        c = dict(self.ctx or {})
+        c = dict(self.c.get('context_default') or {}, **self.ctx or {})
         if self.auto_prev and (not c.get('prev')):
             c['prev'] = prev_text(self.hist, self._t_now)
+        cb = self.c.get('context_budget')
+        if cb:
+            # prompt budgets of the decoder (v2 = layered prompt with session memory)
+            if int(cb.get('v', 1)) == 2:
+                from .ctxprompt import build_prompt_v2
+                return build_prompt_v2(self.tok, c, 'full' if c.get('kb') else 'prev', cb, use_types=bool(cb.get('types', True)))
+            return build_prompt(self.tok, c, 'full' if c.get('kb') else 'prev', int(cb.get('max', self.ctx_max)), int(cb.get('prev_max', 48)), int(cb.get('kb_max', 40)), use_types=bool(cb.get('types', True)))
         return build_prompt(self.tok, c, 'full' if c.get('kb') else 'prev', self.ctx_max)
 
     def _guards(self, start):
@@ -194,7 +201,7 @@ class Transcriber:
         return out, ([SuppressIds(_never_emit()), RepeatGuard(int(self.m.config.eos_token_id), start)] if self.c.get('loop_guard', False) else [])
 
     def _max_len(self, n_samples):
-        return 1 + int(float(self.c.get('len_mult', 1.0)) * (4 + self.c['tokens_per_s'] * n_samples / SR))
+        return 1 + int(float(self.c.get('len_mult', 1.0)) * (float(self.c.get('len_base', 4)) + self.c['tokens_per_s'] * n_samples / SR))
 
     def tagged_spans(self, text, ids=None):
         if not self.tagged:

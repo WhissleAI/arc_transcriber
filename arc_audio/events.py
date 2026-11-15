@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-LABELS = ['scene.cheer', 'scene.applause', 'scene.crowd_ambience', 'scene.boo_jeer', 'scene.chant', 'scene.music', 'scene.laughter', 'scene.horn', 'scene.whistle', 'scene.buzzer', 'scene.gunshot_explosion', 'scene.silence', 'scene.background_speech', 'scene.siren', 'scene.phone_ring', 'scene.typing', 'scene.door_knock', 'scene.beep', 'scene.alarm', 'scene.wind', 'scene.traffic', 'scene.ambience.cafe', 'scene.ambience.office', 'scene.ambience.street', 'scene.noise_other', 'bio_ev.cough', 'bio_ev.throat_clear', 'bio_ev.sneeze', 'meta.degraded_audio', 'meta.overlap', 'meta.channel.telephone', 'meta.channel.narrowband', 'meta.channel.mulaw', 'meta.channel.mp3', 'meta.channel.opus', 'meta.room.small', 'meta.room.medium', 'meta.room.large', 'meta.clipping', 'meta.snr.high', 'meta.snr.mid', 'meta.snr.low', 'scene.scream', 'scene.crying', 'scene.glass_break', 'scene.distress_call', 'scene.distress', 'meta.people_present', 'meta.media_command', 'meta.hidden_command']
+LABELS = ['scene.cheer', 'scene.applause', 'scene.crowd_ambience', 'scene.boo_jeer', 'scene.chant', 'scene.music', 'scene.laughter', 'scene.horn', 'scene.whistle', 'scene.buzzer', 'scene.gunshot_explosion', 'scene.silence', 'scene.background_speech', 'scene.siren', 'scene.phone_ring', 'scene.typing', 'scene.door_knock', 'scene.beep', 'scene.alarm', 'scene.wind', 'scene.traffic', 'scene.ambience.cafe', 'scene.ambience.office', 'scene.ambience.street', 'scene.noise_other', 'bio_ev.cough', 'bio_ev.throat_clear', 'bio_ev.sneeze', 'meta.degraded_audio', 'meta.overlap', 'meta.channel.telephone', 'meta.channel.narrowband', 'meta.channel.mulaw', 'meta.channel.mp3', 'meta.channel.opus', 'meta.room.small', 'meta.room.medium', 'meta.room.large', 'meta.clipping', 'meta.snr.high', 'meta.snr.mid', 'meta.snr.low', 'scene.scream', 'scene.crying', 'scene.glass_break', 'scene.distress_call', 'scene.distress', 'meta.people_present', 'meta.media_command', 'meta.hidden_command', 'scene.quindar_tone', 'meta.channel.radio', 'meta.dropout', 'meta.app_playback']
 CTX = 3
 
 class EventHead(nn.Module):
@@ -53,9 +53,10 @@ class EventTracker:
 
     def __init__(self, head, thr, status, enabled):
         self.head = head
-        self.thr = np.array([thr.get(l, 0.5) for l in LABELS], np.float32)
+        self.labels = LABELS[:int(head.c2.weight.shape[0])]     # heads trained before the newer labels have fewer outputs
+        self.thr = np.array([thr.get(l, 0.5) for l in self.labels], np.float32)
         self.status = status
-        self.on = np.array([l in enabled for l in LABELS])
+        self.on = np.array([l in enabled for l in self.labels])
         self.X = []
         self.x0 = 0
         self.n_done = 0
@@ -80,7 +81,7 @@ class EventTracker:
             for i in range(len(p)):
                 f = self.n_done + i
                 for j in on:
-                    lab = LABELS[j]
+                    lab = self.labels[j]
                     if p[i, j] >= self.thr[j]:
                         o = self.open.get(lab)
                         if o is None:
@@ -106,4 +107,4 @@ class EventTracker:
         return out
 
     def frames(self):
-        return np.concatenate(self.probs) if self.probs else np.zeros((0, len(LABELS)), np.float32)
+        return np.concatenate(self.probs) if self.probs else np.zeros((0, len(self.labels)), np.float32)

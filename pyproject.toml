@@ -18,6 +18,7 @@ live = ["websockets>=12", "sounddevice"]    # --asr deepgram/verbit --live, --mi
 integrations = ["websockets>=14,<16"]       # arc_audio.integrations: Deepgram, AssemblyAI, Speechmatics streaming
 bench = ["websockets>=14,<16", "jiwer>=3,<5", "whisper-normalizer>=0.0.10,<0.2"]   # scripts/bench_integrations.py
 resample = ["scipy"]
+space = ["onnxruntime>=1.17", "onnx>=1.15", "sentencepiece"]   # Arc Transcriber Space (backbone nft2): CPU ONNX encoder + RNNT
 test = ["pytest>=8"]
 
 [project.scripts]

@@ -2,13 +2,14 @@ import difflib, re
 BASE_ID = 32600
 TAGS = ['ENTITY_PERSON', 'ENTITY_TEAM', 'ENTITY_ORG', 'ENTITY_PLACE', 'ENTITY_WORK', 'ENTITY_EVENT', 'ENTITY_LEGAL', 'ENTITY_GAME', 'ENTITY_MAP', 'NUMBER', 'NUMBER_CLOCK', 'NUMBER_COUNT', 'NUMBER_DATE', 'NUMBER_DURATION', 'NUMBER_FIELDPOS', 'NUMBER_ID', 'NUMBER_JERSEY', 'NUMBER_MEASURE', 'NUMBER_MONEY', 'NUMBER_ODDS', 'NUMBER_ORDINAL', 'NUMBER_PERCENT', 'NUMBER_REF', 'NUMBER_SCORE', 'NUMBER_STAT', 'NUMBER_TIME', 'END']
 TAGS = TAGS + ['ENTITY_LAW', 'ENTITY_PRODUCT', 'ENTITY_TERM', '_RESERVED_A', '_RESERVED_B', 'CONTACT_PHONE', 'CONTACT_EMAIL', 'CONTACT_URL', 'CONTACT_ADDRESS']
+TAGS = TAGS + ['ENTITY_LUNAR', 'ENTITY_SPACECRAFT', 'ENTITY_MISSION', 'ENTITY_CELESTIAL']
 TID = {t: BASE_ID + i for i, t in enumerate(TAGS) if not t.startswith('_RESERVED')}
 ID2T = {v: k for k, v in TID.items()}
 END_ID = TID['END']
 RESERVED_IDS = [BASE_ID + i for i, t in enumerate(TAGS) if t.startswith('_RESERVED')]
 NEVER_EMIT = sorted(set(RESERVED_IDS) | set(range(BASE_ID + len(TAGS), 32768)))
 CONTACT_TAG = {'CONTACT_PHONE': 'entity.contact.phone', 'CONTACT_EMAIL': 'entity.contact.email', 'CONTACT_URL': 'entity.contact.url', 'CONTACT_ADDRESS': 'entity.contact.address'}
-NAME_TAG = {'ENTITY_PERSON': 'entity.mention.person', 'ENTITY_TEAM': 'entity.mention.team', 'ENTITY_ORG': 'entity.mention.organization', 'ENTITY_PLACE': 'entity.mention.place', 'ENTITY_WORK': 'entity.mention.work_product', 'ENTITY_EVENT': 'entity.mention.event_name', 'ENTITY_LEGAL': 'entity.mention.legal_ref', 'ENTITY_GAME': 'entity.mention.game_entity', 'ENTITY_MAP': 'entity.mention.game_map', 'ENTITY_LAW': 'entity.mention.law', 'ENTITY_PRODUCT': 'entity.mention.product', 'ENTITY_TERM': 'entity.mention.term'}
+NAME_TAG = {'ENTITY_PERSON': 'entity.mention.person', 'ENTITY_TEAM': 'entity.mention.team', 'ENTITY_ORG': 'entity.mention.organization', 'ENTITY_PLACE': 'entity.mention.place', 'ENTITY_WORK': 'entity.mention.work_product', 'ENTITY_EVENT': 'entity.mention.event_name', 'ENTITY_LEGAL': 'entity.mention.legal_ref', 'ENTITY_GAME': 'entity.mention.game_entity', 'ENTITY_MAP': 'entity.mention.game_map', 'ENTITY_LAW': 'entity.mention.law', 'ENTITY_PRODUCT': 'entity.mention.product', 'ENTITY_TERM': 'entity.mention.term', 'ENTITY_LUNAR': 'entity.mention.lunar_feature', 'ENTITY_SPACECRAFT': 'entity.mention.spacecraft', 'ENTITY_MISSION': 'entity.mention.mission', 'ENTITY_CELESTIAL': 'entity.mention.celestial'}
 NUMBER_KIND = {'NUMBER': None, 'NUMBER_CLOCK': 'clock', 'NUMBER_COUNT': 'count', 'NUMBER_DATE': 'date', 'NUMBER_DURATION': 'duration', 'NUMBER_FIELDPOS': 'field_position', 'NUMBER_ID': 'id_pii', 'NUMBER_JERSEY': 'jersey_number', 'NUMBER_MEASURE': 'measure', 'NUMBER_MONEY': 'money', 'NUMBER_ODDS': 'ratio_odds', 'NUMBER_ORDINAL': 'ordinal', 'NUMBER_PERCENT': 'percent', 'NUMBER_REF': 'ref_number', 'NUMBER_SCORE': 'score', 'NUMBER_STAT': 'stat', 'NUMBER_TIME': 'time_of_day'}
 
 def is_tagged_tokenizer(tok):
