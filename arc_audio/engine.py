@@ -17,6 +17,10 @@ DISPLAY_STOP = STOP | {'a', 'an', 'of', 'to', 'in', 'on', 'at', 'by', 'is', 'be'
 SPAN_GAP = 1
 RING = 1200
 
+# decoder-only name types (no Arc-net row yet): linked / scored through an existing mention row, reported with their own tag
+DEC_FALLBACK = {'entity.mention.lunar_feature': 'entity.mention.place', 'entity.mention.celestial': 'entity.mention.place',
+                'entity.mention.spacecraft': 'entity.mention.work_product', 'entity.mention.mission': 'entity.mention.event_name'}
+
 def _w(t):
     import re
     return re.sub("[^a-z0-9']", '', t.lower())
@@ -43,6 +47,11 @@ def connector(t):
 
 def _sig(x):
     return 1.0 / (1.0 + np.exp(-x))
+
+GENERIC_NAME_WORDS = frozenset('''rima rimae rupes mare maria mons montes mount mountain lacus sinus palus oceanus vallis valles
+catena catenae dorsum dorsa promontorium crater craters north south east west northern southern the a of de rille rilles sea bay
+lake ocean valley ridge ridges basin'''.split())
+
 
 class Readout:
 
@@ -291,6 +300,21 @@ class Engine:
         if pol.get('thr') is not None:
             rp['thr'] = float(pol['thr'])
         return rp
+
+    def _generic_guard(self, rec, span_text):
+        """A link made from generic words only ("Rimae", "Mare", "South crater") is a guess between list entries
+        sharing that word: demote it to abstain so the app asks instead of flying to the wrong place."""
+        if rec.get('state') != 'linked' or not rec.get('entity'):
+            return
+        toks = [t.strip(".,!?'\"").lower() for t in span_text.split() if not is_filler(t)]
+        toks = [t for t in toks if t]
+        if not toks or not all(t in GENERIC_NAME_WORDS for t in toks):
+            return
+        ent = [t.lower() for t in str(rec['entity']).split()]
+        if set(ent) <= set(toks):
+            return
+        rec.update(entity=None, state='abstain', via='generic_guard')
+        rec.pop('kb_index', None)
 
     def _policy(self, rec, span_text, allowed):
         pol = self.npol
@@ -837,6 +861,7 @@ class Engine:
         else:
             r = dict(pred=None if top < 2 else top - 2, sim=None)
             rec.update(entity=rec['model']['entity'], p=rec['model']['p'], state='linked' if top >= 2 else 'not_in_list')
+        self._generic_guard(rec, span_text)
         cz = z[2:]
         cj = r['pred'] if r.get('pred') is not None else int(np.argmax(cz)) if len(cz) else None
         if self.diag:
@@ -1031,10 +1056,15 @@ class Engine:
         pd = dict(kind=L, src='decoder', dtag=s['tag'], a=fa, b=fb, keys=set(s['keys']), span=dict(start=round(float(s['start']), 3), end=round(float(s['end']), 3), p=None))
         if L == 'name':
             tid = NAME_TAG[s['tag']]
+            out_tid = None
+            if tid not in self.tab.idx and tid in DEC_FALLBACK:
+                out_tid, tid = tid, DEC_FALLBACK[tid]
             if tid not in self.tab.idx:
                 return None
             pd.update(tag=tid, i=self.tab.idx[tid])
-            pd['span']['tag'] = tid
+            pd['span']['tag'] = out_tid or tid
+            if out_tid:
+                pd['out_tag'] = out_tid
         else:
             pd.update(tag='entity.numeral', nkind=NUMBER_KIND[s['tag']])
             pd['span']['tag'] = 'entity.numeral'
@@ -1067,7 +1097,7 @@ class Engine:
         a, b, i, tid = (pd['a'], pd['b'], pd['i'], pd['tag'])
         span_text = ' '.join((w['w'] for w in ws if not is_filler(w['w'])))
         hp = self._head_p(i, a, b)
-        rec = dict(start=ws[0]['start'], end=ws[-1]['end'], tag=tid, heard=span_text, model=None, src='decoder', decoder_tag=pd['dtag'])
+        rec = dict(start=ws[0]['start'], end=ws[-1]['end'], tag=pd.get('out_tag') or tid, heard=span_text, model=None, src='decoder', decoder_tag=pd['dtag'])
         ok = np.isin(self.ckind, MENTION_KINDS.get(tid, list(range(len(C_KINDS)))) + ([9] if tid == 'entity.mention.team' else [])) if self.E is not None else np.zeros(0, bool)
         if self.E is not None and span_text:
             for r_ in self.exn.rows_in(span_text):
@@ -1093,6 +1123,7 @@ class Engine:
             else:
                 r = dict(pred=None if top < 2 else top - 2, sim=None)
                 rec.update(entity=rec['model']['entity'], p=rec['model']['p'], state='linked' if top >= 2 else 'not_in_list')
+            self._generic_guard(rec, span_text)
             cz = z[2:]
             cj = r['pred'] if r.get('pred') is not None else int(np.argmax(cz)) if len(cz) else None
             if self.diag:

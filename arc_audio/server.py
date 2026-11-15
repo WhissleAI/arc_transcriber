@@ -148,12 +148,12 @@ class FrameProj(nn.Module):
 
 class Heads(nn.Module):
 
-    def __init__(self, pos_off=2):
+    def __init__(self, pos_off=2, d_in=1024):
         super().__init__()
         self.pos_off = int(pos_off)
-        self.mem = MemProj()
-        self.arc = FrameProj(d_f=512, d_out=640, mlp=True)
-        self.tap = FrameProj(d_f=320, d_out=640, mlp=False)
+        self.mem = MemProj(d_in=d_in)
+        self.arc = FrameProj(d_in=d_in, d_f=512, d_out=640, mlp=True)
+        self.tap = FrameProj(d_in=d_in, d_f=320, d_out=640, mlp=False)
 
 def frame_of_enc(g):
     return torch.ceil((g * STRIDE + RF) / SR * 10 - 1e-09).long() - 1
@@ -292,9 +292,9 @@ class ServerFeatures:
             self.c += self.CH
         return self._emit(True)
 
-def load_heads(path, device):
+def load_heads(path, device, d_in=1024):
     from safetensors.torch import load_file
     sd = load_file(path)
-    heads = Heads()
+    heads = Heads(d_in=d_in)
     heads.load_state_dict({k[len('adapter.'):]: v for k, v in sd.items() if k.startswith('adapter.')})
     return (heads.to(device).eval(), sd)

@@ -14,6 +14,18 @@ CC-BY-4.0, Copyright (c) NVIDIA Corporation) at run time and uses its encoder un
 weights into the transformers ParakeetEncoder and re-implements its log-mel front end. The weights are not included here.
 The optional transcript="parakeet" finals tier downloads the same model through NeMo at run time.
 
+Arc Transcriber Space (backbone "nft2") downloads its model from https://huggingface.co/WhissleAI/arc-transcriber-space at run
+time. That model contains a modified (fine-tuned) version of NVIDIA's stt_en_fastconformer_hybrid_large_streaming_multi
+(https://huggingface.co/nvidia/stt_en_fastconformer_hybrid_large_streaming_multi), licensed under CC-BY-4.0
+(https://creativecommons.org/licenses/by/4.0/), Copyright (c) NVIDIA Corporation; the weights were changed by fine-tuning,
+quantized and exported to ONNX. Its Arc decoder (nft2/decoder) is a modified version of the Moonshine Streaming tiny decoder
+(MIT License, as above; licence and copyright notice retained in the model repository's nft2/decoder/LICENSE). Whissle's parts of that model (the adapters, the Arc net and Whissle's changes to the decoder) are
+under CC BY-NC 4.0 and the Whissle terms in LICENSE. arc_audio/nft2.py runs the encoder and RNNT decoder with onnxruntime (or,
+from a local .nemo file, with the transformers NemotronAsrStreamingEncoder) and re-implements their log-mel front end and greedy
+RNNT decoding. The weights are not included here. The model repository's example clips (examples/samples/*.wav, used by
+examples/quickstart_space.py) are synthetic speech generated with the Kokoro-82M text-to-speech model (hexgrad/Kokoro-82M,
+Apache-2.0); they contain no recording of a real person.
+
 arc_audio/rescorer.py contains a fallback copy of the Metaphone function from jellyfish (https://github.com/jamesturk/jellyfish),
 MIT License, Copyright (c) 2015 James Turk. It is used only when the jellyfish package is not installed. c/src/arc_ntext.c
 contains a C port of the same function (matching jellyfish's behaviour).

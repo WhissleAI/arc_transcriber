@@ -96,7 +96,7 @@ def _mps_ok():
 
 class Arc:
 
-    def __init__(self, path, device=None, threads=None, load_decoder=True):
+    def __init__(self, path, device=None, threads=None, load_decoder=True, encoder=None, onnx_dir=None, arc_onnx_dir=None):
         device = resolve_device(device or os.environ.get('ARC_DEVICE', 'cpu'))
         if threads:
             torch.set_num_threads(int(threads))
@@ -115,7 +115,7 @@ class Arc:
         from transformers import AutoTokenizer
         self.backbone = (self.cfg.get('backbone') or {}).get('type', 'edge')
         mp = os.path.join(path, self.cfg['encoder']['subfolder'])
-        self.moon = load_moonshine(mp, decoder_only=self.backbone == 'parakeet').to(self.dev).float().eval()
+        self.moon = load_moonshine(mp, decoder_only=self.backbone in ('parakeet', 'nft2')).to(self.dev).float().eval()
         self.tok = AutoTokenizer.from_pretrained(mp) if load_decoder else None
         self.ev_head = self.dd_head = None
         self.bb = None
@@ -125,6 +125,19 @@ class Arc:
             self.heads, hsd = S.load_heads(os.path.join(path, bc.get('adapters', 'adapters.safetensors')), self.dev)
             self.heads.pos_off = int(bc.get('pos_off', 2))
             self.bb = S.Backbone(S.fetch_backbone(bc), tap=int(bc.get('tap', 12)), device=self.dev, half=bc.get('half'))
+            self.moon.model.encoder = S.Shim(self.bb, self.heads, self.moon.model.decoder.pos_emb)
+            self.enc = None
+        elif self.backbone == 'nft2':
+            # NFT2 streaming FastConformer: RNNT final words + the Arc layer (adapters, decoder, Arc net, heads) on one encoder
+            from . import server as S
+            from .nft2 import load_backbone
+            bc = self.cfg['backbone']
+            if encoder or onnx_dir or arc_onnx_dir:     # nft2 encoder backend: 'onnx' (default, CPU onnxruntime, streaming export) | 'torch' (local .nemo)
+                bc = dict(bc, **{k: v for k, v in dict(encoder=encoder or ('onnx' if onnx_dir else None), onnx_dir=onnx_dir and os.path.abspath(onnx_dir), arc_onnx_dir=arc_onnx_dir and os.path.abspath(arc_onnx_dir)).items() if v})
+                self.cfg['backbone'] = bc
+            self.bb = load_backbone(path, bc, self.dev)
+            self.heads, hsd = S.load_heads(os.path.join(path, bc.get('adapters', 'adapters.safetensors')), self.dev, d_in=self.bb.d_model)
+            self.heads.pos_off = int(bc.get('pos_off', 2))
             self.moon.model.encoder = S.Shim(self.bb, self.heads, self.moon.model.decoder.pos_emb)
             self.enc = None
         else:
@@ -205,7 +218,7 @@ class Arc:
 
     @torch.no_grad()
     def _feats(self, wav, tap=False):
-        if self.backbone == 'parakeet':
+        if self.backbone in ('parakeet', 'nft2'):
             from .server import ServerFeatures
             bc = self.cfg['backbone']
             src = ServerFeatures(self.bb, self.heads, chunk_s=float(bc.get('chunk_s', 30.0)), ctx_s=float(bc.get('context_s', 4.0)), tap=tap)
@@ -261,14 +274,19 @@ class Arc:
     def _moon_rel(self):
         return self._moons.get('release')
     HF_REPO = 'WhissleAI/arc-v1.1'
-    BACKBONES = {'mini': 'mini', 'edge': 'mini', 'full': 'full', 'parakeet': 'full', 'server': 'full'}
-    LEGACY = {'mini': 'edge', 'full': 'server'}
+    SPACE_REPO = 'WhissleAI/arc-transcriber-space'
+    BACKBONES = {'mini': 'mini', 'edge': 'mini', 'full': 'full', 'parakeet': 'full', 'server': 'full', 'nft2': 'nft2'}
+    LEGACY = {'mini': 'edge', 'full': 'server', 'nft2': 'nft2'}
     MODEL_FILES = ['config.json', 'tags.json', '*.safetensors', '*/*', 'LICENSE', 'NOTICE']
 
     @classmethod
-    def from_pretrained(cls, repo_or_dir='WhissleAI/arc-v1.1', backbone='mini', device=None, revision=None, threads=None, **kw):
+    def from_pretrained(cls, repo_or_dir=None, backbone='mini', device=None, revision=None, threads=None, **kw):
+        """repo_or_dir: a Hugging Face model repo or a local folder (the repo root, or the backbone folder itself). Default:
+        WhissleAI/arc-v1.1 for mini / full, WhissleAI/arc-transcriber-space for nft2 (Arc Transcriber Space)."""
+        if repo_or_dir is None:
+            repo_or_dir = cls.SPACE_REPO if backbone == 'nft2' else cls.HF_REPO
         if backbone not in cls.BACKBONES:
-            raise ValueError('backbone must be mini | full (aliases: edge = mini, parakeet / server = full)')
+            raise ValueError('backbone must be mini | full | nft2 (aliases: edge = mini, parakeet / server = full)')
         sub = cls.BACKBONES[backbone]
         subs = [sub, cls.LEGACY[sub]]
         path = repo_or_dir
@@ -332,6 +350,8 @@ class Arc:
             return 'decoder'
         if transcript == 'external' and spans:
             return 'decoder'
+        if transcript == 'nft2' and self.resolve_decoder(decoder) == 'tagged':
+            return 'decoder'
         return 'head'
 
     def _align(self, wav_seg, text, t0, fast=False):
@@ -343,7 +363,7 @@ class Arc:
 
     @property
     def hop_s(self):
-        return 0.08 if self.backbone == 'parakeet' else None
+        return 0.08 if self.backbone in ('parakeet', 'nft2') else None
 
     def transcribe(self, wav, names=None, bias_names=False, cfg=None, mode='builtin', decoder=None, context=None, auto_prev=False, written=False, domain='unknown'):
         """utterances [{start, end, text, words, tag_spans, ...}]. written=True adds text_written / words_written: numbers in written
@@ -374,6 +394,28 @@ class Arc:
                 u['text_written'], u['words_written'] = written_words(u['words'], domain) if u['words'] else (u['text'], [])
             utts.append(u)
         return utts
+
+    def nft2_finals(self, names=None, bias_names=None, decoder=None, context=None, auto_prev=False, tr=None, background=False, cfg=None):
+        """transcript='nft2' source: RNNT final words (names-list biased unless bias_names=False) + Arc decoder tags read
+        with the context prompt (Arc.set_context / context=; names also go into the kb prompt unless the context has its own kb)"""
+        if self.backbone != 'nft2':
+            raise ValueError("transcript='nft2' needs the nft2 backbone (Arc.from_pretrained(..., backbone='nft2'))")
+        from .nft2 import Nft2Finals
+        if tr is None:
+            tr = self._transcriber(cfg, 'builtin', decoder)
+            c = context if context is not None else getattr(self, '_ctx', None)
+            if isinstance(c, dict) and 'ctx' in c:
+                c = c['ctx']
+            c = dict(c or {})
+            if names and (not c.get('kb')) and (self.cfg.get('transcription') or {}).get('nft2', {}).get('names_in_prompt', True):
+                c = context_dict(names, extra=c)
+            if c or auto_prev or getattr(self, '_ctx_auto', False):
+                tr.set_context(c or None, auto_prev=auto_prev or getattr(self, '_ctx_auto', False), **self._ctx_budget())
+        return Nft2Finals(self, tr, names=names, bias=True if bias_names is None else bool(bias_names), background=background)
+
+    def _ctx_budget(self):
+        cb = (self.cfg.get('transcription') or {}).get('context_budget') or {}
+        return dict(max_tokens=int(cb['max'])) if cb.get('max') else {}
 
     def _words_for(self, u, wav):
         pad = int(self.cfg.get('transcription', {}).get('pad_s', 0.15) * SR)
@@ -413,13 +455,17 @@ class Arc:
             utts = pk.transcribe_offline(wav, self)
             for u in utts:
                 ws.add(u['words'], 'parakeet')
+        elif transcript == 'nft2':
+            utts = self.nft2_finals(names, bias_names, decoder=decoder, context=context, auto_prev=auto_prev).transcribe_offline(wav, self)
+            for u in utts:
+                ws.add(u['words'], 'nft2')
         elif transcript == 'external':
             if spans:
                 from .tagdec import annotate_times
                 words = annotate_times([dict(w, is_final=True) for w in words or []], spans)
             ws.add(words or [], 'external')
         elif transcript != 'none':
-            raise ValueError('transcript must be builtin | moonshine_release | parakeet | external | none')
+            raise ValueError('transcript must be builtin | moonshine_release | parakeet | nft2 | external | none')
         ws.mark_covered(len(wav) / SR + 10)
         masked = self.output_masks(domain, masks)
         evt = self.event_tracker(events, masked)
@@ -462,8 +508,7 @@ class Arc:
             evt.step(final=True)
             out['audio_events'] = evt.out
             if return_frames:
-                from .events import LABELS
-                out.setdefault('frames', {})['audio_events'] = dict(labels=LABELS, probs=evt.frames())
+                out.setdefault('frames', {})['audio_events'] = dict(labels=evt.labels, probs=evt.frames())
         if self.dd_head is not None:
             for u, t in zip(utts, out['transcript']):
                 t['device_directed'] = self.directed(xe[u['f0']:u['f1'] + 1])
@@ -590,7 +635,7 @@ def tidy_out(out, words):
     out['numbers'] = [tidy_number(extend_number(r, words)) for r in out.get('numbers') or [] if keep_number(r)]
     return out
 
-KB_KIND = {'person': 'person', 'team': 'team', 'organization': 'org', 'org': 'org', 'place': 'place', 'law': 'law', 'product': 'product'}
+KB_KIND = {'person': 'person', 'team': 'team', 'organization': 'org', 'org': 'org', 'place': 'place', 'law': 'law', 'product': 'product', 'lunar_feature': 'place', 'site': 'place', 'celestial': 'place', 'spacecraft': 'product', 'vehicle': 'product', 'mission': 'term', 'crew': 'person'}
 
 def context_dict(names=None, terms=None, topic=None, previous_text=None, extra=None):
     c = dict(extra or {})
@@ -870,7 +915,7 @@ class Stream:
         self.evt = arc.event_tracker(events, masked)
         self.src = None
         self.menc = None
-        if arc.backbone == 'parakeet':
+        if arc.backbone in ('parakeet', 'nft2'):
             from .server import ServerFeatures
             bc = arc.cfg['backbone']
             self.src = ServerFeatures(arc.bb, arc.heads, chunk_s=float(bc.get('stream_chunk_s', 10.0)), ctx_s=float(bc.get('stream_context_s', 2.0)), tap=self.evt is not None)
@@ -907,7 +952,7 @@ class Stream:
         self.total = 0
         self.utts = []
         self.partial = None
-        self.partials = partials and transcript in ('builtin', 'moonshine_release', 'parakeet') and (arc.backbone != 'parakeet' or arc.dev.type == 'cuda')
+        self.partials = partials and transcript in ('builtin', 'moonshine_release', 'parakeet', 'nft2') and (arc.backbone not in ('parakeet', 'nft2') or arc.dev.type == 'cuda')
         self.partial_every = float(partial_every_s)
         self.partial_win = float(partial_window_s)
         self.live_on = live
@@ -918,12 +963,19 @@ class Stream:
         self.pwords = (None, [])
         self.closed_f1 = -1
         self.cov_sent = 0.0
-        if transcript in ('builtin', 'moonshine_release', 'parakeet'):
+        if transcript in ('builtin', 'moonshine_release', 'parakeet', 'nft2'):
             from .transcribe import UttSegmenter
             tm = 'moonshine_release' if transcript == 'moonshine_release' else 'builtin'
             self.tr = arc._transcriber(cfg=dict(segmenter or {}), mode=tm, decoder=decoder if tm == 'builtin' else None)
-            arc._set_bias(self.tr, names, default_bias(bias_names, transcript))
-            if context is not None or getattr(arc, '_ctx', None) or auto_prev:
+            arc._set_bias(self.tr, names, default_bias(bias_names, transcript) if transcript != 'nft2' else False)
+            if transcript == 'nft2':
+                c = context if context is not None else getattr(arc, '_ctx', None)
+                c = dict((c.get('ctx') if isinstance(c, dict) and 'ctx' in c else c) or {})
+                if names and (not c.get('kb')) and (arc.cfg.get('transcription') or {}).get('nft2', {}).get('names_in_prompt', True):
+                    c = context_dict(names, extra=c)
+                if c or auto_prev or getattr(arc, '_ctx_auto', False):
+                    self.tr.set_context(c or None, auto_prev=auto_prev or getattr(arc, '_ctx_auto', False), **arc._ctx_budget())
+            elif context is not None or getattr(arc, '_ctx', None) or auto_prev:
                 c = context if context is not None else getattr(arc, '_ctx', None)
                 self.tr.set_context(c, auto_prev=auto_prev or getattr(arc, '_ctx_auto', False))
             self.seg = UttSegmenter(self.tr.c)
@@ -932,8 +984,15 @@ class Stream:
         if transcript == 'parakeet':
             from .parakeet import ParakeetFinals
             self.pk = ParakeetFinals(device=str(arc.dev), background=True)
+        elif transcript == 'nft2':
+            # finals = RNNT words + decoder tags of each closed utterance, read by the stream's own transcriber (its
+            # context / names follow Stream.set_context); a separate transcriber serves the partials
+            from .nft2 import Nft2Finals
+            ftr = arc._transcriber(mode='builtin', decoder=decoder)
+            ftr.ctx, ftr.auto_prev, ftr.ctx_max = (self.tr.ctx, self.tr.auto_prev, self.tr.ctx_max)
+            self.pk = Nft2Finals(arc, ftr, names=names, bias=True if bias_names is None else bool(bias_names), background=background)
         elif transcript not in ('builtin', 'moonshine_release', 'external', 'none'):
-            raise ValueError('transcript must be builtin | moonshine_release | parakeet | external | none')
+            raise ValueError('transcript must be builtin | moonshine_release | parakeet | nft2 | external | none')
         self.worker = None
         if self.tr is not None and background:
             self.worker = _Worker(self._job, worker_threads or 1)
@@ -967,16 +1026,24 @@ class Stream:
 
     def set_names(self, names):
         self.eng.set_names(Arc._kb(names))
+        if self.pk is not None and hasattr(self.pk, 'set_names'):
+            self.pk.set_names(names)
 
     def set_context(self, ctx=None, auto_prev=False, max_tokens=96, names=None, terms=None, topic=None, previous_text=None, **kw):
         """decoder context on a running stream, for the utterances that close after this call (utterances already closed and
         queued keep the context they were closed with). Same arguments as Arc.set_context (names, terms, topic, previous_text,
         auto_prev) or the raw prompt dict (kb, kb_type, dom, prev); set_context() with no arguments clears it. The name list for
-        linking is separate: set_names()."""
+        linking is separate: set_names(), except on an nft2 stream (transcript='nft2'), where names= also replaces the linking
+        list and the RNNT names bias, as the names passed to Arc.stream do."""
         c = context_dict(names, terms, topic, previous_text, dict(ctx or {}, **kw))
         job = ('ctx', c or None, bool(auto_prev), int(max_tokens))
+        nft2 = self.pk is not None and hasattr(self.pk, 'set_names')
+        if nft2 and names is not None:
+            self.set_names(names)
         if self.tr is not None:
             self._submit(job)
+            if nft2 and getattr(self.pk, 'tr', None) is not None:
+                self.pk.tr.set_context(c or None, auto_prev=bool(auto_prev), max_tokens=int(max_tokens))
         if self.fb is not None:
             self.fb.set_context(c or None, auto_prev=auto_prev, max_tokens=max_tokens)
 
@@ -1151,7 +1218,7 @@ class Stream:
         if self.vroles is not None:
             self._roles_step()
             out['voice_roles'] = self.vroles.roles()
-        if self.mode in ('builtin', 'moonshine_release', 'parakeet'):
+        if self.mode in ('builtin', 'moonshine_release', 'parakeet', 'nft2'):
             out['transcript_rewritten'] = rewrite(self.utts, self.eng.out['names'])
             from .written import written_transcript
             out['transcript_written_all'] = written_transcript(self.utts, self.eng.out['names'], self.domain)
