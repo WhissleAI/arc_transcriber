@@ -99,3 +99,32 @@ def test_space_silence(space):
     _, arc = space
     out = arc.predict(np.zeros(16000 * 2, np.float32), domain="assistant", transcript="nft2", names=NAMES, return_frames=False)
     assert not (out.get("names") or [])
+
+
+def test_number_relink():
+    """a heard number never links to another number's entry: 'Apollo fourteen' linked to 'Apollo 12' moves to 'Apollo 14'"""
+    from arc_audio.tidy import number_relink
+    kb = [(0, ["Apollo 12"]), (1, ["Apollo 14"]), (2, ["Tycho"]), (3, ["Artemis II", "Artemis 2"])]
+    assert number_relink("Apollo fourteen", ["Apollo 12"], kb) == [1]
+    assert number_relink("Apollo 14", ["Apollo 12"], kb) == [1]
+    assert number_relink("Apollo fifteen", ["Apollo 12"], kb) == []          # not in the list
+    assert number_relink("Artemis three", ["Artemis II", "Artemis 2"], kb) == []
+    for heard, forms in (("Apollo twelve", ["Apollo 12"]), ("Apollo", ["Apollo 12"]), ("Artemis two", ["Artemis II", "Artemis 2"]),
+                         ("Tycho", ["Tycho"]), ("nineteen sixty nine", ["1969"])):
+        assert number_relink(heard, forms, kb) is None                         # the link agrees: kept
+    from arc_audio.tidy import number_exact
+    sib = [(0, ["Apollo 12"]), (1, ["Apollo 14"]), (2, ["Apollo 15"]), (3, ["Artemis II", "Artemis 2"])]
+    assert number_exact("Apollo fourteen", sib) == [1]
+    assert number_exact("Artemis two", sib) == [3]
+    assert number_exact("Apollo", sib) == [] and number_exact("Apollo sixteen", sib) == []
+    assert number_exact("the Apollo fourteen", sib) == []                     # exactly the entry's words only
+
+
+def test_list_spans_long_exact():
+    """an exact names-list match of >= long_chars letters is tagged without the decoder-heard check; shorter ones keep the check"""
+    from arc_audio.nft2 import list_spans
+    words = "tell me about copernicus and tycho".split()
+    lk = {("copernicus",): "ENTITY_LUNAR", ("tycho",): "ENTITY_LUNAR"}
+    heard = lambda i, j: ""                                                     # the decoder heard nothing there
+    assert list_spans([], words, lk, 3, True, heard, 0.5) == []
+    assert list_spans([], words, lk, 3, True, heard, 0.5, long_chars=8) == [("ENTITY_LUNAR", 3, 4)]

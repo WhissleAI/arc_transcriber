@@ -316,6 +316,28 @@ class Engine:
         rec.update(entity=None, state='abstain', via='generic_guard')
         rec.pop('kb_index', None)
 
+    def _number_guard(self, rec, span_text, allowed):
+        """never link across numbers: a span heard as 'Apollo fourteen' linked to 'Apollo 12' moves to the list's 'Apollo 14' (same
+        words, the heard number), else is not in the list (no such entry) or abstains (several); an abstained span that is exactly
+        one entry's words and number (the list holds Apollo 12 / 14 / 15) links to it"""
+        from .tidy import number_relink, number_exact
+        forms = lambda c: [c.get('name', '')] + [str(a) for a in c.get('aliases') or []]
+        if rec.get('state') == 'abstain' and rec.get('via') != 'generic_guard':   # siblings in the list: the heard number decides
+            rows = number_exact(span_text, [(int(q), forms(self.kb[int(q)])) for q in allowed])
+            if len(rows) == 1:
+                rec.update(entity=self.kb[rows[0]]['name'], kb_index=rows[0], state='linked', via='number')
+            return
+        if rec.get('state') != 'linked' or rec.get('kb_index') is None:
+            return
+        rows = number_relink(span_text, forms(self.kb[int(rec['kb_index'])]), [(int(q), forms(self.kb[int(q)])) for q in allowed])
+        if rows is None:
+            return
+        if len(rows) == 1:   # p stays the link's own: the name was right, the heard number picks the entry
+            rec.update(entity=self.kb[rows[0]]['name'], kb_index=rows[0], via='number')
+        else:
+            rec.update(entity=None, state='abstain' if rows else 'not_in_list', via='number')
+            rec.pop('kb_index', None)
+
     def _policy(self, rec, span_text, allowed):
         pol = self.npol
         toks = [t for t in span_text.split() if not is_filler(t)]
@@ -862,6 +884,7 @@ class Engine:
             r = dict(pred=None if top < 2 else top - 2, sim=None)
             rec.update(entity=rec['model']['entity'], p=rec['model']['p'], state='linked' if top >= 2 else 'not_in_list')
         self._generic_guard(rec, span_text)
+        self._number_guard(rec, span_text, allowed)
         cz = z[2:]
         cj = r['pred'] if r.get('pred') is not None else int(np.argmax(cz)) if len(cz) else None
         if self.diag:
@@ -1124,6 +1147,7 @@ class Engine:
                 r = dict(pred=None if top < 2 else top - 2, sim=None)
                 rec.update(entity=rec['model']['entity'], p=rec['model']['p'], state='linked' if top >= 2 else 'not_in_list')
             self._generic_guard(rec, span_text)
+            self._number_guard(rec, span_text, allowed)
             cz = z[2:]
             cj = r['pred'] if r.get('pred') is not None else int(np.argmax(cz)) if len(cz) else None
             if self.diag:

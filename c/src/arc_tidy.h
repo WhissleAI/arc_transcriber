@@ -43,4 +43,15 @@ int arc_same_mention(const arc_tname* a, const arc_tname* b);
  * count kept (records moved to the front of r; the rest are freed). */
 int arc_dedupe_names(arc_tname* r, int n);
 
+/* tidy.number_relink: never link across numbers. span: the heard words; lforms: the linked entry's name + aliases;
+ * candidates rows[r] with forms cforms[r][0..ncf[r]). Returns -1 when the link agrees (keep it), else the number of
+ * candidate rows written to out whose name / alias has the linked entry's words and the heard number (1: link it,
+ * 0: not in the list, more: abstain). */
+int arc_tidy_number_relink(const char* span, const char* const* lforms, int nlf, const int* rows,
+                           const char* const* const* cforms, const int* ncf, int nc, int* out);
+/* tidy.number_exact: the candidate rows whose name / alias is exactly the span's words and numbers (an abstained
+ * "Apollo fourteen" between Apollo 12 / 14 / 15). Returns the count written to out. */
+int arc_tidy_number_exact(const char* span, const int* rows, const char* const* const* cforms, const int* ncf, int nc,
+                          int* out);
+
 #endif

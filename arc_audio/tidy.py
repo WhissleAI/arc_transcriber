@@ -174,3 +174,68 @@ def utterance_spans(wav, cfg=None, fr=1600):
         closed += seg.feed(f, db(wav[f * fr:(f + 1) * fr]))
     closed += seg.flush()
     return [(f0 / 10, (f1 + 1) / 10) for f0, f1, _ in closed]
+
+_NUMW = None
+
+def _num_tok(c):
+    """a cleaned lower-case token as a number: the set of ways it can be written / heard ('12' -> {12, twelve}, 'ii' -> {ii, two},
+    'fourteen' -> {fourteen}, 'twenty-four' -> {twenty, four} parts), or None for a non-number ('i', 'v', 'x' alone are words)"""
+    global _NUMW
+    if _NUMW is None:
+        from .numlib import UNITS, TENS, SCALES
+        _NUMW = set(UNITS) | set(TENS) | set(SCALES) | {'oh'}
+    if c.isdigit() and len(c) <= 9:
+        return {c} | _spoken(c)
+    if len(c) >= 2 and c in _ROMAN:
+        return {c} | _spoken(c)
+    parts = [q for q in c.split('-') if q]
+    if parts and all(q in _NUMW for q in parts):
+        return set(parts)
+    return None
+
+def number_form(text):
+    """-> (base words, [number token sets]) of a name / heard span: 'Apollo 12' -> (('apollo',), [{12, twelve}])"""
+    base, nums = [], []
+    for x in str(text or '').split():
+        c = clean_word(x).lower()
+        if c.endswith("'s"):
+            c = c[:-2]
+        if not c:
+            continue
+        n = _num_tok(c)
+        if n is None:
+            base.append(c)
+        else:
+            nums.append(n)
+    return (tuple(base), nums)
+
+def numbers_agree(span_nums, name_nums):
+    """every number heard in the span is a number of the name ('fourteen' vs 'Apollo 12': no)"""
+    have = set().union(*name_nums) if name_nums else set()
+    return all(n & have for n in span_nums)
+
+def number_relink(span_text, linked_forms, cand_forms):
+    """A heard number that is not the linked name's number ('Apollo fourteen' linked to 'Apollo 12'): the candidate rows whose name or
+    alias has the same words and that number. linked_forms / cand_forms[row]: the name + aliases of the entry. -> None (the link agrees,
+    keep it), or the list of rows to choose from (one: link it; none: not in the list; several: abstain)."""
+    _, sn = number_form(span_text)
+    if not sn:
+        return None
+    lf = [number_form(f) for f in linked_forms]
+    if not any(n for _, n in lf) or any(numbers_agree(sn, n) for _, n in lf):
+        return None
+    bases = {b for b, _ in lf}
+    out = []
+    for row, forms in cand_forms:
+        if any(b in bases and n and numbers_agree(sn, n) for b, n in (number_form(f) for f in forms)):
+            out.append(row)
+    return out
+
+def number_exact(span_text, cand_forms):
+    """An abstained span heard as a list name with its number ('Apollo fourteen' between Apollo 12 / 14 / 15): the candidate rows
+    whose name or alias has exactly the span's words and numbers"""
+    sb, sn = number_form(span_text)
+    if not sn or not sb:
+        return []
+    return [row for row, forms in cand_forms
+            if any(b == sb and len(n) == len(sn) and numbers_agree(sn, n) for b, n in (number_form(f) for f in forms))]

@@ -440,7 +440,7 @@ struct arc_nft2 {
   int pos_off, d_arc, d_tap;
   /* settings (transcription.nft2, backbone) */
   double alpha, context_score, whole_max_s, edge_pad_s, tail_pad_s, list_add_ratio, chunk_s, context_s;
-  int case_from, char_align, unify, list_on, list_add, list_min_chars, names_in_prompt;
+  int case_from, char_align, unify, list_on, list_add, list_min_chars, list_add_long_chars, names_in_prompt;
   int ctx_max, ctx_prev_max, ctx_kb_max, ctx_ses_max, ctx_types;
   char* ctx_default_dom;
   /* names */
@@ -996,6 +996,7 @@ arc_nft2* arc_nft2_create(const char* dir, int threads, char* err, size_t err_le
   m->list_add = (int)cfg_num(nc, "list_add", 1);
   m->list_min_chars = (int)cfg_num(nc, "list_min_chars", 3);
   m->list_add_ratio = cfg_num(nc, "list_add_ratio", 0.5);
+  m->list_add_long_chars = (int)cfg_num(nc, "list_add_long_chars", 0);   /* opt-in, see nft2.list_spans */
   m->names_in_prompt = (int)cfg_num(nc, "names_in_prompt", 1);
   if (!m->char_align) {
     arc_seterr("%s: transcription.nft2.char_align false is not supported", dir);
@@ -2045,7 +2046,10 @@ static int list_spans(arc_nft2* m, span3* sp, int n, int cap, const charalign* c
           nent += tn && !strncmp(tn, "ENTITY_", 7);
         }
       int okk = 0;
-      if (!nent && m->list_add && !nov && L->chars >= m->list_min_chars) {
+      if (!nent && m->list_add && !nov && L->chars >= m->list_min_chars &&
+          m->list_add_long_chars > 0 && L->chars >= m->list_add_long_chars)
+        okk = 1;   /* a long exact list match: not made up by the bias, no decoder check */
+      else if (!nent && m->list_add && !nov && L->chars >= m->list_min_chars) {
         int hn;
         uint32_t* h = heard_by_decoder(c, i, i + nw, &hn);
         uint32_t* kk = arc_malloc(sizeof(uint32_t) * (size_t)(L->chars + 1));
