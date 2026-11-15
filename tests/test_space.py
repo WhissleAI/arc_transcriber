@@ -24,6 +24,18 @@ def test_names_normalization():
     assert Pieces.norm("Chang’e 3") == "chang'e three"
 
 
+def test_tidy_name_spoken_numbers():
+    from arc_audio.tidy import tidy_name
+    def heard(entity, ws):
+        r = dict(entity=entity, heard=" ".join(ws), start=0.0, end=float(len(ws)), words=[dict(w=w, start=float(i), end=i + 0.5) for i, w in enumerate(ws)])
+        return tidy_name(r)["heard"]
+    assert heard("Apollo 12", ["Apollo", "twelve"]) == "Apollo twelve"
+    assert heard("Surveyor 6", ["the", "Surveyor", "six"]) == "Surveyor six"
+    assert heard("Artemis II", ["Artemis", "two"]) == "Artemis two"
+    assert heard("Luna 24", ["Luna", "twenty-four"]) == "Luna twenty-four"
+    assert heard("Tycho", ["Tycho", "crater"]) == "Tycho"
+
+
 def test_space_kinds():
     from arc_audio.api import KB_KIND
     for k in ("lunar_feature", "site", "celestial", "spacecraft", "vehicle", "mission", "crew"):
@@ -78,6 +90,8 @@ def test_space_offline_and_stream(space):
     fin = s.flush()
     sw = [w["text"] for u in fin.get("transcript") or [] for w in u.get("words") or []]
     assert sw
+    key = lambda t: "".join(c for c in t.lower() if c.isalnum())
+    assert key(sw[-1]) == key(words[-1]["text"])          # the stream keeps the last word of the clip (tail of the final utterance)
     s.close()
 
 

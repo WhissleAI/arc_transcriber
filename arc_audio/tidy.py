@@ -18,8 +18,35 @@ def _numeric(w):
         return False
     return bool(NUMWORD.match(c)) or any((ch.isdigit() for ch in c)) or c in ORDINALS or bool(re.fullmatch('(twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)-\\w+', c))
 
+_ROMAN = {r: i for i, r in enumerate('i ii iii iv v vi vii viii ix x xi xii xiii xiv xv xvi xvii xviii xix xx'.split(), 1)}
+
+def _spoken(c):
+    """the spoken words of a number written in a name: '12' -> twelve, 'II' -> two, '1969' -> nineteen sixty nine too (empty for a
+    non-number); 'I' alone is left as a word"""
+    from .numlib import int_words
+    n = int(c) if c.isdigit() and len(c) <= 9 else _ROMAN.get(c) if c != 'i' else None
+    if n is None:
+        return set()
+    out = set(int_words(n))
+    if 1000 <= n < 10000:
+        out.update(int_words(n // 100) + (int_words(n % 100) if n % 100 else ['hundred']) + (['oh'] if 0 < n % 100 < 10 else []))
+    return out
+
 def _forms(entity):
-    return {clean_word(x).lower() for x in str(entity or '').split()}
+    """the words of a linked name as they can be heard: the name's own words plus the spoken words of its numbers ('Apollo 12' ->
+    apollo, 12, twelve; 'Artemis II' -> artemis, ii, two)"""
+    out = set()
+    for x in str(entity or '').split():
+        c = clean_word(x).lower()
+        if c:
+            out.add(c)
+            for q in [c] + c.split('-'):
+                out.update(_spoken(q))
+    return out
+
+def _in_forms(c, ent):
+    """a heard word (cleaned, lower case) is a word of the name: itself, or all parts of a hyphenated number ('twenty-four')"""
+    return c in ent or ('-' in c and all((q in ent for q in c.split('-') if q)))
 
 def _capital(w):
     c = clean_word(w)
@@ -36,7 +63,7 @@ def tidy_name(r):
             if not c:
                 return True
             if ent:
-                return c.lower() not in ent and any((clean_word(w['w']).lower() in ent for j, w in enumerate(W) if j != k))
+                return not _in_forms(c.lower(), ent) and any((_in_forms(clean_word(w['w']).lower(), ent) for j, w in enumerate(W) if j != k))
             return not caps[k] and any((caps[j] for j in range(len(W)) if j != k))
         while len(W) > 1 and drop(len(W) - 1):
             W = W[:-1]

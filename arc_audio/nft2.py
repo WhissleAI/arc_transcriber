@@ -1025,7 +1025,7 @@ class Nft2Finals:
         self.arc, self.tr = (arc, tr)
         c = (arc.cfg.get('transcription') or {}).get('nft2') or {}
         self.c = dict(dict(alpha=2.0, context_score=1.0, case_from_decoder=True, whole_max_s=20.0, edge_pad_s=0.15, char_align=True,
-                           unify_types=True, list_spans=True, list_add=True, list_min_chars=3, list_add_ratio=0.5), **c)
+                           unify_types=True, list_spans=True, list_add=True, list_min_chars=3, list_add_ratio=0.5, tail_pad_s=0.5), **c)
         if alpha is not None:
             self.c['alpha'] = float(alpha)
         self.bias = bool(bias)
@@ -1047,20 +1047,29 @@ class Nft2Finals:
             ph += [str(c.get('name', ''))] + [str(x) for x in c.get('aliases') or []]
         self.trie = self.arc.bb.trie([p for p in ph if p.strip()], self.c['context_score']) if self.bias and names else None
 
+    def _tail(self, y, t0, f1):
+        """a streamed utterance + silence so the input runs tail_pad_s past its last frame f1: the RNNT emits
+        a word's last pieces a few hundred ms after it is spoken, so a segment cut 0.15 s after the speech loses its last word
+        ('near Sinus me' for 'near Sinus Medii')"""
+        y = np.asarray(y, np.float32)
+        need = int(round(((f1 + 1) / 10 + float(self.c['tail_pad_s']) - t0) * SR)) - len(y)
+        return np.concatenate([y, np.zeros(need, np.float32)]) if need > 0 else y
+
     @torch.no_grad()
-    def decode(self, y, t0=0.0, f0=None, f1=None, want=False):
-        """utterance audio -> utterance dict (text, words with inline tags, tag_spans, decoder text); one encoder pass"""
+    def decode(self, y, t0=0.0, f0=None, f1=None, want=False, tail=False):
+        """utterance audio -> utterance dict (text, words with inline tags, tag_spans, decoder text); one encoder pass. tail: y is a
+        cut utterance; silence is added after it (_tail)"""
         from .moon import states_output
         from .server import mem_with_pos
         from .tagdec import map_spans, annotate
         from .transcribe import loopfix
         arc, tr = (self.arc, self.tr)
-        r = arc.bb.utterance(np.asarray(y, np.float32), trie=self.trie, alpha=float(self.c['alpha']), t0=t0)
+        f0 = int(round(t0 * 10)) if f0 is None else f0
+        f1 = max(f0, int(round((t0 + len(y) / SR) * 10)) - 1) if f1 is None else f1
+        r = arc.bb.utterance(self._tail(y, t0, f1) if tail else np.asarray(y, np.float32), trie=self.trie, alpha=float(self.c['alpha']), t0=t0)
         words = r['words']
         nv = max(1, int(r['mask'][0].sum()))
         M = mem_with_pos(arc.heads, arc.moon.model.decoder.pos_emb, r['P'][:, :nv])   # valid frames only (= the encoder mask)
-        f0 = int(round(t0 * 10)) if f0 is None else f0
-        f1 = max(f0, int(round((t0 + len(y) / SR) * 10)) - 1) if f1 is None else f1
         tr._t_now = f0 / 10
         raw = tr._gen(dict(encoder_outputs=states_output(tr.m, M.float())), len(y), None, final=True)
         dec_ids = list(tr.last_ids)
@@ -1088,7 +1097,7 @@ class Nft2Finals:
         return u
 
     def _decode(self, y, t0, f0, f1):
-        return self.decode(y, t0, f0, f1)
+        return self.decode(y, t0, f0, f1, tail=True)
 
     def _loop(self):
         while True:
