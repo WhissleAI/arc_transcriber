@@ -4,6 +4,8 @@
     build/nft2/arc-nft2 NFT2_DIR --manifest manifest.json --json --dump DUMP > c.jsonl
     python tools/compare_nft2.py REF_DIR c.jsonl DUMP [--md]
 
+Streams: dump_nft2.py --stream and arc-nft2 --stream, then compare_nft2.py --stream (the utterances and their stages).
+
 Per clip: RNNT token ids, decoder prompt and token ids, transcript words (text, times, tags), names (heard, entity,
 state, tag), numbers, events and the device-directed decision must be identical; the float stages (log-mel, encoder
 output H, layer tap, decoder memory M, pooled features X / Xt) and probabilities are reported as max abs differences.
@@ -63,6 +65,8 @@ def main():
     ap.add_argument('cand')
     ap.add_argument('dump')
     ap.add_argument('--md', action='store_true', help='a markdown table')
+    ap.add_argument('--stream', action='store_true', help='dump_nft2.py --stream against arc-nft2 --stream: the '
+                    'utterances only (Python streams read names / events with the live engine, libarc on the whole stream)')
     a = ap.parse_args()
     ref = {}
     for line in open(os.path.join(a.ref, 'ref.jsonl')):
@@ -93,33 +97,37 @@ def main():
         chk['names'] = [name_key(n) for n in r['names']] == [name_key(n) for n in c['names']]
         chk['numbers'] = [num_key(n) for n in r['numbers']] == [num_key(n) for n in c['numbers']]
         chk['events'] = [ev_key(e) for e in r['events']] == [ev_key(e) for e in c['events']]
-        rdd = [u.get('device_directed', {}).get('directed') for u in r['transcript']]
-        cdd = [u.get('device_directed', {}).get('directed') for u in c['transcript']]
+        rdd = [(u.get('device_directed') or {}).get('directed') for u in r['transcript']]
+        cdd = [(u.get('device_directed') or {}).get('directed') for u in c['transcript']]
         chk['dd'] = rdd == cdd
         diffs = {}
-        for k in ('mel', 'H', 'Htap', 'M'):
+        for k in (('M',) if a.stream else ('mel', 'H', 'Htap', 'M')):
             v = [maxdiff(npz[f'{k}_{i}'], dm.get(f'{k}_{i}')) for i in range(64) if f'{k}_{i}' in npz.files]
             v = [x for x in v if x is not None]
             diffs[k] = max(v) if v else None
-        for k in ('X', 'Xt'):
-            diffs[k] = maxdiff(npz[k], dm.get(k)) if k in npz.files else None
+        for k in ('mel', 'H', 'Htap', 'X', 'Xt') if a.stream else ('X', 'Xt'):
+            diffs[k] = None if a.stream else maxdiff(npz[k], dm.get(k)) if k in npz.files else None
         pd = []
         for rn, cn in zip(r['names'], c['names']):
             if rn.get('p') is not None and cn.get('p') is not None:
                 pd.append(abs(rn['p'] - cn['p']))
         for ru, cu in zip(r['transcript'], c['transcript']):
-            if 'device_directed' in ru and 'device_directed' in cu:
+            if ru.get('device_directed') and cu.get('device_directed'):
                 pd.append(abs(ru['device_directed']['p'] - cu['device_directed']['p']))
         for re_, ce in zip(r['events'], c['events']):
             pd.append(abs(re_['p'] - ce['p']))
         diffs['p'] = max(pd) if pd else 0.0
+        if a.stream:
+            for k in ('names', 'numbers', 'events', 'dd'):
+                chk[k] = True
+            diffs['p'] = None
         for k, v in diffs.items():
             if v is not None:
                 worst[k] = max(worst.get(k, 0.0), v)
         ok = all(chk.values())
         bad += not ok
         rows.append((cid, ok, chk, diffs, r['audio_s'], ' | '.join(u['text'] for u in r['transcript'])))
-    keys = ['rnnt', 'prompt', 'dec', 'dec_text', 'words', 'text', 'names', 'numbers', 'events', 'dd']
+    keys = ['rnnt', 'prompt', 'dec', 'dec_text', 'words', 'text'] + ([] if a.stream else ['names', 'numbers', 'events', 'dd'])
     fk = ['mel', 'H', 'Htap', 'M', 'X', 'Xt', 'p']
     fmt = lambda v: '-' if v is None else f'{v:.1e}'
     if a.md:

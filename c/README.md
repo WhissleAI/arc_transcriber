@@ -275,8 +275,10 @@ arc_nft2_destroy(m);
   for names, numbers, events and the device-directed head come from 30 s chunks with 4 s of context, as on the server.
 - **Streams** (`arc_nft2_stream_open / feed / flush / close`): feed any amount of audio. `feed` returns each
   utterance once the segmenter closes it (0.4 s into a pause). `flush` returns the whole stream with names, numbers,
-  events and the device-directed head. The result is identical to `arc_nft2_transcribe` on the same audio when that
-  audio is longer than 20 s.
+  events and the device-directed head. Each streamed utterance is cut 0.15 s after its speech and then padded with
+  silence to 0.5 s past its last frame (`transcription.nft2.tail_pad_s`), as arc_audio's streams do: the RNNT emits a
+  word's last pieces a few hundred ms after it is spoken, and without the padding a stream loses its last word
+  ("near Sinus me"). Offline decoding (`arc_nft2_transcribe`) has no such padding.
 - **Names lists**: names and aliases are matched after spoken-form normalization (`Apollo 12` → `apollo twelve`;
   every character other than a–z, digits, `'`, `-` and space is dropped). Always set `kind` (`lunar_feature`, `site`,
   `celestial`, `spacecraft`, `mission`, `crew`, ...). Give aliases for names that are not said as written: `Artemis II`
@@ -305,8 +307,15 @@ synthetic questions, and a 34.7 s clip that exercises segmentation and the 30 s 
   at the start of an utterance, and 2 real clips shift the boundaries of narrowband / telephone channel events. Linked
   entities and device-directed decisions are the same on all 23 clips. The same spread appears between any two FFT
   implementations, so it is not specific to C.
-- `sample_3` ("Why is Tycho so bright?") gives an empty RNNT transcript in both arc_audio and libarc. The decoder reads
-  it correctly (`decoder_text`, ENTITY_LUNAR).
+- **Streams** (`dump_nft2.py --stream`: `Arc.stream(transcript="nft2")` fed 100 ms at a time; against
+  `arc-nft2 --stream`, compared with `compare_nft2.py --stream`). With the same log-mel frames, all 23 of 23 clips
+  match: every utterance's RNNT tokens, prompt, decoder tokens and text, and the words with times and tags. Linked
+  names (heard, entity, state) match too. With torch's front end, 17 of 23 clips are identical; the other 6 move word
+  boundaries by one RNNT frame, and their texts are the same. Streams keep the last word on the bundled samples:
+  "... near Sinus Medii?" and "Why is Tycho so bright?".
+- Offline, `sample_3` ("Why is Tycho so bright?", 2.2 s, one utterance with no padding) gives an empty RNNT transcript
+  in both arc_audio and libarc. The decoder reads it correctly (`decoder_text`, ENTITY_LUNAR). Streamed, it is
+  transcribed in full.
 - Arc Mini is unchanged: on this branch, `arc-parity`, `arc-transcribe --json` and `arc-stream` give byte-identical
   output to `main`, and `make test` passes. An AddressSanitizer build runs the offline and stream paths clean, with no
   leaks.

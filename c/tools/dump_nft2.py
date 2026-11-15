@@ -18,7 +18,8 @@ context) with the ONNX encoder (backbone encoder="onnx"), as the app does. Writt
                   decoder memory), X, Xt (pooled Arc features, unrounded) for the numeric diffs
 
 `build/nft2/arc-nft2 NFT2_DIR --manifest MANIFEST.json --json --dump DUMP` writes the same from libarc; with
---mel-from DUMP the reference encodes libarc's log-mel frames (see compare_nft2.py). Needs onnxruntime and onnx.
+--mel-from DUMP the reference encodes libarc's log-mel frames (see compare_nft2.py); with --stream it runs Arc.stream
+(compare with arc-nft2 --stream: the utterances, their RNNT / decoder stages and words). Needs onnxruntime and onnx.
 Part of arc_transcriber (Whissle Inc.), CC BY-NC 4.0; see LICENSE.
 """
 import argparse, json, os, sys
@@ -41,6 +42,8 @@ def main():
     ap.add_argument('manifest')
     ap.add_argument('out')
     ap.add_argument('--threads', type=int, default=4)
+    ap.add_argument('--stream', action='store_true', help='Arc.stream(transcript="nft2") fed 100 ms at a time, then flush, '
+                    'instead of Arc.predict (compare with arc-nft2 --stream; only the transcript is comparable)')
     ap.add_argument('--mel-from', help="a DIR of arc-nft2 --dump: feed libarc's log-mel frames to the encoder instead of "
                     "torch's (isolates the front end: everything after it must then match exactly)")
     a = ap.parse_args()
@@ -66,12 +69,17 @@ def main():
     enc_mel = N.OnnxEncoder.encode_mel
 
     def encode_mel(self, M):
-        if a.mel_from:
-            p = os.path.join(a.mel_from, f"{cur['id']}.mel.{len(cap.get('enc', []))}.f32")
-            if os.path.exists(p):
-                Mc = np.fromfile(p, np.float32)
-                if Mc.size == M.size:
-                    M = Mc.reshape(M.shape)
+        if a.mel_from:   # libarc's frames for this encoder input: same shape, closest (torch and libarc differ by < 1e-3)
+            best = None
+            for f in sorted(os.listdir(a.mel_from)):
+                if f.startswith(cur['id'] + '.mel.') and f.endswith('.f32'):
+                    Mc = np.fromfile(os.path.join(a.mel_from, f), np.float32)
+                    if Mc.size == M.size:
+                        d = float(np.abs(Mc.reshape(M.shape) - M).max())
+                        if d < 1e-2 and (best is None or d < best[0]):
+                            best = (d, Mc.reshape(M.shape))
+            if best is not None:
+                M = best[1]
         H, Ht = enc_mel(self, M)
         cap.setdefault('enc', []).append((np.array(M), H, Ht))
         return H, Ht
@@ -100,8 +108,8 @@ def main():
     Transcriber._prompt_ids = prompt_ids
     dec = N.Nft2Finals.decode
 
-    def decode(self, y, t0=0.0, f0=None, f1=None, want=False):
-        u = dec(self, y, t0, f0, f1, want=True)
+    def decode(self, y, t0=0.0, f0=None, f1=None, want=False, tail=False):
+        u = dec(self, y, t0, f0, f1, want=True, tail=tail)
         cap.setdefault('dec', []).append(dict(ids=[int(x) for x in u.pop('_dec_ids')], text=u['decoder_text'],
                                               spans=[list(s) for s in u['tag_spans']], t0=float(t0), n=len(y)))
         u.pop('_rnnt_ids', None)
@@ -122,8 +130,15 @@ def main():
             cap.clear()
             cur['id'] = c['id']
             w = load_wav(os.path.join(root, c['wav']))
-            out = arc.predict(w, domain=c.get('domain', 'assistant'), transcript='nft2', names=c.get('names') or None,
-                              context=c.get('context') or None, return_frames=False)
+            if a.stream:
+                st = arc.stream(domain=c.get('domain', 'assistant'), transcript='nft2', names=c.get('names') or None,
+                                context=c.get('context') or None, background=False, partials=False)
+                outs = [st.feed(w[i:i + 1600]) for i in range(0, len(w), 1600)] + [st.flush()]
+                st.close()
+                out = {k: [x for o in outs for x in (o.get(k) or [])] for k in ('transcript', 'names', 'numbers', 'audio_events')}
+            else:
+                out = arc.predict(w, domain=c.get('domain', 'assistant'), transcript='nft2', names=c.get('names') or None,
+                                  context=c.get('context') or None, return_frames=False)
             ww = lambda x: {k: x.get(k) for k in ('text', 'start', 'end', 'tag', 'tag_begin') if k in x}
             tr = [dict(start=u['start'], end=u['end'], text=u['text'], words=[ww(x) for x in u.get('words') or []], tags=u.get('tags') or [],
                        device_directed=u.get('device_directed')) for u in out['transcript']]
