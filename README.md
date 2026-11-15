@@ -17,6 +17,9 @@ Arc v1 has two models, with one API and one output schema:
 | **Arc Mini** | `mini` (default; alias `edge`) | about 71 MB | CPU (files at about 0.3x real time on 4 cores), GPU optional | apps, laptops, on-device, lowest latency |
 | **Arc Transcriber** (full) | `full` (aliases `parakeet`, `server`) | about 77 MB + NVIDIA Parakeet-TDT 0.6B v2 encoder (about 2.5 GB, on first use) | GPU recommended, CPU for files | best transcript and name accuracy |
 
+**Arc Transcriber Space** (`backbone="nft2"`, model `WhissleAI/arc-transcriber-space`) is a CPU model for voice apps
+about the Moon and space flight, with names-list linking: see [Arc Transcriber Space (NFT2)](#arc-transcriber-space-nft2).
+
 Coming next: **Arc Transcriber Edge**, a 4-bit version of the full model for Android, Mac and cloud.
 
 - **Model weights, model card and evaluation results:** https://huggingface.co/WhissleAI/arc-v1.1 (downloaded on first use)
@@ -230,6 +233,111 @@ python -m arc_audio.integrations.deepgram clip.wav
 | AssemblyAI Universal Streaming | `ASSEMBLYAI_API_KEY` | per-word finals inside a turn, `ForceEndpoint` at the end; billed by session time |
 | Speechmatics real-time | `SPEECHMATICS_API_KEY` | `max_delay` 0.7 s, `ForceEndOfUtterance` at the end; EU endpoint by default |
 
+## Arc Transcriber Space (NFT2)
+
+**Arc Transcriber Space** is an Arc model for voice apps about the Moon and space flight: questions to a lunar map or a mission
+guide, crew and mission-control audio. It runs on the `nft2` backbone, a streaming FastConformer whose RNNT decoder writes the
+final words, with the Arc layer (Arc decoder, Arc net, event and device-directed heads) on the same encoder. It links what is
+said to the **names list** your app sends (craters and other lunar features, sites, spacecraft, missions, crew, planets, ...) and
+tags those mentions as `entity.mention.lunar_feature`, `entity.mention.spacecraft`, `entity.mention.mission`,
+`entity.mention.celestial`, `entity.mention.person`, .... The encoder runs on CPU with onnxruntime (int8, streaming export).
+
+- **Model weights and model card:** https://huggingface.co/WhissleAI/arc-transcriber-space (downloaded on first use, the `nft2/`
+  folder; CC BY-NC 4.0 with the Whissle terms, commercial licences: ksingla@whissle.ai)
+- **Names lists:** [docs/NAMES_LISTS.md](docs/NAMES_LISTS.md): entry format, kinds, normalization, aliases, ordering.
+- English, 16 kHz mono.
+
+### Install
+
+```bash
+pip install "arc-transcriber[space] @ git+https://github.com/WhissleAI/arc_transcriber"   # + onnxruntime, onnx, sentencepiece
+python examples/quickstart_space.py                                                     # offline + streaming on the model repo's sample clips
+```
+
+`Arc.from_pretrained("WhissleAI/arc-transcriber-space", backbone="nft2")` downloads only the `nft2/` folder; a local folder
+works too (the repo root, or the `nft2/` folder itself). The ONNX encoder is the default; `encoder="torch"` with a local NFT2
+`.nemo` (`ARC_NFT2_NEMO=/path/model.nemo`) runs the encoder in torch instead.
+
+### Offline
+
+```python
+from arc_audio import Arc, load_audio
+
+arc = Arc.from_pretrained("WhissleAI/arc-transcriber-space", backbone="nft2", device="cpu", threads=4)
+NAMES = [
+    {"name": "Tycho", "kind": "lunar_feature"},
+    {"name": "Sea of Tranquility", "kind": "lunar_feature", "aliases": ["Mare Tranquillitatis"]},
+    {"name": "Apollo 12", "kind": "mission"},
+    {"name": "Orion", "kind": "spacecraft"},
+    {"name": "Christina Koch", "kind": "crew"},
+]
+out = arc.predict(load_audio("question.wav"), domain="assistant", transcript="nft2", names=NAMES)
+for n in out["names"]:
+    print(n["heard"], n["tag"], n["entity"], n["state"])     # Tycho entity.mention.lunar_feature Tycho linked
+```
+
+`transcript="nft2"` is the RNNT transcript of the backbone, biased toward the names list (`bias_names=False` turns the biasing
+off). Mentions the decoder tags that are not in the list are reported with `state: "not_in_list"`.
+
+### Streaming
+
+```python
+s = arc.stream(domain="assistant", transcript="nft2", names=NAMES)
+wav = load_audio("session.wav")
+for i in range(0, len(wav), 1600):                 # 100 ms chunks of float32 mono 16 kHz audio
+    new = s.feed(wav[i:i + 1600])                  # finals of the utterances closed so far: transcript, names, numbers, ...
+    if screen_changed:
+        s.set_context(names=NEW_NAMES)             # takes effect for the utterances that close after the call
+final = s.flush()
+s.close()
+```
+
+Utterances close on a 0.4 s pause (or at 15 s); each final is the RNNT words of the utterance with the decoder's tags and the
+linked names. Partial transcripts are produced on CUDA only.
+
+Note: the model is built not to transcribe the app's own spoken answers (text-to-speech playback leaking into the microphone),
+so synthetic TTS voices, especially female Kokoro-style voices, can be partly or fully ignored; test with real voices, not TTS.
+Real children's speech is transcribed normally.
+
+### Context and names lists
+
+The names list is used three ways: it biases the RNNT words toward list names, the first ~10-15 entries go into the Arc decoder's
+prompt (with their kinds) so it can type each mention, and the linker matches mentions to the whole list. Set it per call
+(`names=`), for an `Arc` (`arc.set_context(names=..., topic=..., previous_text=...)`), or mid-stream
+(`stream.set_context(names=...)`, which on an `nft2` stream replaces the bias, the prompt and the linking list together;
+`stream.set_names(names)` replaces only the bias and the linking list).
+
+Lists must follow the normalization in [docs/NAMES_LISTS.md](docs/NAMES_LISTS.md): always give a `kind`, put what is on screen
+first, keep lists short, add aliases for names that are not said as written ("Artemis II" -> "Artemis 2") and ASCII aliases for
+non-ASCII names. Mentions made only of generic words ("Mare", "North crater") are not linked unless they match an entry exactly
+(`state: "abstain"`: ask the user).
+
+### Output
+
+The same schema as the other Arc models ([Output](#output)); the fields an app usually reads:
+
+| key | content |
+|---|---|
+| `transcript` | utterances `{start, end, text, words, tags, source: "nft2", device_directed}`; `text` in spoken form ("Apollo twelve"), cased from the decoder; `words` `{text, start, end, tag, tag_begin}`; `tags` `[{tag, start, end, text}]` with the decoder's tag names (`ENTITY_LUNAR`, `ENTITY_SPACECRAFT`, `ENTITY_MISSION`, `ENTITY_CELESTIAL`, `ENTITY_PERSON`, ...) |
+| `names` | `heard` (the words heard), `tag` (`entity.mention.lunar_feature` / `spacecraft` / `mission` / `celestial` / `person` / `place` / ...), `entity` (the list entry's `name`, or null), `state` (`linked` / `abstain` / `not_in_list`), `p`, `start`, `end`, `candidates` |
+| `numbers` | `heard`, `kind`, `value`, `start`, `end` |
+| `transcript_written` | the utterances in written form ("Apollo 12", "Ocean of Storms"): numbers as digits, linked names in your list's spelling |
+| `audio_events`, `utterances` | sound / channel events; per-utterance acts and intents, `device_directed` |
+
+Use `names[i].entity` to display and route, not the raw transcript words.
+
+### Results
+
+300 clips per set; the names list for each clip is its gold names plus 20 distractors.
+
+| set | WER | names linked correctly | wrong links | other |
+|---|---|---|---|---|
+| Artemis II crew audio | 13.4 % | 97.1 % | 0 % | name recall 94 %, space-tag F1 .88 |
+| synthetic kids' space questions | 6.1 % | 91.9 % | 1.5 % | space-tag F1 .84 |
+| real children's speech | 18.1 % | | | 2.0 false links per 100 utterances |
+
+CPU, int8 ONNX encoder: encoder + RNNT real-time factor about 0.13 on 4 threads, peak RAM about 2.3 GB.
+
 ## C library (Arc Mini)
 
 [`c/`](c/README.md) holds **libarc**, a dependency-free C11 library (one header, `c/include/arc.h`) that runs Arc Mini from
@@ -262,6 +370,7 @@ macOS, 100 LibriSpeech test-clean clips (latency and CPU: to be measured):
 pip install "arc-transcriber[test] @ git+https://github.com/WhissleAI/arc_transcriber"
 pytest -q                      # CPU, Arc Mini; downloads WhissleAI/arc-v1.1 on first use, skipped when offline
 ARC_TEST_PARAKEET=1 pytest -q  # also Arc Transcriber (full) (ARC_MODEL=/local/arc-v1.1 to use a local copy of the model repo)
+pip install -e ".[space,test]" && ARC_SPACE_MODEL=/local/arc-transcriber-space pytest -q tests/test_space.py   # Arc Transcriber Space (skipped without the model)
 pytest -q tests/test_integrations.py   # cloud recognisers: recorded messages and a local mock server (no keys)
 ARC_LIVE_ASR=deepgram,assemblyai,speechmatics pytest -q tests/test_integrations.py   # + live, with the keys set
 pytest -q tests/test_written.py   # written form: text rules anywhere; spoken clips with macOS `say`; GPU feature path on MPS / CUDA
