@@ -243,13 +243,87 @@ static int capital(const char* w) {
   return r;
 }
 
-/* is clean(w).lower() among the entity's cleaned lower-case words */
+/* tidy._spoken: the spoken words of a number written in a name ("12" -> twelve, "ii" -> two, "1969" -> also
+ * nineteen sixty nine), appended to the set (*e, *ne, *cap); nothing for a non-number ("i" alone is a word) */
+static void ent_add(char*** e, int* ne, int* cap, const char* w) {
+  for (int i = 0; i < *ne; ++i)
+    if (!strcmp((*e)[i], w)) return;
+  if (*ne == *cap) {
+    *cap = *cap ? *cap * 2 : 16;
+    char** n = arc_malloc(sizeof(char*) * (size_t)*cap);
+    if (*ne) memcpy(n, *e, sizeof(char*) * (size_t)*ne);
+    arc_free(*e);
+    *e = n;
+  }
+  (*e)[(*ne)++] = arc_strdup(w);
+}
+static const char* const UNITS20[] = {"zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
+                                      "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen",
+                                      "seventeen", "eighteen", "nineteen"};
+/* numlib.int_words(n) */
+static void int_words_add(long n, char*** e, int* ne, int* cap) {
+  if (n < 20) {
+    ent_add(e, ne, cap, UNITS20[n]);
+    return;
+  }
+  if (n < 100) {
+    ent_add(e, ne, cap, TENS[n / 10 - 2]);
+    if (n % 10) ent_add(e, ne, cap, UNITS20[n % 10]);
+    return;
+  }
+  static const char* const S[] = {"billion", "million", "thousand", "hundred"};
+  static const long V[] = {1000000000L, 1000000L, 1000L, 100L};
+  for (int k = 0; k < 4; ++k)
+    if (n >= V[k]) {
+      int_words_add(n / V[k], e, ne, cap);
+      ent_add(e, ne, cap, S[k]);
+      if (n % V[k]) int_words_add(n % V[k], e, ne, cap);
+      return;
+    }
+}
+static void spoken_add(const char* c, char*** e, int* ne, int* cap) {
+  static const char* const ROMAN[] = {"i",    "ii",  "iii", "iv",   "v",     "vi",   "vii",
+                                      "viii", "ix",  "x",   "xi",   "xii",   "xiii", "xiv",
+                                      "xv",   "xvi", "xvii", "xviii", "xix", "xx"};
+  size_t L = strlen(c);
+  long n = -1;
+  int dig = L > 0;
+  for (size_t i = 0; i < L; ++i) dig &= isdigit((unsigned char)c[i]) != 0;
+  if (dig) {
+    if (L > 9) return;
+    n = strtol(c, NULL, 10);
+  } else if (strcmp(c, "i")) {
+    for (int k = 1; k < 20; ++k)
+      if (!strcmp(c, ROMAN[k])) n = k + 1;
+  }
+  if (n < 0) return;
+  int_words_add(n, e, ne, cap);
+  if (n >= 1000 && n < 10000) {   /* read as a year */
+    int_words_add(n / 100, e, ne, cap);
+    if (n % 100) int_words_add(n % 100, e, ne, cap);
+    else ent_add(e, ne, cap, "hundred");
+    if (n % 100 > 0 && n % 100 < 10) ent_add(e, ne, cap, "oh");
+  }
+}
+
+/* tidy._in_forms: clean(w).lower() is a word of the name, or every part of a hyphenated one is ("twenty-four") */
 static int in_entity(const char* w, char** ent, int ne) {
   char* c = arc_malloc(strlen(w) + 1);
   arc_clean_word(w, c);
   lower(c);
   int r = 0;
   for (int i = 0; i < ne && !r; ++i) r = !strcmp(c, ent[i]);
+  if (!r && strchr(c, '-')) {
+    r = 1;
+    for (char *p = c, *q; r && p; p = q) {
+      q = strchr(p, '-');
+      if (q) *q++ = 0;
+      if (!*p) continue;
+      int f = 0;
+      for (int i = 0; i < ne && !f; ++i) f = !strcmp(p, ent[i]);
+      r = f;
+    }
+  }
   arc_free(c);
   return r;
 }
@@ -258,15 +332,26 @@ void arc_tidy_name(arc_tname* r) {
   if (r->words && r->n_words > 1) {
     char** ent = NULL;
     int ne = 0;
-    if (r->entity && *r->entity) {
-      ne = arc_split_words_tidy(r->entity, &ent);
-      for (int i = 0; i < ne; ++i) {
-        char* c = arc_malloc(strlen(ent[i]) + 1);
-        arc_clean_word(ent[i], c);
+    if (r->entity && *r->entity) {   /* tidy._forms: the name's words and the spoken words of its numbers */
+      char** w;
+      int nw = arc_split_words_tidy(r->entity, &w), cap = 0;
+      for (int i = 0; i < nw; ++i) {
+        char* c = arc_malloc(strlen(w[i]) + 1);
+        arc_clean_word(w[i], c);
         lower(c);
-        arc_free(ent[i]);
-        ent[i] = c;
+        if (c[0]) {
+          ent_add(&ent, &ne, &cap, c);
+          spoken_add(c, &ent, &ne, &cap);
+          for (char *p = c, *q; p; p = q) {   /* c.split('-') */
+            q = strchr(p, '-');
+            if (q) *q++ = 0;
+            spoken_add(p, &ent, &ne, &cap);
+          }
+        }
+        arc_free(c);
+        arc_free(w[i]);
       }
+      arc_free(w);
     }
     int a = 0, b = r->n_words;   /* words [a, b) */
     for (;;) {

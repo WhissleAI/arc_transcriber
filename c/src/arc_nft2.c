@@ -439,7 +439,7 @@ struct arc_nft2 {
   const float *tap_ln_w, *tap_ln_b, *tap_proj_w, *tap_proj_b;
   int pos_off, d_arc, d_tap;
   /* settings (transcription.nft2, backbone) */
-  double alpha, context_score, whole_max_s, edge_pad_s, list_add_ratio, chunk_s, context_s;
+  double alpha, context_score, whole_max_s, edge_pad_s, tail_pad_s, list_add_ratio, chunk_s, context_s;
   int case_from, char_align, unify, list_on, list_add, list_min_chars, names_in_prompt;
   int ctx_max, ctx_prev_max, ctx_kb_max, ctx_ses_max, ctx_types;
   char* ctx_default_dom;
@@ -989,6 +989,7 @@ arc_nft2* arc_nft2_create(const char* dir, int threads, char* err, size_t err_le
   m->case_from = (int)cfg_num(nc, "case_from_decoder", 1);
   m->whole_max_s = cfg_num(nc, "whole_max_s", 20.0);
   m->edge_pad_s = cfg_num(nc, "edge_pad_s", 0.15);
+  m->tail_pad_s = cfg_num(nc, "tail_pad_s", 0.5);
   m->char_align = (int)cfg_num(nc, "char_align", 1);
   m->unify = (int)cfg_num(nc, "unify_types", 1);
   m->list_on = (int)cfg_num(nc, "list_spans", 1);
@@ -2125,7 +2126,10 @@ static void case_from(rword* w, int nw, char** dec, int nd) {
 
 /* ------------------------------------------------------------------ one utterance (Nft2Finals.decode) */
 
-static int decode_utt(arc_nft2* m, const float* y, long len, double t0, int f0, int f1, int bias, arc_utt_build* u) {
+/* y [len]: the audio the encoder reads; n_dec: the utterance's own length (without a stream's tail), which sets the
+ * decoder's length limit as tr._gen(..., len(y)) does */
+static int decode_utt(arc_nft2* m, const float* y, long len, long n_dec, double t0, int f0, int f1, int bias,
+                      arc_utt_build* u) {
   arc_engine* e = m->e;
   int ui = m->dump_utt++;
   const float *H, *Ht;
@@ -2153,7 +2157,7 @@ static int decode_utt(arc_nft2* m, const float* y, long len, double t0, int f0, 
   int P[512];
   int np = prompt_ids(m, f0 / 10.0, P, 512);
   dumpi(m, "prompt", ui, P, np);
-  int ml = 1 + (int)(e->len_mult * (e->len_base + e->tokens_per_s * (double)len / SR));
+  int ml = 1 + (int)(e->len_mult * (e->len_base + e->tokens_per_s * (double)n_dec / SR));
   int max_len = ml + np > 2 + np ? ml + np : 2 + np;
   enum { CAP = 2048 };
   int* dids = arc_malloc(sizeof(int) * CAP);
@@ -2332,7 +2336,7 @@ arc_result* arc_nft2_transcribe(arc_nft2* m, const float* pcm, size_t n, const a
   arc_result_build* R = arc_result_new(ns);
   int bias = !(o && o->no_bias);
   for (int i = 0; i < ns; ++i)
-    if (decode_utt(m, pcm + sg[i].a, sg[i].b - sg[i].a, sg[i].a / (double)SR, sg[i].f0, sg[i].f1, bias, &R->u[i])) {
+    if (decode_utt(m, pcm + sg[i].a, sg[i].b - sg[i].a, sg[i].b - sg[i].a, sg[i].a / (double)SR, sg[i].f0, sg[i].f1, bias, &R->u[i])) {
       arc_free(sg);
       arc_result_free(arc_result_finish(R, 0, 0));
       return NULL;
@@ -2368,6 +2372,7 @@ arc_nft2_stream* arc_nft2_stream_open(arc_nft2* m, const arc_nft2_options* o) {
   snprintf(s->domain, sizeof s->domain, "%s", opt_domain(o));
   s->o.domain = s->domain;
   s->seg = arc_seg_new(&m->e->seg);
+  m->dump_enc = m->dump_utt = 0;
   return s;
 }
 
@@ -2433,7 +2438,19 @@ static int stream_close_utt(arc_nft2_stream* s, int f0, int f1) {
   u->dd = u->cc = u->dir_head = u->intent_p = u->act_p = -1.0f;
   u->directed = -1;
   if (b - a < 800) return 0;   /* too short to decode */
-  if (decode_utt(m, s->pcm + a, b - a, a / (double)SR, f0, f1, !s->o.no_bias, u)) return -1;
+  /* Nft2Finals._tail: silence after the cut so the input runs tail_pad_s past the last frame (the RNNT emits a word's
+   * last pieces a few hundred ms after it is spoken); offline decoding has no tail */
+  long need = (long)nearbyint((((f1 + 1) / 10.0) + m->tail_pad_s - a / (double)SR) * SR) - (b - a);
+  float* y = s->pcm + a;
+  float* yp = NULL;
+  if (need > 0) {
+    yp = arc_calloc(sizeof(float) * (size_t)(b - a + need));
+    memcpy(yp, y, sizeof(float) * (size_t)(b - a));
+    y = yp;
+  }
+  int rc = decode_utt(m, y, b - a + (need > 0 ? need : 0), b - a, a / (double)SR, f0, f1, !s->o.no_bias, u);
+  arc_free(yp);
+  if (rc) return -1;
   s->utt[s->nu++] = (seg_t){f0, f1, a, b};
   return 0;
 }
