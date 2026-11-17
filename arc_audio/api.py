@@ -119,6 +119,7 @@ class Arc:
         self.tok = AutoTokenizer.from_pretrained(mp) if load_decoder else None
         self.ev_head = self.dd_head = None
         self.bb = None
+        self.room_model = None
         if self.backbone == 'parakeet':
             from . import server as S
             bc = self.cfg['backbone']
@@ -140,6 +141,9 @@ class Arc:
             self.heads.pos_off = int(bc.get('pos_off', 2))
             self.moon.model.encoder = S.Shim(self.bb, self.heads, self.moon.model.decoder.pos_emb)
             self.enc = None
+            if self.bb.tap:
+                from .room import load_room
+                self.room_model = load_room(path, self.cfg, threads)
         else:
             self.enc = self.moon.model.encoder
             hp = os.path.join(path, 'heads.safetensors')
@@ -449,8 +453,42 @@ class Arc:
         tr.always_types = ['player']
 
     @torch.no_grad()
-    def predict(self, audio, domain='unknown', delay_s=0.3, names=None, transcript='builtin', words=None, include_experimental=False, calibrated=True, diarization='auto', rescore=True, bias_names=None, return_frames=True, chunk_frames=3000, name_text=None, decoder=None, spans=None, name_source=None, word_channel=True, word_arrival='rule', word_source=None, fallback='auto', strict=False, text_layer=None, events='default', context=None, auto_prev=False, kb_snap=True, name_candidates=5, alias_link=True, command_complete_hold_s=0.0, masks='default', segmenter=None, almost=None, nbest=None, guard=None):
-        """the whole-file result. almost (transcript='nft2'): also report heard words that SOUND like a list entry but were not
+    @torch.no_grad()
+    def room(self, audio, reference=None, frames=True, t0=0.0):
+        """room read-outs of one turn of 16 kHz mono audio (backbone 'nft2' packages with a room section): act, addressee (BETA),
+        safety (BETA), end_of_turn, playback / media share and, with frames=True, the 80 ms frame tracks. reference: the device's
+        own playback, aligned sample for sample with audio (None: no playback). Read Arc.room_notes() before using BETA outputs."""
+        if self.room_model is None:
+            raise RuntimeError('this model has no room read-outs (backbone nft2 with a room section in config.json)')
+        wav = load_audio(audio)
+        n = max(1280, -(-len(wav) // 80) * 80)
+        y = np.zeros(n, np.float32)
+        y[:len(wav)] = wav
+        ref = None
+        if reference is not None:
+            ref = np.zeros(n, np.float32)
+            r = np.asarray(reference, np.float32).reshape(-1)[:n]
+            ref[:len(r)] = r
+        x = torch.as_tensor(y, device=self.dev)[None]
+        _, om, ht = self.bb(x, torch.tensor([n], device=self.dev), want_tap=True)
+        T = int(om[0].sum())
+        raw = self.room_model.run(ht[0, :T].float().cpu().numpy(), y, ref)
+        return self.room_model.summary(raw, t0, frames)
+
+    def room_notes(self):
+        """{output: note} for the room outputs; BETA outputs say what they are not yet reliable for"""
+        return dict(self.room_model.notes) if self.room_model is not None else {}
+
+    def _room_utts(self, wav, utts, reference=None, pad_s=0.15):
+        for u in utts:
+            a = max(0, int((u['start'] - pad_s) * SR))
+            b = min(len(wav), int((u['end'] + pad_s) * SR))
+            if b - a >= 800:
+                u['room'] = self.room(wav[a:b], None if reference is None else np.asarray(reference, np.float32).reshape(-1)[a:b], frames=False, t0=a / SR)
+
+    def predict(self, audio, domain='unknown', delay_s=0.3, names=None, transcript='builtin', words=None, include_experimental=False, calibrated=True, diarization='auto', rescore=True, bias_names=None, return_frames=True, chunk_frames=3000, name_text=None, decoder=None, spans=None, name_source=None, word_channel=True, word_arrival='rule', word_source=None, fallback='auto', strict=False, text_layer=None, events='default', context=None, auto_prev=False, kb_snap=True, name_candidates=5, alias_link=True, command_complete_hold_s=0.0, masks='default', segmenter=None, almost=None, nbest=None, guard=None, room=None, reference=None):
+        """the whole-file result. room (nft2 packages with room read-outs; default on): each transcript utterance gets 'room'
+        (see Arc.room; addressee and safety are BETA). reference: the device's playback audio, aligned with audio. almost (transcript='nft2'): also report heard words that SOUND like a list entry but were not
         linked, as name records with state 'almost' (candidate, candidate_p; entity stays None), and turn an abstain /
         not_in_list record that sounds like an entry into one (default: config transcription.nft2.almost, off). nbest (nft2): an
         RNNT beam of this width adds utterance 'alts' [{text, p}] and per-word alternatives (default config transcription.nft2.nbest,
@@ -529,6 +567,8 @@ class Arc:
                     u['device_directed'] = self.directed(xe[int(u['start'] * 10):int(u['end'] * 10) + 1])
         tidy_out(out, [w for u in out['transcript'] for w in u.get('words') or []])
         out['transcript_written'] = self.written(out, domain)
+        if self.room_model is not None and room is not False and out['transcript'] and 'start' in out['transcript'][0]:
+            self._room_utts(wav, out['transcript'], reference)
         out['timing'] = dict(audio_s=round(len(wav) / SR, 2), wall_s=round(time.time() - t_start, 2))
         return out
 
