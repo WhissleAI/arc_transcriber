@@ -94,7 +94,7 @@ class _Live:
 
 class LiveStream:
     def __init__(self, arc, names=None, context=None, domain='assistant', live=True, almost_names=False, nbest=0,
-                 playback_threshold=0.7, playback_drop=False, echo_decode=False, bias_names=None, guard=None):
+                 playback_threshold=0.7, playback_drop=False, echo_decode=False, bias_names=None, guard=None, room=True):
         from .transcribe import UttSegmenter
         self.arc = arc
         self.domain = domain
@@ -119,6 +119,7 @@ class LiveStream:
         self.names = arc._kb(names) if names else []
         self.common = common_words(arc.bb.pieces)
         self.pad = float(self.fin.c.get('edge_pad_s', 0.15))
+        self.room_on = bool(room) and getattr(arc, 'room_model', None) is not None
 
     # ---------------------------------------------------------------- inputs
     def feed_reference(self, pcm, t=None):
@@ -202,6 +203,9 @@ class LiveStream:
             return
         from .api import utt_out
         o = utt_out(u)
+        if self.room_on:
+            ref = self.ec.ref[a:b] if self.ec is not None and self.ec.any_ref else None
+            o['room'] = self.arc.room(self.audio[a:b], ref, frames=False, t0=a / SR)
         utts.append(o)
         self.utts.append(o)
 

@@ -95,6 +95,27 @@ def test_space_offline_and_stream(space):
     s.close()
 
 
+def test_space_room(space):
+    m, arc = space
+    if arc.room_model is None:
+        pytest.skip("this model has no room read-outs")
+    wav = _clip(m)
+    r = arc.room(wav)
+    assert r["act"]["label"] in r["act"]["probs"] and abs(sum(r["act"]["probs"].values()) - 1) < 0.01
+    assert r["addressee"]["beta"] is True and r["safety"]["beta"] is True
+    assert set(arc.room_notes()) >= {"addressee", "safety"}
+    F = r["frames"]
+    assert len(F["t"]) == len(F["probs"]) == len(F["addressee"]) > 0 and len(F["probs"][0]) == len(F["labels"])
+    assert all(0 <= p <= 1 for row in F["probs"] for p in row)
+    assert r["reference"] is False
+    r2 = arc.room(wav, reference=wav, frames=False)            # the turn is the device's own playback
+    assert r2["reference"] is True and r2["playback"] >= r["playback"]
+    out = arc.predict(wav, domain="assistant", transcript="nft2", names=NAMES, return_frames=False)
+    assert all("room" in u for u in out["transcript"])
+    out = arc.predict(wav, domain="assistant", transcript="nft2", names=NAMES, return_frames=False, room=False)
+    assert not any("room" in u for u in out["transcript"])
+
+
 def test_space_silence(space):
     _, arc = space
     out = arc.predict(np.zeros(16000 * 2, np.float32), domain="assistant", transcript="nft2", names=NAMES, return_frames=False)

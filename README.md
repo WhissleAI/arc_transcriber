@@ -349,6 +349,35 @@ records with `state: "almost"` for heard words that sound like a list entry but 
 null, `candidate` is the entry and `candidate_p` its probability. Only uncertain words (confidence below 0.7) that are not common
 vocabulary qualify, so the app can ask "did you mean ...?" rather than act.
 
+### Room read-outs (act, addressee, safety, playback)
+
+Packages with a `room` section in `nft2/config.json` (Arc Transcriber Space 2.0) add a small network on the same encoder frames,
+the microphone audio and, when given, the device's own playback. `predict(..., transcript="nft2")` gives every transcript
+utterance a `room` read-out; `arc.live_stream(...)` adds it to each final (using the audio from `feed_reference` as the
+playback); `arc.room(audio, reference=None)` reads one turn and also returns the 80 ms frame tracks.
+
+```python
+r = arc.room(turn_wav, reference=tts_wav_aligned)   # reference: the playback, sample-aligned with turn_wav (or None)
+r["act"]["label"]             # question / command / confirmation / chatter / statement
+r["end_of_turn"]              # end-of-turn probability at the end of the audio
+r["playback"], r["media"]     # share of frames that are the app's own playback / other loudspeaker speech
+r["addressee"]                # BETA: device / other_person / reading_aloud
+r["safety"]                   # BETA: probs per class, above_threshold = classes over the packaged thresholds
+r["frames"]                   # t, labels (app_playback, media_playback, live_speech, end_of_turn, room_tone), probs, addressee, safety
+arc.room_notes()              # what the BETA outputs are not yet reliable for
+```
+
+**BETA outputs.** `addressee` and `safety` carry `"beta": true`. The addressee read-out is not yet reliable for room talk
+(people talking to each other near the device) or reading aloud. **The safety read-out is not a safety system**: on
+children's voices it misses more than half of unsafe turns in our tests and marks some harmless ones. Never use it as the only check or
+for any safety-critical or child-protection decision; keep your own safety checks (for example Arc Tagger, below) and treat it
+as a hint. `predict(..., room=False)` / `live_stream(..., room=False)` turn the read-outs off. The network is also a plain ONNX
+graph (`nft2/room.onnx`), so other runtimes can call it through ONNX Runtime directly: inputs `tap` (1, T, 512: the encoder
+output after layer 9 without its first frame, the frames the Arc layer reads), `mic` and `ref` (1, L: 16 kHz audio, `ref`
+sample-aligned, zeros when there is no playback), `ref_on` (1: 1.0 with a reference, else 0.0); outputs `frames` (1, T, 5),
+`addressee` (1, T, 3), `act` (1, 5), `safety` (1, 15), `safety_frames` (1, T, 14), all probabilities, labels and
+thresholds in `config.json` `room`.
+
 ### Arc Tagger (optional)
 
 `arc.set_tagger("/path/to/arc-tagger-c/model", lib="/path/to/libarctag.so", domain="kids")` runs Arc Tagger (arc-tagger-c,
@@ -385,13 +414,16 @@ Use `names[i].entity` to display and route, not the raw transcript words.
 
 ### Results
 
-300 clips per set; the names list for each clip is its gold names plus 20 distractors.
+The app path (int8 ONNX encoder on CPU, this package); names list per clip = its own names plus 20 similar-sounding decoys.
+Full numbers, room read-outs and the BETA notes are on the [model card](https://huggingface.co/WhissleAI/arc-transcriber-space).
 
 | set | WER | names linked correctly | wrong links | other |
 |---|---|---|---|---|
-| Artemis II crew audio | 13.4 % | 97.1 % | 0 % | name recall 94 %, space-tag F1 .88 |
-| synthetic kids' space questions | 6.1 % | 91.9 % | 1.5 % | space-tag F1 .84 |
-| real children's speech | 18.1 % | | | 2.0 false links per 100 utterances |
+| Artemis II crew audio (1,141) | 12.3 % | 94.7 % | 0.8 % | name recall 93 %, space-tag F1 .89 |
+| synthetic space questions (300) | 4.7 % | 91.4 % | 0.5 % | space-tag F1 .83 |
+| Apollo mission audio (500) | 15.7 % | | | 0.2 false links per 100 utterances |
+| real children's read speech (300) | 18.0 % | | | 0.67 false links per 100 utterances |
+| Common Voice 17 English (2,000) | 14.9 % | | | |
 
 CPU, int8 ONNX encoder: encoder + RNNT real-time factor about 0.13 on 4 threads, peak RAM about 2.3 GB.
 
