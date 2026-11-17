@@ -228,6 +228,7 @@ class OnnxEncoder:
 
     def __init__(self, onnx_dir, tap=9, threads=4, device='cpu'):
         import onnxruntime as ort
+        _no_telemetry(ort)
         self.dir = onnx_dir
         self.cfg = c = json.load(open(os.path.join(onnx_dir, 'config.json')))
         fe = np.load(os.path.join(onnx_dir, 'frontend.npz'))
@@ -364,12 +365,34 @@ class OnnxEncoder:
         return (tt(Hb), tt(om), tt(Tb) if Tb is not None else None)
 
 
+def _no_telemetry(ort):
+    """ONNX Runtime telemetry (event tracing in Windows builds) off for this process"""
+    try:
+        ort.disable_telemetry_events()
+    except Exception:
+        pass
+
+
+def tok_stats(row, kk, blank):
+    """one emitted RNNT token -> (log p of the token, runner-up non-blank token, its log p) under the UNBIASED joint
+    distribution (log-softmax over the vocabulary + blank). A token the names-list bias picked over the model's own choice
+    gets a low p: per-word confidence shows where the bias wrote a word."""
+    r = np.asarray(row, np.float64)
+    m = float(r.max())
+    lse = m + float(np.log(np.exp(r - m).sum()))
+    q = r[:blank].copy()
+    q[kk] = -np.inf
+    k2 = int(q.argmax())
+    return (float(r[kk] - lse), k2, float(q[k2] - lse))
+
+
 class OnnxRNNT:
     """the RNNT prediction net + joint from the same ONNX export (decoder.onnx, joint_enc.onnx, joint_net.onnx); greedy() is
     RNNT.greedy (same loop, same biasing rule) on onnxruntime"""
 
     def __init__(self, onnx_dir, threads=1):
         import onnxruntime as ort
+        _no_telemetry(ort)
         c = json.load(open(os.path.join(onnx_dir, 'config.json')))
         so = ort.SessionOptions()
         so.intra_op_num_threads = int(threads)
@@ -400,6 +423,7 @@ class OnnxRNNT:
             st['b'] = trie.root
         H = H.detach().float().cpu().numpy() if torch.is_tensor(H) else np.asarray(H, np.float32)
         ids, frames = ([], [])
+        tok = st['tok'] = []
         T = H.shape[0]
         if T == 0:
             return (ids, frames, st)
@@ -423,6 +447,7 @@ class OnnxRNNT:
                     st['b'] = trie.advance(st['b'], kk)
                 ids.append(kk)
                 frames.append(t)
+                tok.append(tok_stats(row, kk, self.blank))
                 st['g'], st['hc'] = self._pred(kk, st['hc'])
                 sym += 1
                 if sym >= self.max_sym:
@@ -544,6 +569,7 @@ class RNNT(nn.Module):
             st['b'] = trie.root
         Fe = self.jenc(H.float())
         ids, frames = ([], [])
+        tok = st['tok'] = []
         T = Fe.shape[0]
         t = 0
         while t < T:
@@ -565,6 +591,7 @@ class RNNT(nn.Module):
                     st['b'] = trie.advance(st['b'], kk)
                 ids.append(kk)
                 frames.append(t)
+                tok.append(tok_stats(row.float().cpu().numpy(), kk, self.blank))
                 st['g'], st['hc'] = self._pred(kk, st['hc'])
                 sym += 1
                 if sym >= self.max_sym:
@@ -727,19 +754,40 @@ class Pieces:
             j = i
         return out[::-1]
 
-    def words(self, ids, frames, t0=0.0, frame_s=0.08):
-        """token ids + encoder frame of each -> [dict(text, start, end)] (encoder frame f covers [(f - 1) * 80, f * 80) ms)"""
+    def words(self, ids, frames, t0=0.0, frame_s=0.08, stats=None):
+        """token ids + encoder frame of each -> [dict(text, start, end)] (encoder frame f covers [(f - 1) * 80, f * 80) ms).
+        stats (tok_stats per token): + conf (the word's least likely token's p) and alts (the word with that token replaced
+        by its runner-up, when the runner-up has p >= 0.05 and keeps the word boundary)"""
         out = []
-        for k, f in zip(ids, frames):
+        for i, (k, f) in enumerate(zip(ids, frames)):
             p = self.p[k] if 0 <= k < len(self.p) else ''
             st = t0 + max(0.0, (f - 1) * frame_s)
             en = t0 + max(frame_s, f * frame_s)
             if p.startswith('▁') or not out:
-                out.append(dict(text=p.lstrip('▁'), start=st, end=en))
+                out.append(dict(text=p.lstrip('▁'), start=st, end=en, _t=[i]))
             else:
                 out[-1]['text'] += p
                 out[-1]['end'] = en
-        return [dict(w, start=round(w['start'], 3), end=round(max(w['end'], w['start'] + 0.04), 3)) for w in out if w['text']]
+                out[-1]['_t'].append(i)
+        res = []
+        for w in out:
+            if not w['text']:
+                continue
+            ti = w.pop('_t')
+            d = dict(w, start=round(w['start'], 3), end=round(max(w['end'], w['start'] + 0.04), 3))
+            if stats is not None and len(stats) == len(ids):
+                j = min(ti, key=lambda i: stats[i][0])
+                d['conf'] = round(float(np.exp(stats[j][0])), 4)
+                d['alts'] = []
+                k2, lp2 = stats[j][1], stats[j][2]
+                if lp2 >= np.log(0.05) and 0 <= k2 < len(self.p):
+                    p2 = self.p[k2]
+                    if p2.startswith('▁') == (j == ti[0]):
+                        alt = ''.join((p2 if i == j else self.p[ids[i]]) for i in ti).lstrip('▁')
+                        if alt and alt != d['text']:
+                            d['alts'] = [dict(text=alt, p=round(float(np.exp(lp2)), 4))]
+            res.append(d)
+        return res
 
 
 # ------------------------------------------------------------------------------------------------------------- backbone
@@ -798,8 +846,8 @@ class Nft2Backbone(nn.Module):
         L = torch.tensor([n], device=self.dev)
         h, om, ht = self.enc(x, L, want_tap and self.arc_enc is None)
         T = int(om[0].sum())
-        ids, frames, _ = self.rnnt.greedy(h[0, :T], trie=trie, alpha=alpha)
-        out = dict(ids=ids, frames=frames, words=self.pieces.words(ids, frames, t0), n=n)
+        ids, frames, st = self.rnnt.greedy(h[0, :T], trie=trie, alpha=alpha)
+        out = dict(ids=ids, frames=frames, words=self.pieces.words(ids, frames, t0, stats=st.get('tok')), n=n, tok=st.get('tok'), H=h[0, :T])
         if self.arc_enc is not None:
             h, om, ht = self.arc_enc(x, L, want_tap)
         out.update(P=h[:, 1:], Ptap=ht[:, 1:] if ht is not None else None, mask=om[:, 1:])
@@ -1029,7 +1077,7 @@ class Nft2Finals:
         c = (arc.cfg.get('transcription') or {}).get('nft2') or {}
         self.c = dict(dict(alpha=2.0, context_score=1.0, case_from_decoder=True, whole_max_s=20.0, edge_pad_s=0.15, char_align=True,
                            unify_types=True, list_spans=True, list_add=True, list_min_chars=3, list_add_ratio=0.5, list_add_long_chars=0,
-                           tail_pad_s=0.5), **c)
+                           tail_pad_s=0.5, guard=True, disfluency=True, quantities=True, nbest=0), **c)
         if alpha is not None:
             self.c['alpha'] = float(alpha)
         self.bias = bool(bias)
@@ -1070,8 +1118,13 @@ class Nft2Finals:
         arc, tr = (self.arc, self.tr)
         f0 = int(round(t0 * 10)) if f0 is None else f0
         f1 = max(f0, int(round((t0 + len(y) / SR) * 10)) - 1) if f1 is None else f1
-        r = arc.bb.utterance(self._tail(y, t0, f1) if tail else np.asarray(y, np.float32), trie=self.trie, alpha=float(self.c['alpha']), t0=t0)
+        y = np.asarray(y, np.float32)
+        r = arc.bb.utterance(self._tail(y, t0, f1) if tail else y, trie=self.trie, alpha=float(self.c['alpha']), t0=t0)
         words = r['words']
+        dropped = []
+        if self.c.get('guard') and words:
+            from .nft2_post import guard
+            words, dropped = guard(words, y, t0, self.c.get('guard_cfg'))
         nv = max(1, int(r['mask'][0].sum()))
         M = mem_with_pos(arc.heads, arc.moon.model.decoder.pos_emb, r['P'][:, :nv])   # valid frames only (= the encoder mask)
         tr._t_now = f0 / 10
@@ -1095,10 +1148,36 @@ class Nft2Finals:
             words = case_from(words, txt.split())
         ev = annotate([dict(w, is_final=True) for w in words], wsp)
         u = dict(start=round(f0 / 10, 1), end=round((f1 + 1) / 10, 1), f0=f0, f1=f1, text=' '.join((w['text'] for w in ev)), words=ev, tag_spans=wsp, final=True, source='nft2', decoder_text=txt)
+        nb = int(self.c.get('nbest') or 0)
+        if nb > 1 and hasattr(arc.bb.rnnt, 'jnet'):
+            from .rnnt_beam import beam, utt_alts, word_alts
+            hyps = beam(arc.bb.rnnt, r['H'], nb, self.trie, float(self.c['alpha']))
+            u['alts'] = utt_alts(arc.bb.pieces, hyps, u['text'])
+            word_alts(u['words'], u['alts'])
+        self._post(u, dropped)
         if want:
             u['_dec_ids'] = dec_ids
             u['_rnnt_ids'] = r['ids']
             u['_P'] = r['P']
+        return u
+
+    def _post(self, u, dropped=()):
+        """the read-outs on an utterance's final words: confidence (mean word conf), disfluency tags + clean_text, typed
+        quantities, and what the guard dropped"""
+        from .nft2_post import disfluency, clean_text
+        from .quantity import attach
+        ws = u['words']
+        cs = [w['conf'] for w in ws if w.get('conf') is not None]
+        u['conf'] = round(sum(cs) / len(cs), 4) if cs else None
+        if self.c.get('disfluency'):
+            ws = u['words'] = disfluency(ws)
+            u['clean_text'] = clean_text(ws)
+        if self.c.get('quantities'):
+            attach(u)
+        u['n_dropped'] = len(dropped)
+        tg = getattr(self.arc, 'tagger', None)
+        if tg is not None and u['words']:
+            u['tagger'] = tg.tag_words(u['words'])
         return u
 
     def _decode(self, y, t0, f0, f1):

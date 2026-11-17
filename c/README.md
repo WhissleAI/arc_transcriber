@@ -285,6 +285,48 @@ arc_nft2_destroy(m);
   needs `"Artemis 2"`, and non-ASCII names need an ASCII alias. The full guide is
   [docs/NAMES_LISTS.md](../docs/NAMES_LISTS.md).
 
+### App read-outs, live events and echo
+
+`arc_abi_version()` / `arc_version()` report the header's `ARC_ABI_VERSION` (2) and `ARC_VERSION` the library was built
+from; compare them with the header you compile against.
+
+- **Words** (`arc_word`): `conf` (the RNNT's unbiased probability of the word's least likely token), `alts` / `alt_p`
+  (the runner-up spelling; with `options.nbest = 4`, also the words other beam hypotheses have there) and `disfl`
+  (`filler` / `repeat` / `fragment`).
+- **Utterances** (`arc_utt`): `conf`, `clean_text` (without disfluencies), `quantities` (`arc_quantity`: type, value,
+  unit, relative, word span; "seventy five percent" -> percent 75), `n_dropped` (words the guard removed), `alts` /
+  `alt_scores` with `nbest` (other texts, the beam's share), `playback_leak` / `playback` with a reference, and
+  `tagger_json` with Arc Tagger.
+- **Guard** (on; `options.no_guard = 1` turns it off): no words where the audio has no speech-level energy, no
+  low-confidence repeats, no low-confidence words in the trailing silence.
+- **Sound-alike names** (`options.almost = 1`): names records with `state = "almost"`, `entity` NULL, `candidate` /
+  `candidate_kb_index` / `candidate_p`, for uncertain heard words (confidence below 0.7, not common vocabulary) that sound
+  like a list entry.
+- **Live streams** (`options.live = 1`): the open utterance is decoded one 560 ms encoder chunk at a time with the
+  encoder caches and the RNNT state carried over, so nothing is decoded twice. `arc_nft2_stream_events` returns the
+  events of the last call: `ARC_EV_PARTIAL` (text, `n_stable`), `ARC_EV_ENTITY` (a list name, an "almost" name or a
+  completed quantity in the stable words), `ARC_EV_EOT` (end-of-turn probability, every feed), `ARC_EV_BARGE_IN` and
+  `ARC_EV_FINAL`. `arc_nft2_stream_set_names` swaps the names list mid-stream (the open utterance's bias switches at
+  once); `arc_nft2_stream_end_turn` closes the open utterance now. Finals are still decoded per utterance, as before.
+- **Echo / self-speech** (`arc_nft2_stream_feed_ref`): the device's playback as sent to the speaker, with its stream
+  time. A partitioned-block frequency-domain NLMS canceller (blocks of 256 samples, 32 partitions = 512 ms of echo
+  path, double-talk freeze) runs on the microphone. Each utterance gets `playback_leak` (the share of its energy the
+  playback explains); at `options.playback_threshold` (0.7) or above it is marked `playback` (left out with
+  `playback_drop`). `ARC_EV_BARGE_IN`: speech the playback does not explain (leak below 0.5 over the last 0.3 s) while
+  the device plays, once the canceller has seen 1 s of playback. `echo_decode = 1` decodes finals from the residual.
+- **Arc Tagger** (`make ARC_WITH_ARCTAG=/path/to/arc-tagger-c`, which needs its built `build/libarctag.a`):
+  `arc_nft2_set_tagger(m, "arc-tagger-c/model", "kids", 1, err, sizeof err)` runs the tagger (native backend, int8) on
+  each final's words with their times and confidences; `arc_utt.tagger_json` is its JSON.
+- **Example**: [`examples/nft2_app.c`](examples/nft2_app.c) (`build/nft2/nft2-app-example MODEL mic.wav
+  [playback.wav]`) uses only `arc.h` and `libarc.a`: a live stream with a names list and an optional echo reference,
+  printing events. `make` builds it with the library.
+
+arc_audio has the same code, and the C is checked against it: `tests/test_post.c` (guard, disfluencies, quantities,
+sound-alike names, end of turn; 98 cases from `tools/dump_post.py`), `tests/test_echo.c` (the canceller's leak and
+barge-in on 22 windows from `tools/dump_echo.py`, regenerated from `examples/example_synth.wav`), and
+`compare_nft2.py` on the clip set with `--almost --nbest 4` (confidences, alternatives, n-best texts, quantities and
+almost records match with the same log-mel frames).
+
 ### How it was checked
 
 `tools/dump_nft2.py` runs arc_audio (`Arc.predict`, `transcript="nft2"`, ONNX encoder) on a manifest of clips and
@@ -337,7 +379,7 @@ feature chunks, as arc_audio does.
 
 ## Not ported yet
 
-arc_audio has these and libarc does not: in streams, early commit and names / numbers (linking needs the word times
+arc_audio has these and libarc does not: in streams (other than live NFT2 events), early commit and names / numbers (linking needs the word times
 of a whole utterance; EXTERNAL words get the utterance read-out, not word-sourced names), the builtin fallback for
 external words, the
 `moonshine_release` and `parakeet` transcript tiers, speaker read-outs and diarization beyond the slot state machine

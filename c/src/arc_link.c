@@ -997,7 +997,7 @@ static int read_name(run_ctx* x, const pend* pd, name_rec* r) {
   int show = 0;
   for (int k = 0; k < pd->nk; ++k) {
     const arc_wsword* w = &W->w[pd->keys[k]];
-    r->w[k] = (arc_wordb){w->w, w->start, w->end, w->tag, w->tag_begin};
+    r->w[k] = (arc_wordb){.w = w->w, .start = w->start, .end = w->end, .tag = w->tag, .tag_begin = w->tag_begin};
     show |= show_word(w->w);
   }
   r->span_p = hok ? hp : NAN;
@@ -1248,6 +1248,8 @@ static arc_word* arena_words(arc_arena* A, const arc_wordb* w, int n) {
     o[k].end = (float)w[k].end;
     o[k].tag = w[k].tag >= 0 ? arc_tag_name(w[k].tag) : NULL;
     o[k].tag_begin = w[k].tag_begin;
+    o[k].conf = w[k].has_conf ? w[k].conf : -1.0f;
+    o[k].disfl = w[k].disfl;
   }
   return o;
 }
@@ -1404,7 +1406,7 @@ int arc_link_run(arc_link* l, const arc_link_ctx* c, const arc_wstore* W, arc_re
         r->w = arc_malloc(sizeof(arc_wordb) * (size_t)(r->nw + 1));
         for (int q = 0; q < r->nw; ++q) {
           const arc_wordb* src = &ub->aw[ss[k].w[q]];
-          r->w[q] = (arc_wordb){src->w, src->start, src->end, src->tag, src->tag_begin};
+          r->w[q] = (arc_wordb){.w = src->w, .start = src->start, .end = src->end, .tag = src->tag, .tag_begin = src->tag_begin};
         }
         added++;
       }
@@ -1452,6 +1454,9 @@ int arc_link_run(arc_link* l, const arc_link_ctx* c, const arc_wstore* W, arc_re
     int wn = tn[k].n_words, w0 = wn ? (int)(tn[k].words - tw[tn[k].id]) : 0;
     o->words = arena_words(x.A, r->w + w0, wn);
     o->n_words = wn;
+    o->candidate = NULL;
+    o->candidate_kb_index = -1;
+    o->candidate_p = -1.0f;
   }
   R->names = out;
   R->n_names = nk;

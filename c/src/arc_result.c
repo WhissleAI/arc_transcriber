@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "arc_engine.h"
+#include "arc_post.h"
 
 /* ------------------------------------------------------------------ arena */
 
@@ -69,6 +70,7 @@ arc_result_build* arc_result_new(int n_utts) {
   b->u = arc_calloc(sizeof(arc_utt_build) * (size_t)(n_utts + 1));
   b->arena = arc_arena_new();
   for (int i = 0; i < n_utts; ++i) {
+    b->u[i].leak = -1.0f;
     b->u[i].dd = b->u[i].cc = b->u[i].dir_head = -1.0f;
     b->u[i].intent_p = b->u[i].act_p = -1.0f;
     b->u[i].directed = -1;
@@ -97,8 +99,37 @@ static arc_word* pack_words(arc_arena* a, const arc_wordb* w, int n) {
     o[k].end = (float)w[k].end;
     o[k].tag = w[k].tag >= 0 ? arc_tag_name(w[k].tag) : NULL;
     o[k].tag_begin = w[k].tag_begin;
+    o[k].conf = w[k].has_conf ? w[k].conf : -1.0f;
+    o[k].disfl = w[k].disfl;
+    o[k].n_alts = w[k].n_alts;
+    const char** al = arc_arena_alloc(a, sizeof(char*) * (size_t)(w[k].n_alts + 1));
+    float* ap = arc_arena_alloc(a, sizeof(float) * (size_t)(w[k].n_alts + 1));
+    for (int j = 0; j < w[k].n_alts; ++j) {
+      al[j] = arc_arena_strdup(a, w[k].alts[j]);
+      ap[j] = w[k].alt_p[j];
+    }
+    o[k].alts = al;
+    o[k].alt_p = ap;
   }
   return o;
+}
+
+void arc_utt_post_free(arc_utt_build* u) {
+  for (int k = 0; k < u->n_aw; ++k) {
+    for (int j = 0; j < u->aw[k].n_alts; ++j) arc_free(u->aw[k].alts[j]);
+    arc_free(u->aw[k].alts);
+    arc_free(u->aw[k].alt_p);
+    u->aw[k].alts = NULL;
+    u->aw[k].alt_p = NULL;
+    u->aw[k].n_alts = 0;
+  }
+  arc_free(u->clean_text);
+  arc_post_qty_free(u->qty, u->n_qty);
+  arc_free(u->tagger_json);
+  u->clean_text = NULL;
+  u->qty = NULL;
+  u->n_qty = 0;
+  u->tagger_json = NULL;
 }
 
 arc_result* arc_result_finish(arc_result_build* b, float audio_s, float wall_ms) {
@@ -158,6 +189,31 @@ arc_result* arc_result_finish(arc_result_build* b, float audio_s, float wall_ms)
     }
     o->decoder_text = arc_arena_strdup(a, u->decoder_text);
     o->directed = u->directed;
+    o->conf = u->has_post ? u->conf : -1.0f;
+    o->clean_text = arc_arena_strdup(a, u->clean_text);
+    o->n_dropped = u->n_dropped;
+    o->playback_leak = u->has_post ? u->leak : -1.0f;
+    o->playback = u->playback;
+    o->tagger_json = arc_arena_strdup(a, u->tagger_json);
+    arc_quantity* qs = arc_arena_alloc(a, sizeof(arc_quantity) * (size_t)(u->n_qty + 1));
+    for (int k = 0; k < u->n_qty; ++k) {
+      const arc_qty* q = &u->qty[k];
+      arc_quantity* x = &qs[k];
+      x->type = q->type;
+      x->unit = q->unit;
+      x->value = q->value;
+      x->is_int = q->is_int;
+      x->relative = q->relative;
+      x->word_begin = q->word_begin;
+      x->word_end = q->word_end;
+      x->start = q->word_begin < u->n_aw ? (float)u->aw[q->word_begin].start : u->start;
+      x->end = q->word_end - 1 < u->n_aw && q->word_end > 0 ? (float)u->aw[q->word_end - 1].end : u->end;
+      x->text = arc_arena_strdup(a, q->text);
+      x->written = arc_arena_strdup(a, q->written);
+    }
+    o->n_quantities = u->n_qty;
+    o->quantities = qs;
+    arc_utt_post_free(u);
     o->n_alts = u->n_alts;
     o->alts = alts;
     o->alt_scores = alt_sc;
