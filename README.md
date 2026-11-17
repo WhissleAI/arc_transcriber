@@ -293,11 +293,68 @@ s.close()
 ```
 
 Utterances close on a 0.4 s pause (or at 15 s); each final is the RNNT words of the utterance with the decoder's tags and the
-linked names. Partial transcripts are produced on CUDA only.
+linked names. For partials, early entities, end of turn and echo handling on CPU use `arc.live_stream` (below).
 
 Note: the model is built not to transcribe the app's own spoken answers (text-to-speech playback leaking into the microphone),
 so synthetic TTS voices, especially female Kokoro-style voices, can be partly or fully ignored; test with real voices, not TTS.
 Real children's speech is transcribed normally.
+
+### Live events, echo and barge-in
+
+`arc.live_stream(...)` decodes the open utterance as it arrives (one 560 ms encoder chunk at a time, nothing decoded twice)
+and returns events with each feed. It is the Python form of libarc's `arc_nft2_stream_*` with `options.live`.
+
+```python
+ls = arc.live_stream(names=NAMES, context={"dom": "space"}, almost_names=True)
+ls.feed_reference(tts_pcm, t=0.0)                  # optional: what the device plays, t = stream time of its first sample
+for i in range(0, len(wav), 1600):
+    out = ls.feed(wav[i:i + 1600])                 # {"utterances": [closed utterances], "events": [...]}
+    for e in out["events"]:
+        ...                                        # e["type"]: partial / entity / eot / barge_in / final
+ls.set_names(NEW_NAMES)                            # hot list: the open utterance's bias switches at once
+ls.end_turn()                                      # close the open utterance now (push-to-talk release)
+ls.flush()
+```
+
+| event | when | fields |
+|---|---|---|
+| `partial` | the open utterance's words changed | `text`, `n_stable` (leading words no later partial changes), `start`, `end` |
+| `entity` | a list name, a sound-alike or a quantity appears in the stable words | `kind` (`name` / `almost` / `quantity`), `text`, `entity`, `kb_index`, `p`; quantities `qtype`, `value`, `unit`, `relative` |
+| `eot` | every feed while an utterance is open, and at each final | `p`: end-of-turn probability from the pause so far and the last word ("go to the" waits longer than "roger") |
+| `barge_in` | speech that the playback does not explain while the device plays (needs `feed_reference`) | `p` = 1 - playback_leak of the last 0.3 s |
+| `final` | an utterance closed | `text`; `kind` `playback` (or `dropped` with `playback_drop=True`) when its `playback_leak` is at least 0.7; `p` = playback_leak |
+
+With a reference, a partitioned-block frequency-domain NLMS echo canceller (512 ms echo path) runs on the microphone, and each
+utterance gets `playback_leak` (0-1, the share of its energy the playback explains) and `playback`. `echo_decode=True` decodes
+the finals from the echo-cancelled audio. `stream.feed_reference(pcm, t)` on an ordinary `arc.stream(...)` adds
+`playback_leak` / `playback` to its transcript utterances. Align `t` with the time the audio reaches the speaker; the canceller
+learns up to 512 ms of further delay. It needs about a second of playback before its scores are reliable.
+
+### Per-word confidence, alternatives, quantities and sound-alike names
+
+`transcript="nft2"` utterances also carry:
+
+| key | content |
+|---|---|
+| `words[i].conf` | the RNNT's probability of the word's least likely token, unbiased (a word written because of the names bias reads low) |
+| `words[i].alts` | other spellings heard for the word `[{text, p}]`: the runner-up token, and with `nbest=4` the words other beam hypotheses have there |
+| `words[i].disfl` | `filler` / `repeat` / `fragment`; `clean_text` is the text without them |
+| `alts` | with `predict(..., nbest=4)`: other texts of the utterance `[{text, p}]` from an RNNT beam with the same names boosting (the words stay the greedy decode's) |
+| `quantities` | typed values in the words as said: `{type: percent / distance / speed / duration / degrees / temperature / mass / power / energy / voltage / current / multiplier / number, value, unit, relative, word_begin, word_end, text, written}` ("give rover 45 more per cent" -> percent 45, relative +1); words inside list names are skipped |
+| `conf`, `n_dropped` | mean word confidence; words the guard removed |
+
+The guard (on by default; `predict(..., guard=False)` turns it off) removes words where the audio has no speech-level energy,
+low-confidence repeats ("you you you") and low-confidence words in the trailing silence. `predict(..., almost=True)` adds names
+records with `state: "almost"` for heard words that sound like a list entry but are not one of its spellings: `entity` stays
+null, `candidate` is the entry and `candidate_p` its probability. Only uncertain words (confidence below 0.7) that are not common
+vocabulary qualify, so the app can ask "did you mean ...?" rather than act.
+
+### Arc Tagger (optional)
+
+`arc.set_tagger("/path/to/arc-tagger-c/model", lib="/path/to/libarctag.so", domain="kids")` runs Arc Tagger (arc-tagger-c,
+native backend) on each NFT2 final: utterances get `tagger`, its JSON read-out (entities, numbers, PII, safety, intent,
+dialogue act, emotion). libarc does the same when built with `make ARC_WITH_ARCTAG=/path/to/arc-tagger-c`
+(`arc_nft2_set_tagger`, `arc_utt.tagger_json`).
 
 ### Context and names lists
 
