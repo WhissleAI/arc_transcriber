@@ -395,6 +395,22 @@ class Arc:
             utts.append(u)
         return utts
 
+    def set_tagger(self, model_dir=None, lib=None, domain='kids', int8=True):
+        """Arc Tagger (arc-tagger-c's libarctag.so) on each NFT2 final: utterances get 'tagger', its read-out of their words
+        (entities, numbers, PII, safety, intent, act, emotion). model_dir None switches it off."""
+        from .tagger import ArcTagger
+        old = getattr(self, 'tagger', None)
+        if old is not None:
+            old.close()
+        self.tagger = ArcTagger(model_dir, lib, domain, int8) if model_dir else None
+        return self.tagger
+
+    def live_stream(self, names=None, context=None, domain='assistant', live=True, **kw):
+        """a live NFT2 stream with events (partials, early entities, end of turn, barge-in, finals) and echo handling
+        (feed_reference): nft2_live.LiveStream, as libarc's arc_nft2_stream_*. Needs backbone 'nft2' with the ONNX encoder."""
+        from .nft2_live import LiveStream
+        return LiveStream(self, names=names, context=context, domain=domain, live=live, **kw)
+
     def nft2_finals(self, names=None, bias_names=None, decoder=None, context=None, auto_prev=False, tr=None, background=False, cfg=None):
         """transcript='nft2' source: RNNT final words (names-list biased unless bias_names=False) + Arc decoder tags read
         with the context prompt (Arc.set_context / context=; names also go into the kb prompt unless the context has its own kb)"""
@@ -433,8 +449,12 @@ class Arc:
         tr.always_types = ['player']
 
     @torch.no_grad()
-    def predict(self, audio, domain='unknown', delay_s=0.3, names=None, transcript='builtin', words=None, include_experimental=False, calibrated=True, diarization='auto', rescore=True, bias_names=None, return_frames=True, chunk_frames=3000, name_text=None, decoder=None, spans=None, name_source=None, word_channel=True, word_arrival='rule', word_source=None, fallback='auto', strict=False, text_layer=None, events='default', context=None, auto_prev=False, kb_snap=True, name_candidates=5, alias_link=True, command_complete_hold_s=0.0, masks='default', segmenter=None):
-        """the whole-file result. 1.2.1 options: name_candidates (k ranked list entries per name record, 0 = off), alias_link (check
+    def predict(self, audio, domain='unknown', delay_s=0.3, names=None, transcript='builtin', words=None, include_experimental=False, calibrated=True, diarization='auto', rescore=True, bias_names=None, return_frames=True, chunk_frames=3000, name_text=None, decoder=None, spans=None, name_source=None, word_channel=True, word_arrival='rule', word_source=None, fallback='auto', strict=False, text_layer=None, events='default', context=None, auto_prev=False, kb_snap=True, name_candidates=5, alias_link=True, command_complete_hold_s=0.0, masks='default', segmenter=None, almost=None, nbest=None, guard=None):
+        """the whole-file result. almost (transcript='nft2'): also report heard words that SOUND like a list entry but were not
+        linked, as name records with state 'almost' (candidate, candidate_p; entity stays None), and turn an abstain /
+        not_in_list record that sounds like an entry into one (default: config transcription.nft2.almost, off). nbest (nft2): an
+        RNNT beam of this width adds utterance 'alts' [{text, p}] and per-word alternatives (default config transcription.nft2.nbest,
+        0 = off). guard (nft2): False keeps every RNNT word (no no-speech gate / tail / repetition guard; default on). 1.2.1 options: name_candidates (k ranked list entries per name record, 0 = off), alias_link (check
         a name against the list's names, aliases and unique partial names before leaving it unlinked), command_complete_hold_s
         (release a command_complete event only after that much silence; 0 = at once), masks (per-domain output masks, see
         output_masks()), segmenter (utterance segmenter overrides: pause_s, min_s, short_pause_s, max_s)."""
@@ -456,7 +476,12 @@ class Arc:
             for u in utts:
                 ws.add(u['words'], 'parakeet')
         elif transcript == 'nft2':
-            utts = self.nft2_finals(names, bias_names, decoder=decoder, context=context, auto_prev=auto_prev).transcribe_offline(wav, self)
+            fin = self.nft2_finals(names, bias_names, decoder=decoder, context=context, auto_prev=auto_prev)
+            if nbest is not None:
+                fin.c['nbest'] = int(nbest)
+            if guard is not None:
+                fin.c['guard'] = bool(guard)
+            utts = fin.transcribe_offline(wav, self)
             for u in utts:
                 ws.add(u['words'], 'nft2')
         elif transcript == 'external':
@@ -483,6 +508,11 @@ class Arc:
         eng.finish()
         out = self._result(eng, utts, ws, domain, d, return_frames)
         self._post(out, utts, names, xe, xt, evt, kb_snap, eng, return_frames)
+        if transcript == 'nft2' and names and (almost if almost is not None else (self.cfg.get('transcription') or {}).get('nft2', {}).get('almost', False)):
+            from .nft2_post import almost_names
+            from .nft2_post import common_words
+            pc = getattr(getattr(self, 'bb', None), 'pieces', None)
+            out['names'] = almost_names(out, self._kb(names), common=common_words(pc) if pc is not None else None)
         if self.fallback_mode(fallback, strict, transcript, nsrc) == 'builtin':
             fb = self.predict(wav, domain=domain, delay_s=delay_s, names=names, transcript='builtin', include_experimental=include_experimental, calibrated=calibrated, diarization=diarization, rescore=rescore, bias_names=bias_names, return_frames=False, chunk_frames=chunk_frames, decoder=decoder, word_channel=word_channel, fallback=None, events=None, kb_snap=False)
             from .textlayer import fallback_names
@@ -664,6 +694,10 @@ def tag_words(u, events):
 
 def utt_out(u, full=False):
     r = dict(u) if full else dict(start=u['start'], end=u['end'], text=u['text'], words=u.get('words', []), source=u.get('source', 'moonshine'))
+    if not full:
+        for k in ('conf', 'clean_text', 'quantities', 'n_dropped', 'alts', 'playback_leak', 'tagger'):
+            if k in u:
+                r[k] = u[k]
     if 'tag_spans' in u:
         from .tagdec import spans_of_words
         r['tags'] = [dict(tag=s['tag'], start=round(float(s['start']), 3), end=round(float(s['end']), 3), text=' '.join((k[1] for k in s['keys']))) for s in spans_of_words([dict(w=w['text'], start=w['start'], end=w['end'], tag=w.get('tag'), tag_begin=w.get('tag_begin')) for w in u.get('words', [])])]
@@ -1159,10 +1193,27 @@ class Stream:
             raise RuntimeError('transcript worker failed:\n' + self.worker.err)
 
     @torch.no_grad()
+    def feed_reference(self, pcm, t=None):
+        """the device's own playback (TTS, sounds) as sent to the speaker; t: the stream time (s) of pcm[0] on the
+        microphone's clock (None: right after the previous reference). Transcript utterances then carry playback_leak (the
+        share of their audio the playback explains, echo.EchoCanceller) and playback (>= 0.7). For live partials, early
+        entities, barge-in and decoding the echo-cancelled audio use Arc.live_stream."""
+        from .echo import EchoCanceller
+        if getattr(self, 'ec', None) is None:
+            self.ec = EchoCanceller()
+            lost = self.total - len(self.audio)
+            if lost > 0:
+                self.ec.feed_mic(np.zeros(lost, np.float32))
+            if len(self.audio):
+                self.ec.feed_mic(self.audio)
+        self.ec.feed_ref(pcm, t)
+
     def feed(self, pcm):
         t0 = time.perf_counter()
         self._check_worker()
         pcm = np.asarray(pcm, np.float32).reshape(-1)
+        if getattr(self, 'ec', None) is not None:
+            self.ec.feed_mic(pcm)
         self.audio = np.concatenate([self.audio, pcm])
         self.total += len(pcm)
         self._xseg_step(final=False)
@@ -1506,6 +1557,13 @@ class Stream:
             self.n_frames_out = nf
         out['transcript'] = [utt_out(u, True) if 'tag_spans' in u else u for u in self.utts[getattr(self, '_utt_sent', 0):]]
         self._utt_sent = len(self.utts)
+        ec = getattr(self, 'ec', None)
+        if ec is not None:   # feed_reference: the share of each utterance the device's own playback explains
+            for u in out['transcript']:
+                if u.get('start') is not None:
+                    lk = ec.leak(float(u['start']), float(u['end']))
+                    u['playback_leak'] = lk
+                    u['playback'] = lk is not None and lk >= ec.c['threshold']
         if out['transcript']:
             from .written import written_transcript
             with self.words.lock:

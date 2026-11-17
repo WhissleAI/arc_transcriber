@@ -53,6 +53,8 @@ arc_seg* arc_seg_new(const arc_seg_cfg* c) {
   return s;
 }
 
+int arc_seg_quiet_run(const arc_seg* s) { return s && s->n_cur ? s->low_run : 0; }
+
 void arc_seg_free(arc_seg* s) {
   if (!s) return;
   arc_free(s->cur);

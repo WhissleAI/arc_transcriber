@@ -25,6 +25,15 @@ extern "C" {
 
 #define ARC_SAMPLE_RATE 16000
 
+/* ABI version: the binary interface of this header (struct layouts, enum / #define values, function signatures).
+ * It changes when an existing declaration changes (a field added to a struct an array of which the library returns
+ * counts); new functions alone do not change it. A binding generated from this header should compare it with
+ * arc_abi_version() of the library it loads. ARC_VERSION is for people (logs). */
+#define ARC_ABI_VERSION 2
+#define ARC_VERSION "1.3.0"
+int arc_abi_version(void);
+const char* arc_version(void);
+
 typedef struct arc_engine arc_engine;
 
 /* An inline tag over words [word_begin, word_end) of the utterance text (split on spaces). */
@@ -40,7 +49,32 @@ typedef struct {
   float start, end;     /* seconds */
   const char* tag;      /* "ENTITY_PERSON", ... or NULL */
   int tag_begin;        /* 1: first word of its tag */
+  /* Arc Transcriber Space (arc_nft2_*); else conf -1, disfl NULL, n_alts 0 */
+  float conf;           /* the RNNT's probability of the word's least likely token (unbiased: a word the names bias
+                         * wrote reads low), -1: none */
+  const char* disfl;    /* NULL, "filler" (um, uh, "you know"), "repeat" (the earlier copy of a repeated word / pair),
+                         * "fragment" (a cut-off word before the word it starts) */
+  int n_alts;           /* other spellings heard for this word, most likely first (the runner-up token; with
+                         * arc_nft2_options.nbest, the words other hypotheses have here) */
+  const char* const* alts;
+  const float* alt_p;
 } arc_word;
+
+/* A typed quantity read from the words as said ("forty five percent" -> percent 45; "two kilometers" -> distance 2
+ * km; "give rover 45 more per cent" -> percent 45, relative +1). */
+typedef struct {
+  const char* type;     /* "number", "percent", "distance", "duration", "speed", "temperature", "degrees", "mass",
+                         * "power", "energy", "voltage", "current", "multiplier" */
+  double value;
+  int is_int;
+  const char* unit;     /* "%", "km", "m", "mi", "ft", "s", "min", "h", "km/h", "mph", "C", "F", "deg", "kg", "W",
+                         * "x" ... or NULL (a plain number) */
+  int relative;         /* +1 "more" / "extra", -1 "less" / "fewer", 0 */
+  int word_begin, word_end;   /* words [begin, end) of the utterance */
+  float start, end;
+  const char* text;     /* those words */
+  const char* written;  /* "75%", "2 km", "40" */
+} arc_quantity;
 
 /* A label with its probability. */
 typedef struct {
@@ -62,7 +96,9 @@ typedef struct {
   int n_words;               /* words with times (arc_options.words / names / numbers), else 0 */
   const arc_word* words;
   /* n-best: the final decode's finished beams, best first, distinct texts (alts[0] is the decoded text before the
-   * loop fix; 1 with greedy decoding). Their scores are the beam search's length-normalised log-probabilities. */
+   * loop fix; 1 with greedy decoding). Their scores are the beam search's length-normalised log-probabilities.
+   * Arc Transcriber Space with arc_nft2_options.nbest > 1: the RNNT beam's texts that read differently from text (case,
+   * punctuation aside), best first; alt_scores = their share of the beam (softmax over the beam's scores, 0..1). */
   int n_alts;
   const char* const* alts;
   const float* alt_scores;
@@ -70,6 +106,16 @@ typedef struct {
    * from this text), and directed_head >= the model's threshold (1 / 0; -1: not computed) */
   const char* decoder_text;
   int directed;
+  /* Arc Transcriber Space read-outs (arc_nft2_*; else conf -1, clean_text NULL, 0, playback_leak -1) */
+  float conf;                 /* mean word confidence, -1: none */
+  const char* clean_text;     /* the text without the words tagged disfluent */
+  int n_quantities;
+  const arc_quantity* quantities;
+  int n_dropped;              /* words the guard removed (no speech under them, a low-confidence repeat or tail) */
+  float playback_leak;        /* streams fed a reference (arc_nft2_stream_feed_ref): the share of this utterance's
+                               * audio explained by the device's own playback (0..1), -1: no reference */
+  int playback;               /* 1: playback_leak >= the stream's threshold (the words are the device's own audio) */
+  const char* tagger_json;    /* Arc Tagger read-out of the words (arc_nft2_set_tagger), JSON, or NULL */
 } arc_utt;
 
 /* A name heard in the transcript and, when it is one of the list's (arc_set_names), linked to it (Arc's "names"). */
@@ -90,6 +136,11 @@ typedef struct {
   int show;                  /* 1: worth showing (not only stop words / numbers) */
   int n_words;
   const arc_word* words;     /* the name's words (text, times) */
+  /* Arc Transcriber Space with arc_nft2_options.almost: state "almost" = heard words that SOUND like a list entry
+   * (candidate) but were not linked; candidate_p is the sound-alike link probability. NULL / -1 / -1 otherwise. */
+  const char* candidate;
+  int candidate_kb_index;
+  float candidate_p;
 } arc_name;
 
 /* A number in the transcript with its value (Arc's "numbers"). */
@@ -396,7 +447,25 @@ typedef struct {
   const char* domain;   /* Arc's domain; NULL = "assistant" (the app's) */
   int no_bias;          /* 1: RNNT words not biased towards the names list */
   int no_events;        /* 1: no sound events */
+  int no_guard;         /* 1: keep every RNNT word (no no-speech gate, no tail / repetition guard) */
+  int almost;           /* 1: name records with state "almost" for heard words that sound like a list entry */
+  int nbest;            /* > 1: an RNNT beam of this width gives n-best texts (arc_utt.alts) and word alternatives;
+                         * the words stay the greedy decode's. 0: off */
+  /* streams only */
+  int live;             /* 1: the open utterance is decoded as it arrives (one encoder chunk = 560 ms at a time, no
+                         * re-decoding): PARTIAL, ENTITY and EOT events (arc_nft2_stream_events) */
+  float playback_threshold;   /* with a reference (arc_nft2_stream_feed_ref): playback_leak at or above this marks an
+                               * utterance as the device's own audio (arc_utt.playback); 0 = 0.7 */
+  int playback_drop;    /* 1: such utterances are left out of the results (their FINAL event says so) */
+  int echo_decode;      /* 1: utterances are decoded from the echo-cancelled audio (default: the microphone's) */
 } arc_nft2_options;
+
+/* Arc Tagger (arc-tagger-c, arctag.h) on each final: its JSON read-out of the utterance's words (entities, numbers, PII,
+ * safety, intent, dialogue act, emotion, ...) in arc_utt.tagger_json. model_dir: the tagger's model folder; domain: its
+ * profile ("kids" for children's turns in an app, "assistant", ...; NULL = "kids"); int8: 1 for arctag_int8.onnx. The
+ * library must be built with ARC_WITH_ARCTAG (make ARC_WITH_ARCTAG=/path/to/arc-tagger-c); otherwise -1 and err says so.
+ * model_dir NULL switches it off. */
+int arc_nft2_set_tagger(arc_nft2* m, const char* model_dir, const char* domain, int int8, char* err, size_t errlen);
 
 /* A whole clip (16 kHz mono float). Up to 20 s it is one utterance; longer clips are
  * cut by Arc's segmenter and each utterance decoded with 0.15 s of audio either side. NULL on failure
@@ -413,6 +482,49 @@ arc_nft2_stream* arc_nft2_stream_open(arc_nft2* m, const arc_nft2_options* o);
 arc_result* arc_nft2_stream_feed(arc_nft2_stream* s, const float* pcm, size_t n);
 arc_result* arc_nft2_stream_flush(arc_nft2_stream* s);
 void arc_nft2_stream_close(arc_nft2_stream* s);
+
+/* The device's own playback (TTS, sounds) as it is sent to the speaker, for echo cancellation, the per-utterance
+ * playback_leak score and barge-in. t: the stream time (s, the microphone's clock: samples fed so far / 16000) at which
+ * pcm[0] reaches the speaker; t < 0: right after the previous reference audio. Feed it before or while it plays; an echo
+ * path up to 512 ms after t is learnt (a per-frequency NLMS filter). */
+int arc_nft2_stream_feed_ref(arc_nft2_stream* s, const float* pcm, size_t n, double t);
+
+/* Replace the names list mid-stream: the RNNT bias of the open utterance switches at once (live decoding restarts its
+ * bias state), finals and linking use the new list from the next utterance that closes (= arc_nft2_set_names). */
+int arc_nft2_stream_set_names(arc_nft2_stream* s, const arc_name_entry* names, int n);
+
+/* Close the open utterance now (push-to-talk release, the app's own end of speech): its final is decoded at once and
+ * returned (as feed). The stream stays open. */
+arc_result* arc_nft2_stream_end_turn(arc_nft2_stream* s);
+
+/* Stream events, produced by the last feed / feed_ref / end_turn / flush call (valid until the next call on s). */
+enum {
+  ARC_EV_PARTIAL = 1,   /* the open utterance's words so far (options.live); text, n_stable */
+  ARC_EV_ENTITY = 2,    /* a list name, a sound-alike ("almost") or a quantity in the stable words (options.live) */
+  ARC_EV_EOT = 3,       /* end-of-turn probability now (options.live: every feed while an utterance is open; and at
+                         * each final) */
+  ARC_EV_BARGE_IN = 4,  /* speech that is not the playback, while the device plays (needs a reference) */
+  ARC_EV_FINAL = 5      /* an utterance closed (its words are in the returned arc_result) */
+};
+typedef struct {
+  int type;             /* ARC_EV_* */
+  float t;              /* stream time (s) of the audio the event is based on */
+  int utt;              /* the utterance's index in the stream (0-based; the open one gets the next index) */
+  const char* text;     /* PARTIAL / FINAL: the words; ENTITY: the heard words */
+  int n_stable;         /* PARTIAL: leading words that no later PARTIAL changes (the last word may still grow) */
+  const char* kind;     /* ENTITY: "name", "almost", "quantity"; FINAL: NULL, or "playback" (playback_leak >= threshold)
+                         * / "dropped" (and options.playback_drop) */
+  const char* entity;   /* ENTITY name / almost: the list entry; quantity: its written form ("75%") */
+  int kb_index;         /* ENTITY name / almost: the entry's index in the list, else -1 */
+  float p;              /* ENTITY: 1 for a list spelling, the sound-alike p for almost, 1 for a quantity; EOT: the
+                         * probability; BARGE_IN: 1 - playback_leak of the last 0.3 s; FINAL: playback_leak or -1 */
+  float start, end;     /* the words' times (s) */
+  const char* qtype;    /* ENTITY quantity: "percent", "distance", ...; else NULL */
+  double value;         /* ENTITY quantity: its value */
+  const char* unit;     /* ENTITY quantity: its unit or NULL */
+  int relative;         /* ENTITY quantity: +1 "more", -1 "less", 0 */
+} arc_nft2_event;
+const arc_nft2_event* arc_nft2_stream_events(arc_nft2_stream* s, int* n);
 
 #ifdef __cplusplus
 }

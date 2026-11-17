@@ -101,6 +101,11 @@ static void print_names_numbers(const arc_result* r) {
     if (m->snap_score >= 0) printf(", \"snap_score\": %.3f", m->snap_score);
     if (m->kb_index >= 0) printf(", \"kb_index\": %d", m->kb_index);
     if (m->span_p >= 0) printf(", \"span_p\": %.4f", m->span_p);
+    if (m->candidate) {
+      printf(", \"candidate\": ");
+      jstr(m->candidate);
+      printf(", \"candidate_kb_index\": %d, \"candidate_p\": %.4f", m->candidate_kb_index, m->candidate_p);
+    }
     printf(", \"show\": %s, \"words\": ", m->show ? "true" : "false");
     print_words(m->words, m->n_words);
     printf("}");

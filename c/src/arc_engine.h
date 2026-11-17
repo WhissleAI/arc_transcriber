@@ -19,6 +19,13 @@ typedef struct {
   double start, end;
   int tag;          /* tag id 32600.. or -1 */
   int tag_begin;
+  /* NFT2 read-outs (zero: none) */
+  int has_conf;
+  float conf;
+  const char* disfl;   /* static */
+  int n_alts;
+  char** alts;         /* malloc'd */
+  float* alt_p;
 } arc_wordb;
 
 typedef struct {
@@ -41,7 +48,19 @@ typedef struct {
   int n_alts;          /* the final decode's distinct beams (arc_utt.alts) */
   char** alts;
   float* alt_scores;
+  /* NFT2 read-outs */
+  int has_post;        /* conf / clean_text / quantities filled */
+  float conf;
+  char* clean_text;
+  struct arc_qty* qty;
+  int n_qty;
+  int n_dropped;
+  float leak;          /* playback leak, -1: none */
+  int playback;
+  char* tagger_json;
 } arc_utt_build;
+/* frees an utterance build's NFT2 read-outs and its words' (arc_result_finish / streams) */
+void arc_utt_post_free(arc_utt_build* u);
 
 /* A simple arena: everything a result points at lives in one, freed together. */
 typedef struct arc_arena arc_arena;

@@ -46,6 +46,9 @@ def main():
                     'instead of Arc.predict (compare with arc-nft2 --stream; only the transcript is comparable)')
     ap.add_argument('--mel-from', help="a DIR of arc-nft2 --dump: feed libarc's log-mel frames to the encoder instead of "
                     "torch's (isolates the front end: everything after it must then match exactly)")
+    ap.add_argument('--almost', action='store_true', help="predict(almost=True): sound-alike 'almost' name records")
+    ap.add_argument('--nbest', type=int, default=None, help='predict(nbest=N): RNNT beam alternatives')
+    ap.add_argument('--no-guard', action='store_true', help='no no-speech / tail guard (transcription.nft2.guard false)')
     a = ap.parse_args()
     import torch
     torch.set_num_threads(a.threads)
@@ -61,6 +64,12 @@ def main():
     model = os.path.abspath(a.model)
     parent, sub = os.path.split(model.rstrip('/'))
     os.environ['ARC_NFT2_ENCODER'] = 'onnx'
+    if a.no_guard:
+        _init = N.Nft2Finals.__init__
+        def init(self, *x, **k):
+            _init(self, *x, **k)
+            self.c['guard'] = False
+        N.Nft2Finals.__init__ = init
     os.environ['ARC_NFT2_ONNX_THREADS'] = str(a.threads)
     arc = Arc(model, device='cpu', threads=a.threads) if os.path.exists(os.path.join(model, 'config.json')) else \
         Arc.from_pretrained(model, backbone='nft2', device='cpu', threads=a.threads)
@@ -138,11 +147,13 @@ def main():
                 out = {k: [x for o in outs for x in (o.get(k) or [])] for k in ('transcript', 'names', 'numbers', 'audio_events')}
             else:
                 out = arc.predict(w, domain=c.get('domain', 'assistant'), transcript='nft2', names=c.get('names') or None,
-                                  context=c.get('context') or None, return_frames=False)
-            ww = lambda x: {k: x.get(k) for k in ('text', 'start', 'end', 'tag', 'tag_begin') if k in x}
+                                  context=c.get('context') or None, return_frames=False, almost=a.almost, nbest=a.nbest)
+            ww = lambda x: {k: x.get(k) for k in ('text', 'start', 'end', 'tag', 'tag_begin', 'conf', 'disfl', 'alts') if k in x}
             tr = [dict(start=u['start'], end=u['end'], text=u['text'], words=[ww(x) for x in u.get('words') or []], tags=u.get('tags') or [],
-                       device_directed=u.get('device_directed')) for u in out['transcript']]
-            nk = ('tag', 'heard', 'entity', 'state', 'p', 'src', 'via', 'start', 'end', 'span_p', 'snap_score', 'decoder_tag')
+                       device_directed=u.get('device_directed'), conf=u.get('conf'), clean_text=u.get('clean_text'),
+                       n_dropped=u.get('n_dropped'), quantities=u.get('quantities') or [], alts=u.get('alts') or []) for u in out['transcript']]
+            nk = ('tag', 'heard', 'entity', 'state', 'p', 'src', 'via', 'start', 'end', 'span_p', 'snap_score', 'decoder_tag',
+                  'candidate', 'candidate_kb_index', 'candidate_p')
             names = [dict({k: n.get(k) for k in nk}, model=n.get('model'), words=n.get('words')) for n in out.get('names') or []]
             stages = dict(rnnt=cap.get('rnnt', []), prompt=cap.get('prompt', []), dec=cap.get('dec', []))
             rec = dict(id=c['id'], audio_s=round(len(w) / 16000, 3), transcript=tr, names=names, numbers=out.get('numbers') or [],

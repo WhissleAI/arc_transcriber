@@ -38,7 +38,20 @@ def words_of(t):
 
 
 def name_key(n):
-    return (n['heard'], n.get('entity'), n['state'], n['tag'], round(n['start'], 2), round(n['end'], 2))
+    return (n['heard'], n.get('entity'), n['state'], n['tag'], round(n['start'], 2), round(n['end'], 2), n.get('candidate'))
+
+
+def post_of(t):
+    """the read-outs that must match exactly: disfluency tags, clean text, dropped words, quantities, word alternatives"""
+    q = lambda x: (x['type'], float(x['value']), x.get('unit'), x['relative'], x['word_begin'], x['word_end'], x['written'])
+    return [([w.get('disfl') for w in u['words']], u.get('clean_text'), u.get('n_dropped'), [q(x) for x in u.get('quantities') or []],
+             [[a['text'] for a in w.get('alts') or []] for w in u['words']], [a['text'] for a in u.get('alts') or []]) for u in t]
+
+
+def conf_diff(r, c):
+    d = [abs(a.get('conf', -1) - b.get('conf', -1)) for ru, cu in zip(r, c) for a, b in zip(ru['words'], cu['words'])
+         if a.get('conf') is not None and b.get('conf') is not None]
+    return max(d) if d else 0.0
 
 
 def num_key(n):
@@ -100,7 +113,8 @@ def main():
         rdd = [(u.get('device_directed') or {}).get('directed') for u in r['transcript']]
         cdd = [(u.get('device_directed') or {}).get('directed') for u in c['transcript']]
         chk['dd'] = rdd == cdd
-        diffs = {}
+        chk['post'] = post_of(r['transcript']) == post_of(c['transcript'])
+        diffs = {'conf': conf_diff(r['transcript'], c['transcript'])}
         for k in (('M',) if a.stream else ('mel', 'H', 'Htap', 'M')):
             v = [maxdiff(npz[f'{k}_{i}'], dm.get(f'{k}_{i}')) for i in range(64) if f'{k}_{i}' in npz.files]
             v = [x for x in v if x is not None]
@@ -127,8 +141,8 @@ def main():
         ok = all(chk.values())
         bad += not ok
         rows.append((cid, ok, chk, diffs, r['audio_s'], ' | '.join(u['text'] for u in r['transcript'])))
-    keys = ['rnnt', 'prompt', 'dec', 'dec_text', 'words', 'text'] + ([] if a.stream else ['names', 'numbers', 'events', 'dd'])
-    fk = ['mel', 'H', 'Htap', 'M', 'X', 'Xt', 'p']
+    keys = ['rnnt', 'prompt', 'dec', 'dec_text', 'words', 'text', 'post'] + ([] if a.stream else ['names', 'numbers', 'events', 'dd'])
+    fk = ['mel', 'H', 'Htap', 'M', 'X', 'Xt', 'p', 'conf']
     fmt = lambda v: '-' if v is None else f'{v:.1e}'
     if a.md:
         print('| clip | s | ' + ' | '.join(keys) + ' | ' + ' | '.join('Δ' + k for k in fk) + ' |')

@@ -83,7 +83,16 @@ static void print_json(const char* id, const arc_result* r, double load_ms) {
       jstr(w->text);
       printf(", \"start\": %.3f, \"end\": %.3f", w->start, w->end);
       if (w->tag) printf(", \"tag\": \"%s\", \"tag_begin\": %s", w->tag, w->tag_begin ? "true" : "false");
-      printf("}");
+      if (w->conf >= 0) printf(", \"conf\": %.4f", w->conf);
+      printf(", \"disfl\": ");
+      jstr_or_null(w->disfl);
+      printf(", \"alts\": [");
+      for (int q = 0; q < w->n_alts; ++q) {
+        printf("%s{\"text\": ", q ? ", " : "");
+        jstr(w->alts[q]);
+        printf(", \"p\": %.4f}", w->alt_p[q]);
+      }
+      printf("]}");
     }
     printf("], \"tags\": [");
     for (int k = 0; k < u->n_tags; ++k) {
@@ -94,6 +103,35 @@ static void print_json(const char* id, const arc_result* r, double load_ms) {
     printf("]");
     if (u->directed >= 0)
       printf(", \"device_directed\": {\"p\": %.4f, \"directed\": %s}", u->directed_head, u->directed ? "true" : "false");
+    if (u->conf >= 0) printf(", \"conf\": %.4f", u->conf);
+    printf(", \"clean_text\": ");
+    jstr_or_null(u->clean_text);
+    printf(", \"n_dropped\": %d, \"quantities\": [", u->n_dropped);
+    for (int k = 0; k < u->n_quantities; ++k) {
+      const arc_quantity* q = &u->quantities[k];
+      printf("%s{\"type\": \"%s\", \"value\": ", k ? ", " : "", q->type);
+      jnum(q->value, q->is_int);
+      printf(", \"unit\": ");
+      jstr_or_null(q->unit);
+      printf(", \"relative\": %d, \"word_begin\": %d, \"word_end\": %d, \"start\": %.3f, \"end\": %.3f, \"text\": ",
+             q->relative, q->word_begin, q->word_end, q->start, q->end);
+      jstr(q->text);
+      printf(", \"written\": ");
+      jstr(q->written);
+      printf("}");
+    }
+    printf("]");
+    if (u->n_alts > 0) {
+      printf(", \"alts\": [");
+      for (int k = 0; k < u->n_alts; ++k) {
+        printf("%s{\"text\": ", k ? ", " : "");
+        jstr(u->alts[k]);
+        printf(", \"p\": %.4f}", u->alt_scores[k]);
+      }
+      printf("]");
+    }
+    if (u->playback_leak >= 0) printf(", \"playback_leak\": %.4f, \"playback\": %s", u->playback_leak, u->playback ? "true" : "false");
+    if (u->tagger_json) printf(", \"tagger\": %s", u->tagger_json);
     printf("}");
   }
   printf("], ");
@@ -114,6 +152,9 @@ static void print_text(const char* id, const arc_result* r) {
     const arc_utt* u = &r->utts[i];
     printf("[%5.1f-%5.1f] %s\n", u->start, u->end, u->text);
     if (u->decoder_text && strcmp(u->decoder_text, u->text)) printf("              decoder: %s\n", u->decoder_text);
+    for (int k = 0; k < u->n_quantities; ++k)
+      printf("              quantity %s %s (%s)\n", u->quantities[k].type, u->quantities[k].written, u->quantities[k].text);
+    if (u->tagger_json) printf("              tagger: %.300s\n", u->tagger_json);
     for (int k = 0; k < u->n_tags; ++k) printf("              %s: %s\n", u->tags[k].tag, u->tags[k].text);
     if (u->directed >= 0) printf("              device_directed %.3f\n", u->directed_head);
   }
@@ -126,19 +167,45 @@ static void print_text(const char* id, const arc_result* r) {
     printf("  event %s %.1f-%.1f p %.2f\n", r->events[i].label, r->events[i].start, r->events[i].end, r->events[i].p);
 }
 
+static const float* g_ref;   /* --ref: the playback, fed as reference at --ref-at */
+static size_t g_nref;
+static double g_ref_at;
+static int g_events;
+
+static void print_events(arc_nft2_stream* s) {
+  static const char* T[] = {"?", "PARTIAL", "ENTITY", "EOT", "BARGE_IN", "FINAL"};
+  int n;
+  const arc_nft2_event* e = arc_nft2_stream_events(s, &n);
+  for (int i = 0; g_events && i < n; ++i) {
+    fprintf(stderr, "  %6.2f %-8s utt %d", e[i].t, T[e[i].type < 6 ? e[i].type : 0], e[i].utt);
+    if (e[i].text) fprintf(stderr, " \"%s\"", e[i].text);
+    if (e[i].type == ARC_EV_PARTIAL) fprintf(stderr, " stable %d", e[i].n_stable);
+    if (e[i].kind) fprintf(stderr, " %s", e[i].kind);
+    if (e[i].entity) fprintf(stderr, " -> %s", e[i].entity);
+    if (e[i].p >= 0) fprintf(stderr, " p %.3f", e[i].p);
+    fprintf(stderr, "\n");
+  }
+}
+
 static arc_result* run_stream(arc_nft2* m, const float* pcm, size_t n, const arc_nft2_options* o) {
   arc_nft2_stream* s = arc_nft2_stream_open(m, o);
+  if (g_ref && arc_nft2_stream_feed_ref(s, g_ref, g_nref, g_ref_at)) {
+    arc_nft2_stream_close(s);
+    return NULL;
+  }
   for (size_t a = 0; a < n; a += 1600) {
     arc_result* r = arc_nft2_stream_feed(s, pcm + a, n - a < 1600 ? n - a : 1600);
     if (!r) {
       arc_nft2_stream_close(s);
       return NULL;
     }
+    print_events(s);
     for (int i = 0; i < r->n_utts; ++i)
       fprintf(stderr, "  [stream %.1f s] %s\n", (double)(a + 1600) / 16000, r->utts[i].text);
     arc_result_free(r);
   }
   arc_result* r = arc_nft2_stream_flush(s);
+  print_events(s);
   arc_nft2_stream_close(s);
   return r;
 }
@@ -146,11 +213,13 @@ static arc_result* run_stream(arc_nft2* m, const float* pcm, size_t n, const arc
 int main(int argc, char** argv) {
   if (argc < 3) {
     fprintf(stderr, "usage: arc-nft2 NFT2_DIR file.wav [...] [--names list.json] [--dom D] [--prev TEXT] [--domain D] "
-                    "[--no-bias] [--no-events] [--stream] [--json] [--threads N]\n"
+                    "[--no-bias] [--no-events] [--no-guard] [--almost] [--nbest N] [--stream] [--live] [--events] [--ref playback.wav] [--ref-at S] "
+                    "[--echo-decode] [--playback-drop] [--tagger MODEL_DIR] [--tagger-domain D] [--json] [--threads N]\n"
                     "       arc-nft2 NFT2_DIR --manifest list.json [--dump DIR] [--json] [--threads N]\n");
     return 2;
   }
-  const char *names_path = NULL, *manifest = NULL, *dump_dir = NULL, *dom = NULL, *prev = NULL;
+  const char *names_path = NULL, *manifest = NULL, *dump_dir = NULL, *dom = NULL, *prev = NULL, *ref_path = NULL;
+  const char *tagger = NULL, *tagger_dom = NULL;
   arc_nft2_options opt = {0};
   int threads = 4, json = 0, stream = 0;
   const char* files[4096];
@@ -164,6 +233,17 @@ int main(int argc, char** argv) {
     else if (!strcmp(argv[i], "--domain") && i + 1 < argc) opt.domain = argv[++i];
     else if (!strcmp(argv[i], "--no-bias")) opt.no_bias = 1;
     else if (!strcmp(argv[i], "--no-events")) opt.no_events = 1;
+    else if (!strcmp(argv[i], "--no-guard")) opt.no_guard = 1;
+    else if (!strcmp(argv[i], "--almost")) opt.almost = 1;
+    else if (!strcmp(argv[i], "--live")) opt.live = 1, stream = 1;
+    else if (!strcmp(argv[i], "--events")) g_events = 1;
+    else if (!strcmp(argv[i], "--ref") && i + 1 < argc) ref_path = argv[++i], stream = 1;
+    else if (!strcmp(argv[i], "--ref-at") && i + 1 < argc) g_ref_at = atof(argv[++i]);
+    else if (!strcmp(argv[i], "--echo-decode")) opt.echo_decode = 1;
+    else if (!strcmp(argv[i], "--tagger") && i + 1 < argc) tagger = argv[++i];
+    else if (!strcmp(argv[i], "--tagger-domain") && i + 1 < argc) tagger_dom = argv[++i];
+    else if (!strcmp(argv[i], "--playback-drop")) opt.playback_drop = 1;
+    else if (!strcmp(argv[i], "--nbest") && i + 1 < argc) opt.nbest = atoi(argv[++i]);
     else if (!strcmp(argv[i], "--stream")) stream = 1;
     else if (!strcmp(argv[i], "--json")) json = 1;
     else if (!strcmp(argv[i], "--threads") && i + 1 < argc) threads = atoi(argv[++i]);
@@ -171,6 +251,16 @@ int main(int argc, char** argv) {
   }
   double t0 = arc_time_ms();
   char err[512];
+  float* refpcm = NULL;
+  if (ref_path) {
+    int rr;
+    refpcm = wav_read(ref_path, &g_nref, &rr);
+    if (!refpcm || rr != 16000) {
+      fprintf(stderr, "arc-nft2: %s: not a 16 kHz WAV\n", ref_path);
+      return 1;
+    }
+    g_ref = refpcm;
+  }
   arc_nft2* m = arc_nft2_create(argv[1], threads, err, sizeof err);
   if (!m) {
     fprintf(stderr, "arc-nft2: %s\n", err);
@@ -178,6 +268,11 @@ int main(int argc, char** argv) {
   }
   double load_ms = arc_time_ms() - t0;
   if (!json) fprintf(stderr, "loaded %s in %.0f ms (backend %s, %d threads)\n", argv[1], load_ms, arc_nft2_backend(), threads);
+  if (tagger && arc_nft2_set_tagger(m, tagger, tagger_dom, 1, err, sizeof err)) {
+    fprintf(stderr, "arc-nft2: %s\n", err);
+    arc_nft2_destroy(m);
+    return 1;
+  }
   dumper dd = {dump_dir, "", NULL};
   if (dump_dir) arc_nft2_set_dump(m, dump_cb, &dd);
   int rc = 0;
@@ -295,5 +390,6 @@ int main(int argc, char** argv) {
   }
   if (!json) fprintf(stderr, "peak RSS %.0f MB\n", (double)arc_peak_rss_kb() / 1024.0);
   arc_nft2_destroy(m);
+  free(refpcm);
   return rc;
 }

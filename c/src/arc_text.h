@@ -20,6 +20,8 @@ void arc_seg_free(arc_seg* s);
 int arc_seg_feed(arc_seg* s, int f, double db, int* f0, int* f1, const char** reason);
 /* The first frame of the utterance being collected, or -1 (quiet so far). */
 int arc_seg_open(const arc_seg* s);
+/* Quiet frames at the end of the utterance being collected (the pause so far, in 100 ms frames). */
+int arc_seg_quiet_run(const arc_seg* s);
 /* At the end: 1 and the open utterance ("end"), if any. */
 int arc_seg_flush(arc_seg* s, int* f0, int* f1, const char** reason);
 /* The frame level Arc uses: 20 log10(rms + 1e-6), -120 for an empty frame. */

@@ -391,7 +391,7 @@ static int try_final(arc_stream* s, putt* p) {
       if (!s->fw[i].used && in_span(&s->fw[i], p)) {
         xword* w = &s->fw[i];
         w->used = 1;
-        u->aw[u->n_aw++] = (arc_wordb){arc_strdup(w->w), w->start, w->end, -1, 0};
+        u->aw[u->n_aw++] = (arc_wordb){.w = arc_strdup(w->w), .start = w->start, .end = w->end, .tag = -1};
         len += strlen(w->w) + 1;
       }
     char* t = arc_malloc(len);

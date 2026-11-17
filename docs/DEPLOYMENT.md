@@ -93,3 +93,37 @@ The golden files hold, for the bundled example clip: the full `predict()` JSON (
 encoder features (shape, mean, standard deviation, first values, sha256 of the float16 bytes), per-read-out frame probabilities
 (shape, mean, first values), transcript decoder output text and tag spans per utterance. A port should reproduce the transcript text
 and tags exactly and the numeric stages within the tolerances in `scripts/check_parity.py`.
+
+## ONNX Runtime telemetry
+
+The NFT2 runtimes switch ONNX Runtime's telemetry off for their process: libarc calls `DisableTelemetryEvents` on its
+`OrtEnv` right after creating it, and arc_audio calls `onnxruntime.disable_telemetry_events()` before its first session.
+(ONNX Runtime only emits telemetry in Windows builds, through ETW; Linux, macOS, iOS and Android builds have none.) An app that
+creates its own `OrtEnv` in the same process should do the same.
+
+## Verifying binaries and model files after code signing
+
+Code signing covers the executable and its libraries, not the model files the app loads at run time. Check both:
+
+```bash
+# macOS / iOS: the signature of the app bundle and the libraries inside it (libarc is static; ONNX Runtime may be a dylib)
+codesign --verify --deep --strict --verbose=2 MyApp.app
+codesign --verify --strict --verbose=2 MyApp.app/Contents/Frameworks/libonnxruntime.*.dylib
+spctl --assess --type execute --verbose MyApp.app          # Gatekeeper's view (Developer ID / notarization)
+
+# Windows: signtool verify /pa /v MyApp.exe
+```
+
+Model files: ship a manifest of SHA-256 hashes with the app (generated from the exact files you bundle) and check it at
+first launch or after an update, before `arc_nft2_create` / `Arc.from_pretrained`:
+
+```bash
+cd arc-transcriber-space && find nft2 -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 shasum -a 256 > nft2/SHA256SUMS
+shasum -a 256 -c nft2/SHA256SUMS                           # on the device / in CI: every line must say OK
+```
+
+Sign or embed the manifest itself (for example, compile its hashes into the signed binary or put it inside the signed bundle)
+so a replaced model file cannot come with a replaced manifest. The encoder weights (`encoder.weights`) are memory-mapped
+read-only; verify them before the first load rather than after. If Arc Tagger is linked in, its model folder ships its own
+`SHA256SUMS`.
+

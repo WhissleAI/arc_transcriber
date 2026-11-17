@@ -361,9 +361,14 @@ arc_nft2_be* arc_nft2_be_open(const char* dir, const arc_nft2_dims* dims, int ta
                OrtGetApiBase()->GetVersionString());
     return NULL;
   }
-  if (!g_env && ok(g_ort->CreateEnv(ORT_LOGGING_LEVEL_ERROR, "arc", &g_env), "env")) {
-    pthread_mutex_unlock(&g_env_mu);
-    return NULL;
+  if (!g_env) {
+    if (ok(g_ort->CreateEnv(ORT_LOGGING_LEVEL_ERROR, "arc", &g_env), "env")) {
+      pthread_mutex_unlock(&g_env_mu);
+      return NULL;
+    }
+    /* no telemetry: ONNX Runtime's event tracing (Windows ETW builds) is switched off for this process' env */
+    OrtStatus* st = g_ort->DisableTelemetryEvents(g_env);
+    if (st) g_ort->ReleaseStatus(st);
   }
   g_env_refs++;
   pthread_mutex_unlock(&g_env_mu);

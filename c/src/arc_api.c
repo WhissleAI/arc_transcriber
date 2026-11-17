@@ -15,6 +15,9 @@
 #include "arc_tok.h"
 #include "arc_engine.h"
 
+int arc_abi_version(void) { return ARC_ABI_VERSION; }
+const char* arc_version(void) { return ARC_VERSION; }
+
 /* ------------------------------------------------------------------ config */
 
 static int load_cfg(arc_engine* e, const char* dir) {
@@ -484,7 +487,7 @@ int arc_decode_segment(arc_engine* e, const float* seg, int n_in, double t_now, 
     u->aw = arc_calloc(sizeof(arc_wordb) * (size_t)(na + 1));
     char** dst = arc_malloc(sizeof(char*) * (size_t)(na + 1));
     for (int k = 0; k < na; ++k) {
-      u->aw[k] = (arc_wordb){aw[k].w, aw[k].start, aw[k].end, -1, 0};
+      u->aw[k] = (arc_wordb){.w = aw[k].w, .start = aw[k].start, .end = aw[k].end, .tag = -1};
       dst[k] = aw[k].w;
     }
     u->n_aw = na;

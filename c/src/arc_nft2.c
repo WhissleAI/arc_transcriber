@@ -4,6 +4,11 @@
  * behind arc_nft2_be.h; the trunk, heads, names and numbers are arc_engine.c / arc_link.c with the NFT2 settings.
  * Part of arc_transcriber (Whissle Inc.), CC BY-NC 4.0; see LICENSE. */
 #include "arc_nft2.h"
+#include "arc_post.h"
+#include "arc_echo.h"
+#ifdef ARC_WITH_ARCTAG
+#include "arctag.h"
+#endif
 
 #include <ctype.h>
 #include <math.h>
@@ -385,6 +390,18 @@ static double sm_ratio(const uint32_t* A, int la, const uint32_t* B, int lb) {
   return 2.0 * M / (la + lb);
 }
 
+double arc_sm_ratio_bytes(const char* a, const char* b) {
+  int la = (int)strlen(a), lb = (int)strlen(b);
+  uint32_t* A = arc_malloc(sizeof(uint32_t) * (size_t)(la + 1));
+  uint32_t* B = arc_malloc(sizeof(uint32_t) * (size_t)(lb + 1));
+  for (int i = 0; i < la; ++i) A[i] = (unsigned char)a[i];
+  for (int i = 0; i < lb; ++i) B[i] = (unsigned char)b[i];
+  double r = sm_ratio(A, la, B, lb);
+  arc_free(A);
+  arc_free(B);
+  return r;
+}
+
 /* ================================================================== the model */
 
 typedef struct {
@@ -441,6 +458,13 @@ struct arc_nft2 {
   /* settings (transcription.nft2, backbone) */
   double alpha, context_score, whole_max_s, edge_pad_s, tail_pad_s, list_add_ratio, chunk_s, context_s;
   int case_from, char_align, unify, list_on, list_add, list_min_chars, list_add_long_chars, names_in_prompt;
+  /* read-outs (transcription.nft2 guard / guard_cfg / nbest / almost) */
+  int guard_on, nbest, cur_nbest, almost_on;
+  char** common;   /* common_build */
+  int n_common;
+  void* tagger;    /* arctag_t* (ARC_WITH_ARCTAG) */
+  arc_guard_cfg guard_cfg;
+  arc_almost_cfg almost_cfg;
   int ctx_max, ctx_prev_max, ctx_kb_max, ctx_ses_max, ctx_types;
   char* ctx_default_dom;
   /* names */
@@ -870,6 +894,9 @@ static double cfg_num(const arc_json* o, const char* k, double d) { return arc_j
 
 void arc_nft2_destroy(arc_nft2* m) {
   if (!m) return;
+  arc_nft2_set_tagger(m, NULL, NULL, 0, NULL, 0);
+  for (int i = 0; i < m->n_common; ++i) arc_free(m->common[i]);
+  arc_free(m->common);
   arc_nft2_set_names(m, NULL, 0);
   arc_nft2_set_context(m, NULL);
   arc_nft2_be_free(m->be);
@@ -998,6 +1025,21 @@ arc_nft2* arc_nft2_create(const char* dir, int threads, char* err, size_t err_le
   m->list_add_ratio = cfg_num(nc, "list_add_ratio", 0.5);
   m->list_add_long_chars = (int)cfg_num(nc, "list_add_long_chars", 0);   /* opt-in, see nft2.list_spans */
   m->names_in_prompt = (int)cfg_num(nc, "names_in_prompt", 1);
+  m->guard_on = (int)cfg_num(nc, "guard", 1);
+  m->nbest = (int)cfg_num(nc, "nbest", 0);
+  m->almost_on = (int)cfg_num(nc, "almost", 0);
+  arc_guard_defaults(&m->guard_cfg);
+  {
+    const arc_json* gc = arc_json_get(nc, "guard_cfg");
+    arc_guard_cfg* g = &m->guard_cfg;
+    g->silence_db = cfg_num(gc, "silence_db", g->silence_db);
+    g->flat_db = cfg_num(gc, "flat_db", g->flat_db);
+    g->flat_conf = cfg_num(gc, "flat_conf", g->flat_conf);
+    g->rep_conf = cfg_num(gc, "rep_conf", g->rep_conf);
+    g->tail_s = cfg_num(gc, "tail_s", g->tail_s);
+    g->tail_conf = cfg_num(gc, "tail_conf", g->tail_conf);
+  }
+  arc_almost_defaults(&m->almost_cfg);
   if (!m->char_align) {
     arc_seterr("%s: transcription.nft2.char_align false is not supported", dir);
     goto fail;
@@ -1505,15 +1547,37 @@ static int argmax(const float* v, int n) {
   return b;
 }
 
-static int rnnt_greedy(arc_nft2* m, const float* H, int T, int bias, int** ids_out, int** frames_out) {
+/* nft2.tok_stats: log p of token kk under the unbiased joint distribution, the runner-up non-blank token, its log p */
+static void tok_stats(const float* row, int V1, int blank, int kk, float* out3) {
+  double mx = row[0];
+  for (int k = 1; k < V1; ++k)
+    if (row[k] > mx) mx = row[k];
+  double s = 0;
+  for (int k = 0; k < V1; ++k) s += exp((double)row[k] - mx);
+  double lse = mx + log(s);
+  int k2 = kk == 0 ? 1 : 0;
+  for (int k = 0; k < blank; ++k)
+    if (k != kk && row[k] > row[k2]) k2 = k;
+  out3[0] = (float)((double)row[kk] - lse);
+  out3[1] = (float)k2;
+  out3[2] = (float)((double)row[k2] - lse);
+}
+
+/* the greedy decode; tok_out (may be NULL): 3 floats per token (tok_stats), malloc'd */
+static int rnnt_greedy(arc_nft2* m, const float* H, int T, int bias, int** ids_out, int** frames_out, float** tok_out) {
   const arc_nft2_dims* d = &m->d;
   int J = d->joint_hidden, V1 = d->vocab + 1, blank = d->blank;
   int cap = 64, n = 0, rc = 0;
   int* ids = arc_malloc(sizeof(int) * (size_t)cap);
   int* fr = arc_malloc(sizeof(int) * (size_t)cap);
+  float* ts = arc_malloc(sizeof(float) * 3 * (size_t)cap);
   *ids_out = ids;
   *frames_out = fr;
-  if (T <= 0) return 0;
+  if (tok_out) *tok_out = ts;
+  if (T <= 0) {
+    if (!tok_out) arc_free(ts);
+    return 0;
+  }
   float* hc = arc_calloc(sizeof(float) * (size_t)2 * d->pred_layers * d->pred_hidden);
   float* g = arc_malloc(sizeof(float) * (size_t)J);
   float* Fe = arc_malloc(sizeof(float) * (size_t)T * J);
@@ -1558,13 +1622,18 @@ static int rnnt_greedy(arc_nft2* m, const float* H, int T, int bias, int** ids_o
         cap *= 2;
         int* a = arc_malloc(sizeof(int) * (size_t)cap);
         int* b = arc_malloc(sizeof(int) * (size_t)cap);
+        float* c = arc_malloc(sizeof(float) * 3 * (size_t)cap);
         memcpy(a, ids, sizeof(int) * (size_t)n);
         memcpy(b, fr, sizeof(int) * (size_t)n);
+        memcpy(c, ts, sizeof(float) * 3 * (size_t)n);
         arc_free(ids);
         arc_free(fr);
+        arc_free(ts);
         ids = a;
         fr = b;
+        ts = c;
       }
+      tok_stats(row, V1, blank, kk, ts + 3 * (size_t)n);
       ids[n] = kk;
       fr[n++] = t;
       if (arc_nft2_be_pred(m->be, kk, hc, g)) {
@@ -1587,6 +1656,9 @@ static int rnnt_greedy(arc_nft2* m, const float* H, int T, int bias, int** ids_o
   arc_free(biased);
   *ids_out = ids;
   *frames_out = fr;
+  if (tok_out) *tok_out = ts;
+  else
+    arc_free(ts);
   return rc ? -1 : n;
 }
 
@@ -1594,10 +1666,19 @@ typedef struct {
   char* text;
   double start, end;
   int tag, tag_begin;
+  int t0, t1;      /* its tokens [t0, t1) */
+  int has_conf;
+  float conf;
+  char* alt;       /* the runner-up spelling or NULL */
+  float alt_p;
+  char** xalt;     /* other spellings from the n-best (nbest_alts), malloc'd */
+  float* xalt_p;
+  int n_xalt;
 } rword;
 
-/* Pieces.words: ids + frames -> words (frame f covers [(f - 1) * 80, f * 80) ms) */
-static int rnnt_words(const arc_nft2* m, const int* ids, const int* fr, int n, double t0, rword** out) {
+/* Pieces.words: ids + frames -> words (frame f covers [(f - 1) * 80, f * 80) ms); ts (tok_stats per token, may be
+ * NULL): conf and the runner-up spelling */
+static int rnnt_words(const arc_nft2* m, const int* ids, const int* fr, int n, double t0, const float* ts, rword** out) {
   rword* w = arc_calloc(sizeof(rword) * (size_t)(n + 1));
   int nw = 0;
   const double fs = 0.08;
@@ -1609,8 +1690,11 @@ static int rnnt_words(const arc_nft2* m, const int* ids, const int* fr, int n, d
       w[nw].text = arc_strdup(p);
       w[nw].start = st;
       w[nw].end = en;
+      w[nw].t0 = i;
+      w[nw].t1 = i + 1;
       nw++;
     } else {
+      w[nw - 1].t1 = i + 1;
       size_t a = strlen(w[nw - 1].text), b = strlen(p);
       char* s = arc_malloc(a + b + 1);
       memcpy(s, w[nw - 1].text, a);
@@ -1631,6 +1715,30 @@ static int rnnt_words(const arc_nft2* m, const int* ids, const int* fr, int n, d
     r.start = arc_pyround(r.start, 3);
     r.tag = -1;
     r.tag_begin = 0;
+    if (ts) {
+      int j = r.t0;
+      for (int q = r.t0 + 1; q < r.t1; ++q)
+        if (ts[3 * q] < ts[3 * j]) j = q;
+      r.has_conf = 1;
+      r.conf = (float)arc_pyround(exp(ts[3 * j]), 4);
+      int k2 = (int)ts[3 * j + 1];
+      if (ts[3 * j + 2] >= log(0.05) && k2 >= 0 && k2 < m->n_piece && (m->piece[k2][0] == 1) == (j == r.t0)) {
+        sbuf b = {0};
+        sb_put(&b, "");
+        for (int q = r.t0; q < r.t1; ++q) {
+          const char* pc = q == j ? m->piece[k2] : (ids[q] >= 0 && ids[q] < m->n_piece ? m->piece[ids[q]] : "");
+          if (q == r.t0)
+            while (*pc == 1) pc++;
+          sb_put(&b, pc);
+        }
+        char* alt = sb_take(&b);
+        if (alt[0] && strcmp(alt, r.text)) {
+          r.alt = alt;
+          r.alt_p = (float)arc_pyround(exp(ts[3 * j + 2]), 4);
+        } else
+          arc_free(alt);
+      }
+    }
     w[k++] = r;
   }
   *out = w;
@@ -2128,12 +2236,101 @@ static void case_from(rword* w, int nw, char** dec, int nd) {
   arc_free(B);
 }
 
+/* ------------------------------------------------------------------ Arc Tagger on the finals */
+
+static char* tag_words(arc_nft2* m, const arc_utt_build* u);
+
+int arc_nft2_set_tagger(arc_nft2* m, const char* model_dir, const char* domain, int int8, char* err, size_t errlen) {
+  if (err && errlen) err[0] = 0;
+  if (!m) return -1;
+#ifdef ARC_WITH_ARCTAG
+  if (m->tagger) arctag_destroy((arctag_t*)m->tagger);
+  m->tagger = NULL;
+  if (!model_dir) return 0;
+  arctag_options opt;
+  arctag_options_init(&opt);
+  opt.precision = int8 ? ARCTAG_INT8 : ARCTAG_FP32;
+  opt.backend = ARCTAG_BACKEND_NATIVE;
+  arctag_t* h = arctag_create_ex(model_dir, &opt, err, errlen);
+  if (!h) return -1;
+  if (arctag_set_option(h, "domain", domain ? domain : "kids")) {
+    if (err && errlen) snprintf(err, errlen, "arc tagger: unknown domain %s", domain ? domain : "kids");
+    arctag_destroy(h);
+    return -1;
+  }
+  m->tagger = h;
+  return 0;
+#else
+  (void)domain, (void)int8;
+  if (!model_dir) return 0;
+  if (err && errlen) snprintf(err, errlen, "libarc was built without ARC_WITH_ARCTAG (make ARC_WITH_ARCTAG=/path/to/arc-tagger-c)");
+  return -1;
+#endif
+}
+
+#ifdef ARC_WITH_ARCTAG
+static void json_esc(sbuf* b, const char* s) {
+  sb_put(b, "\"");
+  for (; *s; ++s) {
+    unsigned char c = (unsigned char)*s;
+    char t[8];
+    if (c == '"' || c == '\\') {
+      t[0] = '\\';
+      t[1] = (char)c;
+      sb_putn(b, t, 2);
+    } else if (c < 0x20) {
+      snprintf(t, sizeof t, "\\u%04x", c);
+      sb_put(b, t);
+    } else
+      sb_putn(b, (const char*)&c, 1);
+  }
+  sb_put(b, "\"");
+}
+#endif
+
+/* the utterance's words -> arctag_tag_words (word objects with times and confidences, the utterance ends at the last) */
+static char* tag_words(arc_nft2* m, const arc_utt_build* u) {
+#ifdef ARC_WITH_ARCTAG
+  if (!m->tagger || !u->n_aw) return NULL;
+  sbuf b = {0};
+  sb_put(&b, "[");
+  char t[96];
+  for (int i = 0; i < u->n_aw; ++i) {
+    if (i) sb_put(&b, ", ");
+    sb_put(&b, "{\"w\": ");
+    json_esc(&b, u->aw[i].w);
+    snprintf(t, sizeof t, ", \"t0\": %.3f, \"t1\": %.3f", u->aw[i].start, u->aw[i].end);
+    sb_put(&b, t);
+    if (u->aw[i].has_conf) {
+      snprintf(t, sizeof t, ", \"conf\": %.4f", u->aw[i].conf);
+      sb_put(&b, t);
+    }
+    sb_put(&b, i == u->n_aw - 1 ? ", \"final\": true, \"eou\": true}" : ", \"final\": true}");
+  }
+  sb_put(&b, "]");
+  char* in = sb_take(&b);
+  char* out = arctag_tag_words((arctag_t*)m->tagger, in);
+  arc_free(in);
+  if (!out) return NULL;
+  char* r = arc_strdup(out);
+  arctag_free_str(out);
+  return r;
+#else
+  (void)m, (void)u;
+  return NULL;
+#endif
+}
+
+/* ------------------------------------------------------------------ n-best (an RNNT beam for alternatives) */
+
+static void nbest_alts(arc_nft2* m, const float* H, int T, int bias, rword* w, int nw, arc_utt_build* u);
+
 /* ------------------------------------------------------------------ one utterance (Nft2Finals.decode) */
 
 /* y [len]: the audio the encoder reads; n_dec: the utterance's own length (without a stream's tail), which sets the
  * decoder's length limit as tr._gen(..., len(y)) does */
 static int decode_utt(arc_nft2* m, const float* y, long len, long n_dec, double t0, int f0, int f1, int bias,
-                      arc_utt_build* u) {
+                      int guard, arc_utt_build* u) {
   arc_engine* e = m->e;
   int ui = m->dump_utt++;
   const float *H, *Ht;
@@ -2142,18 +2339,49 @@ static int decode_utt(arc_nft2* m, const float* y, long len, long n_dec, double 
   int D = m->d.d_model;
   /* RNNT words */
   int *ids, *frs;
-  int nid = rnnt_greedy(m, H, T, bias && m->trie, &ids, &frs);
+  float* tst = NULL;
+  int nid = rnnt_greedy(m, H, T, bias && m->trie, &ids, &frs, &tst);
   if (nid < 0) {
     arc_free(ids);
     arc_free(frs);
+    arc_free(tst);
     return -1;
   }
   dumpi(m, "rnnt_ids", ui, ids, nid);
   dumpi(m, "rnnt_frames", ui, frs, nid);
   rword* w;
-  int nw = rnnt_words(m, ids, frs, nid, t0, &w);
+  int nw = rnnt_words(m, ids, frs, nid, t0, tst, &w);
   arc_free(ids);
   arc_free(frs);
+  arc_free(tst);
+  /* nft2_post.guard: no-speech gate, low-confidence repeats and tails (on the utterance's own audio) */
+  int n_dropped = 0;
+  if (guard && nw) {
+    const char** tx = arc_malloc(sizeof(char*) * (size_t)nw);
+    double* st = arc_malloc(sizeof(double) * (size_t)nw);
+    float* cf = arc_malloc(sizeof(float) * (size_t)nw);
+    int* keep = arc_malloc(sizeof(int) * (size_t)nw);
+    for (int i = 0; i < nw; ++i) {
+      tx[i] = w[i].text;
+      st[i] = w[i].start;
+      cf[i] = w[i].has_conf ? w[i].conf : -1.0f;
+    }
+    arc_post_guard(tx, st, cf, nw, y, n_dec < len ? n_dec : len, t0, &m->guard_cfg, keep, NULL);
+    int k = 0;
+    for (int i = 0; i < nw; ++i) {
+      if (keep[i]) w[k++] = w[i];
+      else {
+        arc_free(w[i].text);
+        arc_free(w[i].alt);
+        n_dropped++;
+      }
+    }
+    nw = k;
+    arc_free(tx);
+    arc_free(st);
+    arc_free(cf);
+    arc_free(keep);
+  }
   /* the Arc decoder on the tap memory (drop0) with the context prompt */
   int nv = T - 1 > 1 ? T - 1 : 1;
   float* Mm = mem_with_pos(m, H + (T > 1 ? D : 0), nv);
@@ -2218,6 +2446,7 @@ static int decode_utt(arc_nft2* m, const float* y, long len, long n_dec, double 
       w[j].tag = wsp[s].tag;
       w[j].tag_begin = j == wsp[s].a;
     }
+  if (m->cur_nbest > 1) nbest_alts(m, H, T, bias && m->trie, w, nw, u);
   u->f0 = f0;
   u->f1 = f1;
   u->start = (float)arc_pyround(f0 / 10.0, 1);
@@ -2226,15 +2455,68 @@ static int decode_utt(arc_nft2* m, const float* y, long len, long n_dec, double 
   sb_put(&tb, "");
   u->aw = arc_calloc(sizeof(arc_wordb) * (size_t)(nw + 1));
   u->words = arc_malloc(sizeof(char*) * (size_t)(nw + 1));
+  double csum = 0;
+  int ncs = 0;
   for (int i = 0; i < nw; ++i) {
     if (i) sb_put(&tb, " ");
     sb_put(&tb, w[i].text);
-    u->aw[i] = (arc_wordb){arc_strdup(w[i].text), w[i].start, w[i].end, w[i].tag, w[i].tag_begin};
+    u->aw[i] = (arc_wordb){.w = arc_strdup(w[i].text), .start = w[i].start, .end = w[i].end, .tag = w[i].tag, .tag_begin = w[i].tag_begin};
+    u->aw[i].has_conf = w[i].has_conf;
+    u->aw[i].conf = w[i].conf;
+    if (w[i].has_conf) csum += w[i].conf, ncs++;
+    if (w[i].alt) {   /* the runner-up spelling first, then the n-best's (nbest_alts) */
+      int na = 1 + (w[i].n_xalt > 0 ? w[i].n_xalt : 0);
+      u->aw[i].alts = arc_malloc(sizeof(char*) * (size_t)na);
+      u->aw[i].alt_p = arc_malloc(sizeof(float) * (size_t)na);
+      u->aw[i].alts[0] = w[i].alt;
+      u->aw[i].alt_p[0] = w[i].alt_p;
+      u->aw[i].n_alts = 1;
+    } else if (w[i].n_xalt > 0) {
+      u->aw[i].alts = arc_malloc(sizeof(char*) * (size_t)w[i].n_xalt);
+      u->aw[i].alt_p = arc_malloc(sizeof(float) * (size_t)w[i].n_xalt);
+    }
+    for (int q = 0; q < w[i].n_xalt; ++q) {
+      u->aw[i].alts[u->aw[i].n_alts] = w[i].xalt[q];
+      u->aw[i].alt_p[u->aw[i].n_alts++] = w[i].xalt_p[q];
+    }
+    arc_free(w[i].xalt);
+    arc_free(w[i].xalt_p);
     u->words[i] = w[i].text;
   }
   u->n_aw = nw;
   u->n_words = nw;
   u->text = sb_take(&tb);
+  /* Nft2Finals._post: confidence, disfluency tags + clean_text, quantities */
+  u->has_post = 1;
+  u->conf = ncs ? (float)arc_pyround(csum / ncs, 4) : -1.0f;
+  u->n_dropped = n_dropped;
+  u->leak = -1.0f;
+  {
+    const char** tx = arc_malloc(sizeof(char*) * (size_t)(nw + 1));
+    const char** tg = arc_malloc(sizeof(char*) * (size_t)(nw + 1));
+    const char** df = arc_malloc(sizeof(char*) * (size_t)(nw + 1));
+    for (int i = 0; i < nw; ++i) {
+      tx[i] = u->aw[i].w;
+      tg[i] = u->aw[i].tag >= 0 ? arc_tag_name(u->aw[i].tag) : NULL;
+    }
+    arc_post_disfluency(tx, nw, df);
+    sbuf cb = {0};
+    sb_put(&cb, "");
+    int first = 1;
+    for (int i = 0; i < nw; ++i) {
+      u->aw[i].disfl = df[i];
+      if (df[i]) continue;
+      if (!first) sb_put(&cb, " ");
+      sb_put(&cb, tx[i]);
+      first = 0;
+    }
+    u->clean_text = sb_take(&cb);
+    u->n_qty = arc_post_quantities(tx, tg, nw, &u->qty);
+    u->tagger_json = tag_words(m, u);
+    arc_free(tx);
+    arc_free(tg);
+    arc_free(df);
+  }
   u->spans = arc_malloc(sizeof(arc_span) * (size_t)(nws + 1));
   for (int s = 0; s < nws; ++s) u->spans[s] = (arc_span){wsp[s].tag, wsp[s].a, wsp[s].b};
   u->n_spans = nws;
@@ -2295,6 +2577,188 @@ static int segments(arc_nft2* m, const float* pcm, size_t n, seg_t** out) {
 }
 
 static const char* opt_domain(const arc_nft2_options* o) { return o && o->domain ? o->domain : "assistant"; }
+static int opt_guard(const arc_nft2* m, const arc_nft2_options* o) { return m->guard_on && !(o && o->no_guard); }
+static int opt_nbest(const arc_nft2* m, const arc_nft2_options* o) { return o && o->nbest ? o->nbest : m->nbest; }
+static int opt_almost(const arc_nft2* m, const arc_nft2_options* o) { return (o && o->almost) || m->almost_on; }
+
+static int split_ws(const char* s, char*** out);
+static int cmp_str(const void* a, const void* b) { return strcmp(*(char* const*)a, *(char* const*)b); }
+
+/* nft2_post.common_words: the vocabulary's whole-word pieces, lower case, sorted (built once) */
+static void common_build(arc_nft2* m) {
+  if (m->common) return;
+  m->common = arc_malloc(sizeof(char*) * (size_t)(m->n_piece + 1));
+  m->n_common = 0;
+  for (int i = 0; i < m->n_piece; ++i) {
+    const char* p = m->piece[i];
+    if (p[0] != 1 || !p[1]) continue;
+    char* x = arc_strdup(p + 1);
+    for (char* c = x; *c; ++c) *c = (char)tolower((unsigned char)*c);
+    m->common[m->n_common++] = x;
+  }
+  qsort(m->common, (size_t)m->n_common, sizeof(char*), cmp_str);
+}
+
+static int is_common(arc_nft2* m, const char* word) {
+  common_build(m);
+  char* k = arc_post_wk(word);
+  int r = k[0] && bsearch(&k, m->common, (size_t)m->n_common, sizeof(char*), cmp_str) != NULL;
+  arc_free(k);
+  return r;
+}
+
+/* nft2_post.almost_names: unlinked heard words that sound like a list entry -> state "almost" (candidate + p); an
+ * abstain / not_in_list record that sounds like one becomes "almost". Linked records are untouched. */
+static void almost_names(arc_nft2* m, arc_result_build* R) {
+  if (!m->n_kb) return;
+  int nf = 0;
+  for (int i = 0; i < m->n_kb; ++i) nf += 1 + m->kb[i].n_aliases;
+  arc_form* fm = arc_malloc(sizeof(arc_form) * (size_t)(nf + 1));
+  nf = 0;
+  for (int i = 0; i < m->n_kb; ++i) {
+    if (!m->kb[i].name[0]) continue;
+    fm[nf++] = (arc_form){m->kb[i].name, i};
+    for (int a = 0; a < m->kb[i].n_aliases; ++a) {
+      const char* al = m->kb[i].aliases[a];
+      int blank = 1;
+      for (const char* c = al; *c; ++c) blank &= isspace((unsigned char)*c) != 0;
+      if (!blank) fm[nf++] = (arc_form){al, i};
+    }
+  }
+  const arc_almost_cfg* c = &m->almost_cfg;
+  for (int k = 0; k < R->n_names; ++k) {
+    arc_name* r = &R->names[k];
+    if (!r->state || !r->heard || (strcmp(r->state, "abstain") && strcmp(r->state, "not_in_list"))) continue;
+    /* not only stop / common words (_all_common), and the words under it unsure (_unsure) */
+    {
+      char** hw;
+      int nhw = split_ws(r->heard, &hw), allc = 1;
+      for (int j = 0; j < nhw; ++j) {
+        char* x = arc_post_wk(hw[j]);
+        if (x[0] && !arc_post_is_stop(x) && !is_common(m, hw[j])) allc = 0;
+        arc_free(x);
+        arc_free(hw[j]);
+      }
+      arc_free(hw);
+      if (allc) continue;
+      int nconf = 0;
+      double minc = 1e9;
+      for (int i = 0; i < R->n; ++i)
+        for (int j = 0; j < R->u[i].n_aw; ++j) {
+          const arc_wordb* w = &R->u[i].aw[j];
+          if (!(w->start < r->end && w->end > r->start) || !w->has_conf) continue;
+          char* x = arc_post_wk(w->w);
+          if (!arc_post_is_stop(x)) {
+            nconf++;
+            if (w->conf < minc) minc = w->conf;
+          }
+          arc_free(x);
+        }
+      if (nconf && !(minc < c->max_conf)) continue;
+    }
+    double p;
+    int bi = arc_almost_best(r->heard, fm, nf, c, &p);
+    if (bi >= 0 && p >= c->min_p) {
+      r->state = "almost";
+      r->candidate = m->kb[fm[bi].kb].name;
+      r->candidate_kb_index = fm[bi].kb;
+      r->candidate_p = (float)arc_pyround(p, 4);
+    }
+  }
+  int cap = R->n_names + 8, na = R->n_names;
+  arc_name* all = arc_arena_alloc(R->arena, sizeof(arc_name) * (size_t)cap);
+  memcpy(all, R->names, sizeof(arc_name) * (size_t)R->n_names);
+  for (int i = 0; i < R->n; ++i) {
+    arc_utt_build* u = &R->u[i];
+    int n = u->n_aw;
+    if (!n) continue;
+    const char** tx = arc_malloc(sizeof(char*) * (size_t)n);
+    int* taken = arc_calloc(sizeof(int) * (size_t)n);
+    float* cf = arc_malloc(sizeof(float) * (size_t)n);
+    int* cm = arc_malloc(sizeof(int) * (size_t)n);
+    for (int j = 0; j < n; ++j) {
+      tx[j] = u->aw[j].w;
+      cf[j] = u->aw[j].has_conf ? u->aw[j].conf : -1.0f;
+      cm[j] = is_common(m, u->aw[j].w);
+      for (int k = 0; k < R->n_names; ++k) {
+        const arc_name* r = &R->names[k];
+        if (r->state && (!strcmp(r->state, "linked") || !strcmp(r->state, "almost")) && u->aw[j].start < r->end &&
+            u->aw[j].end > r->start)
+          taken[j] = 1;
+      }
+    }
+    arc_almost_hit* h;
+    int nh = arc_post_almost(tx, cf, cm, n, taken, fm, nf, c, &h);
+    for (int q = 0; q < nh; ++q) {
+      if (na == cap) {
+        cap *= 2;
+        arc_name* nn = arc_arena_alloc(R->arena, sizeof(arc_name) * (size_t)cap);
+        memcpy(nn, all, sizeof(arc_name) * (size_t)na);
+        all = nn;
+      }
+      arc_name* o = &all[na++];
+      memset(o, 0, sizeof *o);
+      int a = h[q].word_begin, b = h[q].word_end;
+      o->start = (float)u->aw[a].start;
+      o->end = (float)u->aw[b - 1].end;
+      o->tag = "entity.mention.place";
+      sbuf hb = {0};
+      sb_put(&hb, "");
+      for (int j = a; j < b; ++j) {
+        if (j > a) sb_put(&hb, " ");
+        sb_put(&hb, u->aw[j].w);
+      }
+      char* heard = sb_take(&hb);
+      o->heard = arc_arena_strdup(R->arena, heard);
+      arc_free(heard);
+      o->entity = NULL;
+      o->kb_index = -1;
+      o->state = "almost";
+      o->p = (float)h[q].p;
+      o->model_entity = NULL;
+      o->model_p = -1;
+      o->src = "sound_alike";
+      o->via = "sound_alike";
+      o->snap_score = -1;
+      o->span_p = -1;
+      o->show = 1;
+      arc_word* ws = arc_arena_alloc(R->arena, sizeof(arc_word) * (size_t)(b - a + 1));
+      for (int j = a; j < b; ++j) {
+        arc_word* x = &ws[j - a];
+        x->text = arc_arena_strdup(R->arena, u->aw[j].w);
+        x->start = (float)u->aw[j].start;
+        x->end = (float)u->aw[j].end;
+        x->tag = u->aw[j].tag >= 0 ? arc_tag_name(u->aw[j].tag) : NULL;
+        x->tag_begin = u->aw[j].tag_begin;
+        x->conf = u->aw[j].has_conf ? u->aw[j].conf : -1.0f;
+        x->disfl = u->aw[j].disfl;
+      }
+      o->words = ws;
+      o->n_words = b - a;
+      o->candidate = m->kb[h[q].kb].name;
+      o->candidate_kb_index = h[q].kb;
+      o->candidate_p = (float)h[q].p;
+    }
+    arc_free(h);
+    arc_free(tx);
+    arc_free(taken);
+    arc_free(cf);
+    arc_free(cm);
+  }
+  /* sorted by (start, end), stable */
+  for (int i = 1; i < na; ++i) {
+    arc_name t = all[i];
+    int j = i - 1;
+    while (j >= 0 && (all[j].start > t.start || (all[j].start == t.start && all[j].end > t.end))) {
+      all[j + 1] = all[j];
+      j--;
+    }
+    all[j + 1] = t;
+  }
+  R->names = all;
+  R->n_names = na;
+  arc_free(fm);
+}
 
 /* the engine over the clip with the utterances' words: names, numbers, events, device-directed head */
 static int run_engine(arc_nft2* m, const float* pcm, size_t n, const arc_nft2_options* o, arc_result_build* R) {
@@ -2314,6 +2778,7 @@ static int run_engine(arc_nft2* m, const float* pcm, size_t n, const arc_nft2_op
     eo.numbers = 1;
     rc = arc_engine_run_feats(m->e, Xh, X, eo.events ? Xt : NULL, N, N, &eo, R);
     arc_free(Xh);
+    if (!rc && opt_almost(m, o)) almost_names(m, R);
     float thr = (float)arc_json_num(arc_json_get(arc_json_get(m->e->cfg, "device_directed"), "threshold"), 0.5);
     for (int i = 0; i < R->n; ++i)
       if (R->u[i].dir_head >= 0) {
@@ -2335,12 +2800,14 @@ arc_result* arc_nft2_transcribe(arc_nft2* m, const float* pcm, size_t n, const a
     return NULL;
   }
   m->dump_enc = m->dump_utt = 0;
+  m->cur_nbest = opt_nbest(m, o);
   seg_t* sg;
   int ns = segments(m, pcm, n, &sg);
   arc_result_build* R = arc_result_new(ns);
   int bias = !(o && o->no_bias);
   for (int i = 0; i < ns; ++i)
-    if (decode_utt(m, pcm + sg[i].a, sg[i].b - sg[i].a, sg[i].b - sg[i].a, sg[i].a / (double)SR, sg[i].f0, sg[i].f1, bias, &R->u[i])) {
+    if (decode_utt(m, pcm + sg[i].a, sg[i].b - sg[i].a, sg[i].b - sg[i].a, sg[i].a / (double)SR, sg[i].f0, sg[i].f1, bias,
+                   opt_guard(m, o), &R->u[i])) {
       arc_free(sg);
       arc_result_free(arc_result_finish(R, 0, 0));
       return NULL;
@@ -2355,6 +2822,30 @@ arc_result* arc_nft2_transcribe(arc_nft2* m, const float* pcm, size_t n, const a
 
 /* ------------------------------------------------------------------ streams */
 
+/* live decoding of the open utterance (nft2_live.Live): stable log-mel frames -> encoder chunks with carried caches ->
+ * the greedy RNNT with carried state; nothing is decoded twice */
+typedef struct {
+  int on;
+  long a;                  /* its first sample */
+  int utt;                 /* the index it will get */
+  int nmel;                /* log-mel frames fed to the encoder */
+  float* mel;              /* pending stable frames [nmp][80] */
+  int nmp, capmp;
+  float* pre;              /* the encoder's pre-encode cache frames */
+  arc_nft2_cache* c;
+  int t_enc;               /* encoder frames decoded */
+  float *g, *hc;
+  int bs;
+  int *ids, *frs;
+  float* ts;
+  int n, cap;
+  int sent_words;          /* words of the last PARTIAL */
+  char* sent_text;
+  char** ent;              /* ENTITY keys already sent */
+  int nent, capent;
+  int barge;               /* BARGE_IN sent */
+} live_t;
+
 struct arc_nft2_stream {
   arc_nft2* m;
   arc_nft2_options o;
@@ -2366,7 +2857,19 @@ struct arc_nft2_stream {
   seg_t* utt;      /* closed utterances */
   arc_utt_build* ub;
   int nu, capu, sent;
+  int n_out;       /* utterances closed (incl. dropped ones): the next one's index */
+  live_t lv;
+  arc_echo* echo;
+  arc_nft2_event* ev;
+  int nev, capev;
+  char** evs;      /* strings of the events */
+  int nevs, capevs;
 };
+
+static void ev_clear(arc_nft2_stream* s);
+static void live_reset(live_t* L);
+static int live_step(arc_nft2_stream* s);
+static void ev_final(arc_nft2_stream* s, const arc_utt_build* u, int idx, const char* kind);
 
 arc_nft2_stream* arc_nft2_stream_open(arc_nft2* m, const arc_nft2_options* o) {
   if (!m) return NULL;
@@ -2381,6 +2884,11 @@ arc_nft2_stream* arc_nft2_stream_open(arc_nft2* m, const arc_nft2_options* o) {
 }
 
 static void stream_utt_free(arc_utt_build* u) {
+  if (!u->aw && !u->text) return;
+  arc_utt_post_free(u);
+  for (int k = 0; k < u->n_alts; ++k) arc_free(u->alts[k]);
+  arc_free(u->alts);
+  arc_free(u->alt_scores);
   arc_free(u->text);
   arc_free(u->decoder_text);
   arc_free(u->spans);
@@ -2391,6 +2899,11 @@ static void stream_utt_free(arc_utt_build* u) {
 
 void arc_nft2_stream_close(arc_nft2_stream* s) {
   if (!s) return;
+  ev_clear(s);
+  arc_free(s->ev);
+  arc_free(s->evs);
+  live_reset(&s->lv);
+  arc_echo_free(s->echo);
   for (int i = 0; i < s->nu; ++i) stream_utt_free(&s->ub[i]);
   arc_free(s->ub);
   arc_free(s->utt);
@@ -2412,11 +2925,30 @@ static void utt_copy(arc_utt_build* d, const arc_utt_build* u) {
   for (int k = 0; k < u->n_aw; ++k) {
     d->aw[k] = u->aw[k];
     d->aw[k].w = arc_strdup(u->aw[k].w);
+    d->aw[k].alts = arc_malloc(sizeof(char*) * (size_t)(u->aw[k].n_alts + 1));
+    d->aw[k].alt_p = arc_malloc(sizeof(float) * (size_t)(u->aw[k].n_alts + 1));
+    for (int j = 0; j < u->aw[k].n_alts; ++j) {
+      d->aw[k].alts[j] = arc_strdup(u->aw[k].alts[j]);
+      d->aw[k].alt_p[j] = u->aw[k].alt_p[j];
+    }
   }
-  d->alts = NULL;
-  d->alt_scores = NULL;
-  d->n_alts = 0;
+  d->alts = arc_malloc(sizeof(char*) * (size_t)(u->n_alts + 1));
+  d->alt_scores = arc_malloc(sizeof(float) * (size_t)(u->n_alts + 1));
+  for (int k = 0; k < u->n_alts; ++k) {
+    d->alts[k] = arc_strdup(u->alts[k]);
+    d->alt_scores[k] = u->alt_scores[k];
+  }
+  d->clean_text = u->clean_text ? arc_strdup(u->clean_text) : NULL;
+  d->tagger_json = u->tagger_json ? arc_strdup(u->tagger_json) : NULL;
+  d->qty = arc_malloc(sizeof(arc_qty) * (size_t)(u->n_qty + 1));
+  for (int k = 0; k < u->n_qty; ++k) {
+    d->qty[k] = u->qty[k];
+    d->qty[k].text = arc_strdup(u->qty[k].text);
+    d->qty[k].written = arc_strdup(u->qty[k].written);
+  }
 }
+
+static void stream_utt_free(arc_utt_build* u);
 
 static int stream_close_utt(arc_nft2_stream* s, int f0, int f1) {
   arc_nft2* m = s->m;
@@ -2439,9 +2971,14 @@ static int stream_close_utt(arc_nft2_stream* s, int f0, int f1) {
   }
   arc_utt_build* u = &s->ub[s->nu];
   memset(u, 0, sizeof *u);
+  u->has_post = 0;
+  u->leak = -1.0f;
   u->dd = u->cc = u->dir_head = u->intent_p = u->act_p = -1.0f;
   u->directed = -1;
-  if (b - a < 800) return 0;   /* too short to decode */
+  if (b - a < 800) {   /* too short to decode */
+    live_reset(&s->lv);
+    return 0;
+  }
   /* Nft2Finals._tail: silence after the cut so the input runs tail_pad_s past the last frame (the RNNT emits a word's
    * last pieces a few hundred ms after it is spoken); offline decoding has no tail */
   long need = (long)nearbyint((((f1 + 1) / 10.0) + m->tail_pad_s - a / (double)SR) * SR) - (b - a);
@@ -2452,9 +2989,39 @@ static int stream_close_utt(arc_nft2_stream* s, int f0, int f1) {
     memcpy(yp, y, sizeof(float) * (size_t)(b - a));
     y = yp;
   }
-  int rc = decode_utt(m, y, b - a + (need > 0 ? need : 0), b - a, a / (double)SR, f0, f1, !s->o.no_bias, u);
+  float* yr = NULL;
+  if (s->echo && s->o.echo_decode) {   /* the echo-cancelled audio (complete up to one frame, 32 ms, before the mic) */
+    size_t nr;
+    const float* r = arc_echo_residual(s->echo, &nr);
+    yr = arc_calloc(sizeof(float) * (size_t)(b - a + (need > 0 ? need : 0)));
+    for (long i = a; i < b; ++i) yr[i - a] = (size_t)i < nr ? r[i] : s->pcm[i];
+    y = yr;
+  } else if (need > 0) {
+    yp = arc_calloc(sizeof(float) * (size_t)(b - a + need));
+    memcpy(yp, y, sizeof(float) * (size_t)(b - a));
+    y = yp;
+  }
+  m->cur_nbest = opt_nbest(m, &s->o);
+  int rc = decode_utt(m, y, b - a + (need > 0 ? need : 0), b - a, a / (double)SR, f0, f1, !s->o.no_bias, opt_guard(m, &s->o), u);
   arc_free(yp);
+  arc_free(yr);
   if (rc) return -1;
+  int idx = s->n_out++;
+  const char* kind = NULL;
+  if (s->echo) {
+    double lk = arc_echo_leak(s->echo, f0 / 10.0, (f1 + 1) / 10.0);
+    u->leak = (float)lk;
+    double thr = s->o.playback_threshold > 0 ? s->o.playback_threshold : arc_echo_threshold(s->echo);
+    u->playback = lk >= thr;
+    if (u->playback) kind = s->o.playback_drop ? "dropped" : "playback";
+  }
+  ev_final(s, u, idx, kind);
+  live_reset(&s->lv);
+  if (kind && !strcmp(kind, "dropped")) {
+    stream_utt_free(u);
+    memset(u, 0, sizeof *u);
+    return 0;
+  }
   s->utt[s->nu++] = (seg_t){f0, f1, a, b};
   return 0;
 }
@@ -2480,6 +3047,8 @@ arc_result* arc_nft2_stream_feed(arc_nft2_stream* s, const float* pcm, size_t n)
   }
   memcpy(s->pcm + s->n, pcm, sizeof(float) * n);
   s->n += n;
+  ev_clear(s);
+  if (s->echo && arc_echo_feed_mic(s->echo, pcm, n)) return NULL;
   /* whole 100 ms frames to the segmenter; an utterance closes 0.4 s into a pause, so its 0.15 s pad is here */
   while ((size_t)(s->nf + 1) * FR <= s->n) {
     int f0, f1;
@@ -2489,6 +3058,7 @@ arc_result* arc_nft2_stream_feed(arc_nft2_stream* s, const float* pcm, size_t n)
       return NULL;
     s->nf++;
   }
+  if (live_step(s)) return NULL;
   return stream_new_utts(s);
 }
 
@@ -2496,6 +3066,7 @@ arc_result* arc_nft2_stream_flush(arc_nft2_stream* s) {
   if (!s) return NULL;
   double t0 = arc_time_ms();
   arc_seterr("%s", "");
+  ev_clear(s);
   int f0, f1;
   const char* why;
   if (s->n > (size_t)s->nf * FR) {   /* the last partial frame */
@@ -2506,6 +3077,7 @@ arc_result* arc_nft2_stream_flush(arc_nft2_stream* s) {
     s->nf++;
   }
   if (arc_seg_flush(s->seg, &f0, &f1, &why) && stream_close_utt(s, f0, f1)) return NULL;
+  live_reset(&s->lv);
   s->sent = s->nu;
   arc_result_build* R = arc_result_new(s->nu);
   for (int i = 0; i < s->nu; ++i) utt_copy(&R->u[i], &s->ub[i]);
@@ -2514,4 +3086,835 @@ arc_result* arc_nft2_stream_flush(arc_nft2_stream* s) {
     return NULL;
   }
   return arc_result_finish(R, (float)((double)s->n / SR), (float)(arc_time_ms() - t0));
+}
+
+/* ------------------------------------------------------------------ live decoding, events, echo (nft2_live.py) */
+
+static char* ev_str(arc_nft2_stream* s, const char* x) {
+  if (!x) return NULL;
+  if (s->nevs == s->capevs) {
+    s->capevs = s->capevs ? s->capevs * 2 : 16;
+    char** p = arc_malloc(sizeof(char*) * (size_t)s->capevs);
+    if (s->nevs) memcpy(p, s->evs, sizeof(char*) * (size_t)s->nevs);
+    arc_free(s->evs);
+    s->evs = p;
+  }
+  return s->evs[s->nevs++] = arc_strdup(x);
+}
+
+static arc_nft2_event* ev_push(arc_nft2_stream* s, int type, float t, int utt) {
+  if (s->nev == s->capev) {
+    s->capev = s->capev ? s->capev * 2 : 16;
+    arc_nft2_event* p = arc_malloc(sizeof(arc_nft2_event) * (size_t)s->capev);
+    if (s->nev) memcpy(p, s->ev, sizeof(arc_nft2_event) * (size_t)s->nev);
+    arc_free(s->ev);
+    s->ev = p;
+  }
+  arc_nft2_event* e = &s->ev[s->nev++];
+  memset(e, 0, sizeof *e);
+  e->type = type;
+  e->t = t;
+  e->utt = utt;
+  e->kb_index = -1;
+  e->p = -1.0f;
+  return e;
+}
+
+static void ev_clear(arc_nft2_stream* s) {
+  for (int i = 0; i < s->nevs; ++i) arc_free(s->evs[i]);
+  s->nevs = 0;
+  s->nev = 0;
+}
+
+const arc_nft2_event* arc_nft2_stream_events(arc_nft2_stream* s, int* n) {
+  if (n) *n = s ? s->nev : 0;
+  return s ? s->ev : NULL;
+}
+
+static void live_reset(live_t* L) {
+  arc_free(L->mel);
+  arc_free(L->pre);
+  arc_nft2_be_cache_free(L->c);
+  arc_free(L->g);
+  arc_free(L->hc);
+  arc_free(L->ids);
+  arc_free(L->frs);
+  arc_free(L->ts);
+  arc_free(L->sent_text);
+  for (int i = 0; i < L->nent; ++i) arc_free(L->ent[i]);
+  arc_free(L->ent);
+  memset(L, 0, sizeof *L);
+}
+
+static char* words_text(char* const* w, int n) {
+  sbuf b = {0};
+  sb_put(&b, "");
+  for (int i = 0; i < n; ++i) {
+    if (i) sb_put(&b, " ");
+    sb_put(&b, w[i]);
+  }
+  return sb_take(&b);
+}
+
+/* nft2_post.eot_prob on an utterance's words */
+static float eot_of(char* const* w, int n, double pause_s) { return (float)arc_post_eot((const char* const*)w, n, pause_s); }
+
+static void ev_final(arc_nft2_stream* s, const arc_utt_build* u, int idx, const char* kind) {
+  float t = (float)((double)s->n / SR);
+  arc_nft2_event* e = ev_push(s, ARC_EV_FINAL, t, idx);
+  e->text = ev_str(s, u->text ? u->text : "");
+  e->kind = kind;
+  e->p = u->leak;
+  e->start = u->start;
+  e->end = u->end;
+  if (s->o.live) {
+    char** w = arc_malloc(sizeof(char*) * (size_t)(u->n_aw + 1));
+    for (int i = 0; i < u->n_aw; ++i) w[i] = u->aw[i].w;
+    float p = eot_of(w, u->n_aw, s->m->e->seg.pause_s);
+    arc_free(w);
+    e = ev_push(s, ARC_EV_EOT, t, idx);
+    e->p = (float)arc_pyround(p, 4);
+  }
+}
+
+/* the live RNNT over new encoder frames H [k][D] (rnnt_greedy's loop with its state carried) */
+static int live_rnnt(arc_nft2* m, live_t* L, const float* H, int k, int bias) {
+  const arc_nft2_dims* d = &m->d;
+  int J = d->joint_hidden, V1 = d->vocab + 1, blank = d->blank, rc = 0;
+  boost_trie* tr = bias ? m->trie : NULL;
+  const float al = (float)m->alpha;
+  float* Fe = arc_malloc(sizeof(float) * (size_t)k * J);
+  float* row = arc_malloc(sizeof(float) * (size_t)V1);
+  float* biased = arc_malloc(sizeof(float) * (size_t)blank);
+  if (arc_nft2_be_joint_enc(m->be, H, k, Fe)) rc = -1;
+  for (int t = 0; !rc && t < k; ++t) {
+    if (arc_nft2_be_joint(m->be, Fe + (size_t)t * J, 1, L->g, row)) {
+      rc = -1;
+      break;
+    }
+    for (int sym = 0;;) {
+      int kk = argmax(row, V1);
+      if (kk == blank) break;
+      if (tr) {
+        const float* sc = trie_scores(tr, L->bs);
+        for (int q = 0; q < blank; ++q) biased[q] = row[q] + al * sc[q];
+        kk = argmax(biased, blank);
+        L->bs = trie_advance(tr, L->bs, kk);
+      }
+      if (L->n == L->cap) {
+        L->cap = L->cap ? L->cap * 2 : 64;
+        int* a = arc_malloc(sizeof(int) * (size_t)L->cap);
+        int* b = arc_malloc(sizeof(int) * (size_t)L->cap);
+        float* c = arc_malloc(sizeof(float) * 3 * (size_t)L->cap);
+        if (L->n) {
+          memcpy(a, L->ids, sizeof(int) * (size_t)L->n);
+          memcpy(b, L->frs, sizeof(int) * (size_t)L->n);
+          memcpy(c, L->ts, sizeof(float) * 3 * (size_t)L->n);
+        }
+        arc_free(L->ids);
+        arc_free(L->frs);
+        arc_free(L->ts);
+        L->ids = a;
+        L->frs = b;
+        L->ts = c;
+      }
+      tok_stats(row, V1, blank, kk, L->ts + 3 * (size_t)L->n);
+      L->ids[L->n] = kk;
+      L->frs[L->n++] = L->t_enc + t;
+      if (arc_nft2_be_pred(m->be, kk, L->hc, L->g)) {
+        rc = -1;
+        break;
+      }
+      if (++sym >= d->max_sym) break;
+      if (arc_nft2_be_joint(m->be, Fe + (size_t)t * J, 1, L->g, row)) {
+        rc = -1;
+        break;
+      }
+    }
+  }
+  L->t_enc += k;
+  arc_free(Fe);
+  arc_free(row);
+  arc_free(biased);
+  return rc;
+}
+
+/* stable log-mel frames of the open utterance -> encoder chunks -> RNNT */
+static int live_encode(arc_nft2_stream* s) {
+  arc_nft2* m = s->m;
+  live_t* L = &s->lv;
+  const arc_nft2_dims* d = &m->d;
+  long avail = (long)s->n - L->a;
+  int stable = avail >= NFFT / 2 ? (int)((avail - NFFT / 2) / HOP) + 1 : 0;
+  if (stable > (int)(avail / HOP)) stable = (int)(avail / HOP);
+  int have = L->nmel + L->nmp;
+  if (stable > have) {   /* frames [have, stable): log_mel over the samples from 2 frames before (no edge effect) */
+    long st = have >= 2 ? (long)(have - 2) * HOP : 0;
+    int off = have >= 2 ? 2 : have;
+    int nf;
+    float* M = log_mel(m, s->pcm + L->a + st, (int)(avail - st), &nf);
+    int add = stable - have;
+    if (off + add > nf) add = nf - off;
+    if (add > 0) {
+      if (L->nmp + add > L->capmp) {
+        L->capmp = (L->nmp + add) * 2;
+        float* q = arc_malloc(sizeof(float) * (size_t)L->capmp * 80);
+        if (L->nmp) memcpy(q, L->mel, sizeof(float) * (size_t)L->nmp * 80);
+        arc_free(L->mel);
+        L->mel = q;
+      }
+      memcpy(L->mel + (size_t)L->nmp * 80, M + (size_t)off * 80, sizeof(float) * (size_t)add * 80);
+      L->nmp += add;
+    }
+    arc_free(M);
+  }
+  int D = d->d_model, pre_n = d->pre;
+  float* ob = NULL;
+  float* xb = NULL;
+  int rc = 0;
+  for (;;) {
+    int first = L->nmel == 0 && d->first > 0;
+    int nn = first ? d->first : d->chunk;
+    if (L->nmp < nn) break;
+    if (!ob) {
+      ob = arc_malloc(sizeof(float) * (size_t)64 * D);
+      xb = arc_malloc(sizeof(float) * (size_t)(pre_n + d->chunk + d->first + 1) * 80);
+    }
+    int xn;
+    if (first) {
+      memcpy(xb, L->mel, sizeof(float) * (size_t)nn * 80);
+      xn = nn;
+    } else {
+      memcpy(xb, L->pre, sizeof(float) * (size_t)pre_n * 80);
+      memcpy(xb + (size_t)pre_n * 80, L->mel, sizeof(float) * (size_t)nn * 80);
+      xn = pre_n + nn;
+    }
+    {
+      int tot = pre_n + xn;
+      float* cat = arc_malloc(sizeof(float) * (size_t)tot * 80);
+      memcpy(cat, L->pre, sizeof(float) * (size_t)pre_n * 80);
+      memcpy(cat + (size_t)pre_n * 80, xb, sizeof(float) * (size_t)xn * 80);
+      memcpy(L->pre, cat + (size_t)(tot - pre_n) * 80, sizeof(float) * (size_t)pre_n * 80);
+      arc_free(cat);
+    }
+    int k = 0;
+    if (arc_nft2_be_chunk(m->be, L->c, first, xb, xn, ob, NULL, 64, &k)) {
+      rc = -1;
+      break;
+    }
+    memmove(L->mel, L->mel + (size_t)nn * 80, sizeof(float) * (size_t)(L->nmp - nn) * 80);
+    L->nmp -= nn;
+    L->nmel += nn;
+    if (k > 0 && live_rnnt(m, L, ob, k, !s->o.no_bias)) {
+      rc = -1;
+      break;
+    }
+  }
+  arc_free(ob);
+  arc_free(xb);
+  return rc;
+}
+
+static int ent_seen(live_t* L, const char* key) {
+  for (int i = 0; i < L->nent; ++i)
+    if (!strcmp(L->ent[i], key)) return 1;
+  if (L->nent == L->capent) {
+    L->capent = L->capent ? L->capent * 2 : 8;
+    char** p = arc_malloc(sizeof(char*) * (size_t)L->capent);
+    if (L->nent) memcpy(p, L->ent, sizeof(char*) * (size_t)L->nent);
+    arc_free(L->ent);
+    L->ent = p;
+  }
+  L->ent[L->nent++] = arc_strdup(key);
+  return 0;
+}
+
+/* nft2_live.entities: list spellings (word keys), sound-alikes and complete quantities among the stable words */
+static void live_entities(arc_nft2_stream* s, rword* w, int nst, float t) {
+  arc_nft2* m = s->m;
+  live_t* L = &s->lv;
+  if (nst <= 0) return;
+  char** wk = arc_malloc(sizeof(char*) * (size_t)nst);
+  const char** tx = arc_malloc(sizeof(char*) * (size_t)nst);
+  int* taken = arc_calloc(sizeof(int) * (size_t)nst);
+  for (int i = 0; i < nst; ++i) {
+    wk[i] = arc_post_wk(w[i].text);
+    tx[i] = w[i].text;
+  }
+  char key[512];
+  /* list spellings: the longest form at each position */
+  for (int i = 0; i < nst; ++i) {
+    int best_len = 0, best_kb = -1;
+    for (int e = 0; e < m->n_kb; ++e)
+      for (int a = -1; a < m->kb[e].n_aliases; ++a) {
+        const char* f = a < 0 ? m->kb[e].name : m->kb[e].aliases[a];
+        if (!f || !f[0]) continue;
+        char* nm = arc_nft2_norm(f);
+        char** fw;
+        int nfw = arc_split_words(nm, &fw);
+        int ok = nfw > 0 && i + nfw <= nst;
+        for (int j = 0; ok && j < nfw; ++j) {
+          char* x = arc_post_wk(fw[j]);
+          ok = x[0] && !strcmp(x, wk[i + j]);
+          arc_free(x);
+        }
+        if (ok && nfw > best_len) {
+          best_len = nfw;
+          best_kb = e;
+        }
+        arc_free_words(fw, nfw);
+        arc_free(nm);
+      }
+    if (best_kb < 0) continue;
+    for (int j = i; j < i + best_len; ++j) taken[j] = 1;
+    snprintf(key, sizeof key, "name:%d:%d:%d", i, i + best_len, best_kb);
+    if (!ent_seen(L, key)) {
+      sbuf b = {0};
+      sb_put(&b, "");
+      for (int j = i; j < i + best_len; ++j) {
+        if (j > i) sb_put(&b, " ");
+        sb_put(&b, tx[j]);
+      }
+      char* heard = sb_take(&b);
+      arc_nft2_event* e = ev_push(s, ARC_EV_ENTITY, t, L->utt);
+      e->text = ev_str(s, heard);
+      arc_free(heard);
+      e->kind = "name";
+      e->entity = ev_str(s, m->kb[best_kb].name);
+      e->kb_index = best_kb;
+      e->p = 1.0f;
+      e->start = (float)w[i].start;
+      e->end = (float)w[i + best_len - 1].end;
+    }
+    i += best_len - 1;
+  }
+  /* sound-alikes */
+  if (m->n_kb) {
+    int nf = 0;
+    for (int e = 0; e < m->n_kb; ++e) nf += 1 + m->kb[e].n_aliases;
+    arc_form* fm = arc_malloc(sizeof(arc_form) * (size_t)(nf + 1));
+    nf = 0;
+    for (int e = 0; e < m->n_kb; ++e) {
+      if (!m->kb[e].name[0]) continue;
+      fm[nf++] = (arc_form){m->kb[e].name, e};
+      for (int a = 0; a < m->kb[e].n_aliases; ++a) {
+        const char* al = m->kb[e].aliases[a];
+        int blank = 1;
+        for (const char* c = al; *c; ++c) blank &= isspace((unsigned char)*c) != 0;
+        if (!blank) fm[nf++] = (arc_form){al, e};
+      }
+    }
+    float* cf = arc_malloc(sizeof(float) * (size_t)nst);
+    int* cm = arc_malloc(sizeof(int) * (size_t)nst);
+    for (int i = 0; i < nst; ++i) {
+      cf[i] = w[i].has_conf ? w[i].conf : -1.0f;
+      cm[i] = is_common(m, w[i].text);
+    }
+    arc_almost_hit* h;
+    int nh = arc_post_almost(tx, cf, cm, nst, taken, fm, nf, &m->almost_cfg, &h);
+    arc_free(cf);
+    arc_free(cm);
+    for (int q = 0; q < nh; ++q) {
+      for (int j = h[q].word_begin; j < h[q].word_end; ++j) taken[j] = 1;
+      snprintf(key, sizeof key, "almost:%d:%d:%d", h[q].word_begin, h[q].word_end, h[q].kb);
+      if (ent_seen(L, key)) continue;
+      sbuf b = {0};
+      sb_put(&b, "");
+      for (int j = h[q].word_begin; j < h[q].word_end; ++j) {
+        if (j > h[q].word_begin) sb_put(&b, " ");
+        sb_put(&b, tx[j]);
+      }
+      char* heard = sb_take(&b);
+      arc_nft2_event* e = ev_push(s, ARC_EV_ENTITY, t, L->utt);
+      e->text = ev_str(s, heard);
+      arc_free(heard);
+      e->kind = "almost";
+      e->entity = ev_str(s, m->kb[h[q].kb].name);
+      e->kb_index = h[q].kb;
+      e->p = (float)h[q].p;
+      e->start = (float)w[h[q].word_begin].start;
+      e->end = (float)w[h[q].word_end - 1].end;
+    }
+    arc_free(h);
+    arc_free(fm);
+  }
+  /* quantities that end before the last stable word (a number may still grow) */
+  arc_qty* qs;
+  const char** tg = arc_calloc(sizeof(char*) * (size_t)nst);
+  for (int i = 0; i < nst; ++i) tg[i] = taken[i] ? "ENTITY_NAME" : NULL;   /* not inside a name */
+  int nq = arc_post_quantities(tx, tg, nst, &qs);
+  arc_free(tg);
+  for (int q = 0; q < nq; ++q) {
+    if (qs[q].word_end >= nst) continue;
+    snprintf(key, sizeof key, "qty:%d:%d", qs[q].word_begin, qs[q].word_end);
+    if (ent_seen(L, key)) continue;
+    arc_nft2_event* e = ev_push(s, ARC_EV_ENTITY, t, L->utt);
+    e->text = ev_str(s, qs[q].text);
+    e->kind = "quantity";
+    e->entity = ev_str(s, qs[q].written);
+    e->p = 1.0f;
+    e->qtype = qs[q].type;
+    e->value = qs[q].value;
+    e->unit = qs[q].unit;
+    e->relative = qs[q].relative;
+    e->start = (float)w[qs[q].word_begin].start;
+    e->end = (float)w[qs[q].word_end - 1].end;
+  }
+  arc_post_qty_free(qs, nq);
+  for (int i = 0; i < nst; ++i) arc_free(wk[i]);
+  arc_free(wk);
+  arc_free(tx);
+  arc_free(taken);
+}
+
+/* after the segmenter: start / advance live decoding of the open utterance; PARTIAL, ENTITY, EOT, BARGE_IN events */
+static int live_step(arc_nft2_stream* s) {
+  arc_nft2* m = s->m;
+  live_t* L = &s->lv;
+  int f_open = arc_seg_open(s->seg);
+  float t = (float)((double)s->n / SR);
+  if (f_open < 0) return 0;
+  if (s->echo && !L->barge && arc_echo_barge_in(s->echo, f_open / 10.0, s->nf / 10.0, 0.2, 0.5)) {
+    L->barge = 1;
+    arc_nft2_event* e = ev_push(s, ARC_EV_BARGE_IN, t, s->n_out);
+    double t0 = s->nf / 10.0 - 0.3 > f_open / 10.0 ? s->nf / 10.0 - 0.3 : f_open / 10.0;
+    double lk = arc_echo_leak(s->echo, t0, s->nf / 10.0);   /* the window the rule read */
+    e->p = (float)arc_pyround(1.0 - lk, 4);
+    e->start = (float)(f_open / 10.0);
+    e->end = (float)(s->nf / 10.0);
+  }
+  if (!s->o.live) return 0;
+  if (!L->on) {
+    int barge = L->barge;
+    live_reset(L);
+    L->barge = barge;
+    L->on = 1;
+    L->utt = s->n_out;
+    long a = (long)f_open * FR - (long)(m->edge_pad_s * SR);
+    L->a = a < 0 ? 0 : a;
+    L->c = arc_nft2_be_cache_new(m->be);
+    L->pre = arc_calloc(sizeof(float) * (size_t)(m->d.pre + 1) * 80);
+    L->g = arc_malloc(sizeof(float) * (size_t)m->d.joint_hidden);
+    L->hc = arc_calloc(sizeof(float) * (size_t)2 * m->d.pred_layers * m->d.pred_hidden);
+    if (!L->c || arc_nft2_be_pred(m->be, m->d.blank, L->hc, L->g)) return -1;
+  }
+  int n0 = L->n;
+  if (live_encode(s)) return -1;
+  rword* w;
+  int nw = rnnt_words(m, L->ids, L->frs, L->n, L->a / (double)SR, L->ts, &w);
+  char** tx = arc_malloc(sizeof(char*) * (size_t)(nw + 1));
+  for (int i = 0; i < nw; ++i) tx[i] = w[i].text;
+  char* text = words_text(tx, nw);
+  if (L->n != n0 && (!L->sent_text || strcmp(text, L->sent_text))) {
+    arc_nft2_event* e = ev_push(s, ARC_EV_PARTIAL, t, L->utt);
+    e->text = ev_str(s, text);
+    e->n_stable = nw > 0 ? nw - 1 : 0;
+    e->start = nw ? (float)w[0].start : 0.0f;
+    e->end = nw ? (float)w[nw - 1].end : 0.0f;
+    arc_free(L->sent_text);
+    L->sent_text = arc_strdup(text);
+    L->sent_words = nw;
+    live_entities(s, w, nw - 1, t);
+  }
+  if (nw) {
+    arc_nft2_event* e = ev_push(s, ARC_EV_EOT, t, L->utt);
+    e->p = (float)arc_pyround(eot_of(tx, nw, arc_seg_quiet_run(s->seg) / 10.0), 4);
+  }
+  arc_free(text);
+  arc_free(tx);
+  for (int i = 0; i < nw; ++i) {
+    arc_free(w[i].text);
+    arc_free(w[i].alt);
+  }
+  arc_free(w);
+  return 0;
+}
+
+int arc_nft2_stream_feed_ref(arc_nft2_stream* s, const float* pcm, size_t n, double t) {
+  if (!s || (!pcm && n)) return -1;
+  if (!s->echo) {
+    s->echo = arc_echo_new(NULL);
+    if (!s->echo || (s->n && arc_echo_feed_mic(s->echo, s->pcm, s->n))) return -1;
+  }
+  return arc_echo_feed_ref(s->echo, pcm, n, t);
+}
+
+int arc_nft2_stream_set_names(arc_nft2_stream* s, const arc_name_entry* names, int n) {
+  if (!s || arc_nft2_set_names(s->m, names, n)) return -1;
+  s->lv.bs = 0;   /* the open utterance's bias state restarts on the new list */
+  return 0;
+}
+
+arc_result* arc_nft2_stream_end_turn(arc_nft2_stream* s) {
+  if (!s) return NULL;
+  arc_seterr("%s", "");
+  ev_clear(s);
+  int f0, f1;
+  const char* why;
+  if (arc_seg_flush(s->seg, &f0, &f1, &why) && stream_close_utt(s, f0, f1)) return NULL;
+  live_reset(&s->lv);
+  return stream_new_utts(s);
+}
+
+/* ------------------------------------------------------------------ n-best (rnnt_beam.py) */
+
+typedef struct {
+  int* ids;
+  int n;
+  double s;
+  float *g, *hc;
+  int b;
+} bhyp;
+
+static void bhyp_free(bhyp* h) {
+  arc_free(h->ids);
+  arc_free(h->g);
+  arc_free(h->hc);
+  memset(h, 0, sizeof *h);
+}
+
+/* Python tuple order on token ids */
+static int ids_cmp(const bhyp* a, const bhyp* b) {
+  int n = a->n < b->n ? a->n : b->n;
+  for (int i = 0; i < n; ++i)
+    if (a->ids[i] != b->ids[i]) return a->ids[i] < b->ids[i] ? -1 : 1;
+  return (a->n > b->n) - (a->n < b->n);
+}
+
+static int bhyp_order(const void* x, const void* y) {
+  const bhyp *a = x, *b = y;
+  if (a->s != b->s) return a->s > b->s ? -1 : 1;
+  return ids_cmp(a, b);
+}
+
+typedef struct {
+  double s;
+  int i, k;
+} bcand;
+
+static int bcand_order(const void* x, const void* y) {
+  const bcand *a = x, *b = y;
+  if (a->s != b->s) return a->s > b->s ? -1 : 1;
+  if (a->i != b->i) return a->i < b->i ? -1 : 1;
+  return (a->k > b->k) - (a->k < b->k);
+}
+
+/* rnnt_beam.beam: *out (malloc'd, bhyp_free each) best first; returns the count, -1 on error */
+static int rnnt_beam(arc_nft2* m, const float* H, int T, int bias, int width, bhyp** out) {
+  const arc_nft2_dims* d = &m->d;
+  int J = d->joint_hidden, V1 = d->vocab + 1, blank = d->blank, max_sym = 2;
+  size_t nhc = (size_t)2 * d->pred_layers * d->pred_hidden;
+  *out = NULL;
+  if (T <= 0 || width < 2) return 0;
+  boost_trie* tr = bias ? m->trie : NULL;
+  const float al = (float)m->alpha;
+  float* Fe = arc_malloc(sizeof(float) * (size_t)T * J);
+  float* row = arc_malloc(sizeof(float) * (size_t)V1);
+  double* lp = arc_malloc(sizeof(double) * (size_t)V1);
+  double* sc = arc_malloc(sizeof(double) * (size_t)blank);
+  int* order = arc_malloc(sizeof(int) * (size_t)blank);
+  bhyp* hy = arc_calloc(sizeof(bhyp) * (size_t)width);
+  bhyp* A = arc_calloc(sizeof(bhyp) * (size_t)width);
+  bhyp* done = arc_calloc(sizeof(bhyp) * (size_t)(width * (max_sym + 1) + 1));
+  bcand* cand = arc_malloc(sizeof(bcand) * (size_t)width * width);
+  int nh = 1, rc = 0;
+  hy[0].ids = arc_malloc(sizeof(int));
+  hy[0].g = arc_malloc(sizeof(float) * (size_t)J);
+  hy[0].hc = arc_calloc(sizeof(float) * nhc);
+  if (arc_nft2_be_pred(m->be, blank, hy[0].hc, hy[0].g) || arc_nft2_be_joint_enc(m->be, H, T, Fe)) rc = -1;
+  for (int t = 0; !rc && t < T; ++t) {
+    int na = nh, nd = 0;
+    for (int i = 0; i < na; ++i) A[i] = hy[i];   /* A owns the beam now */
+    memset(hy, 0, sizeof(bhyp) * (size_t)width);
+    for (int step = 0; !rc && step <= max_sym && na; ++step) {
+      int nc = 0;
+      for (int i = 0; i < na && !rc; ++i) {
+        bhyp* a = &A[i];
+        if (arc_nft2_be_joint(m->be, Fe + (size_t)t * J, 1, a->g, row)) {
+          rc = -1;
+          break;
+        }
+        double mx = row[0], sum = 0;
+        for (int k = 1; k < V1; ++k)
+          if (row[k] > mx) mx = row[k];
+        for (int k = 0; k < V1; ++k) sum += exp((double)row[k] - mx);
+        double lse = mx + log(sum);
+        for (int k = 0; k < V1; ++k) lp[k] = (double)row[k] - lse;
+        double sb = a->s + lp[blank];
+        int f = -1;
+        for (int q = 0; q < nd; ++q)
+          if (!ids_cmp(&done[q], a)) f = q;
+        if (f < 0 || sb > done[f].s) {
+          if (f < 0) f = nd++;
+          else
+            bhyp_free(&done[f]);
+          done[f].n = a->n;
+          done[f].ids = arc_malloc(sizeof(int) * (size_t)(a->n + 1));
+          memcpy(done[f].ids, a->ids, sizeof(int) * (size_t)a->n);
+          done[f].g = arc_malloc(sizeof(float) * (size_t)J);
+          memcpy(done[f].g, a->g, sizeof(float) * (size_t)J);
+          done[f].hc = arc_malloc(sizeof(float) * nhc);
+          memcpy(done[f].hc, a->hc, sizeof(float) * nhc);
+          done[f].b = a->b;
+          done[f].s = sb;
+        }
+        if (step < max_sym) {
+          const float* ts = tr ? trie_scores(tr, a->b) : NULL;
+          for (int k = 0; k < blank; ++k) {
+            sc[k] = lp[k] + (ts ? (double)(float)(al * ts[k]) : 0.0);
+            order[k] = k;
+          }
+          /* the width best (stable: lower id first on ties) */
+          for (int r = 0; r < width && r < blank; ++r) {
+            int bi = r;
+            for (int k = r + 1; k < blank; ++k)
+              if (sc[order[k]] > sc[order[bi]] || (sc[order[k]] == sc[order[bi]] && order[k] < order[bi])) bi = k;
+            int tmp = order[r];
+            order[r] = order[bi];
+            order[bi] = tmp;
+            cand[nc++] = (bcand){a->s + sc[order[r]], i, order[r]};
+          }
+        }
+      }
+      if (rc || !nc) break;
+      qsort(cand, (size_t)nc, sizeof(bcand), bcand_order);
+      if (nc > width) nc = width;
+      bhyp* A2 = arc_calloc(sizeof(bhyp) * (size_t)width);
+      for (int c = 0; c < nc && !rc; ++c) {
+        const bhyp* p = &A[cand[c].i];
+        bhyp* h = &A2[c];
+        h->n = p->n + 1;
+        h->ids = arc_malloc(sizeof(int) * (size_t)h->n);
+        memcpy(h->ids, p->ids, sizeof(int) * (size_t)p->n);
+        h->ids[p->n] = cand[c].k;
+        h->s = cand[c].s;
+        h->g = arc_malloc(sizeof(float) * (size_t)J);
+        h->hc = arc_malloc(sizeof(float) * nhc);
+        memcpy(h->hc, p->hc, sizeof(float) * nhc);
+        h->b = tr ? trie_advance(tr, p->b, cand[c].k) : 0;
+        if (arc_nft2_be_pred(m->be, cand[c].k, h->hc, h->g)) rc = -1;
+      }
+      for (int i = 0; i < na; ++i) bhyp_free(&A[i]);
+      memcpy(A, A2, sizeof(bhyp) * (size_t)width);
+      arc_free(A2);
+      na = nc;
+    }
+    for (int i = 0; i < na; ++i) bhyp_free(&A[i]);
+    qsort(done, (size_t)nd, sizeof(bhyp), bhyp_order);
+    nh = nd < width ? nd : width;
+    for (int i = 0; i < nh; ++i) hy[i] = done[i];
+    for (int i = nh; i < nd; ++i) bhyp_free(&done[i]);
+    memset(done, 0, sizeof(bhyp) * (size_t)nd);
+  }
+  arc_free(Fe);
+  arc_free(row);
+  arc_free(lp);
+  arc_free(sc);
+  arc_free(order);
+  arc_free(A);
+  arc_free(done);
+  arc_free(cand);
+  if (rc) {
+    for (int i = 0; i < width; ++i) bhyp_free(&hy[i]);
+    arc_free(hy);
+    return -1;
+  }
+  *out = hy;
+  return nh;
+}
+
+/* ids -> text (pieces joined, "▁" = space, single spaces), malloc'd */
+static char* beam_text(const arc_nft2* m, const int* ids, int n) {
+  sbuf b = {0};
+  sb_put(&b, "");
+  int sp = 1;
+  for (int i = 0; i < n; ++i) {
+    const char* p = ids[i] >= 0 && ids[i] < m->n_piece ? m->piece[ids[i]] : "";
+    for (; *p; ++p) {
+      int ws = *p == 1 || isspace((unsigned char)*p);
+      if (ws) sp = 1;
+      else {
+        if (sp && b.n) sb_putn(&b, " ", 1);
+        sp = 0;
+        sb_putn(&b, p, 1);
+      }
+    }
+  }
+  return sb_take(&b);
+}
+
+/* whitespace-separated words of s -> *out (malloc'd strings), count */
+static int split_ws(const char* s, char*** out) {
+  int n = 0, cap = 8;
+  char** w = arc_malloc(sizeof(char*) * (size_t)cap);
+  while (*s) {
+    while (*s && isspace((unsigned char)*s)) s++;
+    if (!*s) break;
+    const char* e = s;
+    while (*e && !isspace((unsigned char)*e)) e++;
+    if (n == cap) {
+      cap *= 2;
+      char** x = arc_malloc(sizeof(char*) * (size_t)cap);
+      memcpy(x, w, sizeof(char*) * (size_t)n);
+      arc_free(w);
+      w = x;
+    }
+    w[n] = arc_malloc((size_t)(e - s) + 1);
+    memcpy(w[n], s, (size_t)(e - s));
+    w[n++][e - s] = 0;
+    s = e;
+  }
+  *out = w;
+  return n;
+}
+
+/* rnnt_beam._key: per word lower case letters / digits / apostrophes, single spaces; malloc'd */
+static char* lower_dup(const char* s) {
+  char** t;
+  int n = split_ws(s, &t);
+  sbuf b = {0};
+  sb_put(&b, "");
+  for (int i = 0; i < n; ++i) {
+    char* k = arc_post_wk(t[i]);
+    if (k[0]) {
+      if (b.n) sb_put(&b, " ");
+      sb_put(&b, k);
+    }
+    arc_free(k);
+    arc_free(t[i]);
+  }
+  arc_free(t);
+  return sb_take(&b);
+}
+
+/* rnnt_beam.utt_alts + word_alts over the final words w (after the guard and casing) */
+static void nbest_alts(arc_nft2* m, const float* H, int T, int bias, rword* w, int nw, arc_utt_build* u) {
+  bhyp* hy;
+  int nh = rnnt_beam(m, H, T, bias, m->cur_nbest, &hy);
+  if (nh <= 0) return;
+  double mx = hy[0].s, z = 0;
+  for (int i = 0; i < nh; ++i) z += exp(hy[i].s - mx);
+  /* the greedy text (seen) */
+  sbuf gb = {0};
+  sb_put(&gb, "");
+  for (int i = 0; i < nw; ++i) {
+    if (i) sb_put(&gb, " ");
+    sb_put(&gb, w[i].text);
+  }
+  char* gt = sb_take(&gb);
+  char** seen = arc_malloc(sizeof(char*) * (size_t)(nh + 1));
+  int ns = 0;
+  seen[ns++] = lower_dup(gt);
+  arc_free(gt);
+  u->alts = arc_malloc(sizeof(char*) * (size_t)(nh + 1));
+  u->alt_scores = arc_malloc(sizeof(float) * (size_t)(nh + 1));
+  u->n_alts = 0;
+  /* word keys of the greedy words */
+  char** wl = arc_malloc(sizeof(char*) * (size_t)(nw + 1));
+  for (int i = 0; i < nw; ++i) wl[i] = lower_dup(w[i].text);
+  for (int h = 0; h < nh; ++h) {
+    double p = arc_pyround(exp(hy[h].s - mx) / z, 4);
+    char* t = beam_text(m, hy[h].ids, hy[h].n);
+    char* tl = lower_dup(t);
+    int dup = 0;
+    for (int q = 0; q < ns; ++q) dup |= !strcmp(seen[q], tl);
+    if (dup) {
+      arc_free(t);
+      arc_free(tl);
+      continue;
+    }
+    seen[ns++] = tl;
+    u->alts[u->n_alts] = t;
+    u->alt_scores[u->n_alts++] = (float)p;
+    /* word_alts: the alternative's words against the greedy words (string keys -> ids for sm_blocks) */
+    char** bw;
+    int nb = split_ws(t, &bw);
+    uint32_t* ka = arc_malloc(sizeof(uint32_t) * (size_t)(nw + 1));
+    uint32_t* kb = arc_malloc(sizeof(uint32_t) * (size_t)(nb + 1));
+    for (int i = 0; i < nw; ++i) {
+      ka[i] = (uint32_t)i;
+      for (int j = 0; j < i; ++j)
+        if (!strcmp(wl[j], wl[i])) {
+          ka[i] = ka[j];
+          break;
+        }
+    }
+    for (int j = 0; j < nb; ++j) {
+      char* l = lower_dup(bw[j]);
+      kb[j] = (uint32_t)(nw + j);
+      for (int i = 0; i < nw; ++i)
+        if (!strcmp(wl[i], l)) {
+          kb[j] = ka[i];
+          break;
+        }
+      if (kb[j] == (uint32_t)(nw + j))
+        for (int q = 0; q < j; ++q) {
+          char* lq = lower_dup(bw[q]);
+          int same = !strcmp(lq, l);
+          arc_free(lq);
+          if (same) {
+            kb[j] = kb[q];
+            break;
+          }
+        }
+      arc_free(l);
+    }
+    int nbk;
+    smblock* bl = sm_blocks(ka, nw, kb, nb, &nbk);
+    int i = 0, j = 0;
+    for (int x = 0; x < nbk; ++x) {   /* get_opcodes: 'replace' runs */
+      int ai = bl[x].a, bj = bl[x].b, sz = bl[x].n;
+      if (i < ai && j < bj && ai - i == 1 && bj - j >= 1 && bj - j <= 3) {
+        rword* r = &w[i];
+        sbuf ab = {0};
+        sb_put(&ab, "");
+        for (int q = j; q < bj; ++q) {
+          if (q > j) sb_put(&ab, " ");
+          sb_put(&ab, bw[q]);
+        }
+        char* at = sb_take(&ab);
+        char* al = lower_dup(at);
+        int skip = !strcmp(al, wl[i]);
+        if (!skip && r->alt) {
+          char* x2 = lower_dup(r->alt);
+          skip = !strcmp(x2, al);
+          arc_free(x2);
+        }
+        for (int q = 0; !skip && q < r->n_xalt; ++q) {
+          char* x2 = lower_dup(r->xalt[q]);
+          skip = !strcmp(x2, al);
+          arc_free(x2);
+        }
+        arc_free(al);
+        if (skip) arc_free(at);
+        else {
+          char** xa = arc_malloc(sizeof(char*) * (size_t)(r->n_xalt + 1));
+          float* xp = arc_malloc(sizeof(float) * (size_t)(r->n_xalt + 1));
+          if (r->n_xalt) {
+            memcpy(xa, r->xalt, sizeof(char*) * (size_t)r->n_xalt);
+            memcpy(xp, r->xalt_p, sizeof(float) * (size_t)r->n_xalt);
+          }
+          arc_free(r->xalt);
+          arc_free(r->xalt_p);
+          xa[r->n_xalt] = at;
+          xp[r->n_xalt++] = (float)p;
+          r->xalt = xa;
+          r->xalt_p = xp;
+        }
+      }
+      i = ai + sz;
+      j = bj + sz;
+    }
+    arc_free(bl);
+    arc_free(ka);
+    arc_free(kb);
+    for (int q = 0; q < nb; ++q) arc_free(bw[q]);
+    arc_free(bw);
+  }
+  for (int q = 0; q < ns; ++q) arc_free(seen[q]);
+  arc_free(seen);
+  for (int i = 0; i < nw; ++i) arc_free(wl[i]);
+  arc_free(wl);
+  for (int i = 0; i < nh; ++i) bhyp_free(&hy[i]);
+  arc_free(hy);
 }
