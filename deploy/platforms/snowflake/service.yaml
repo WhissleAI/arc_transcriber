@@ -1,0 +1,33 @@
+# SPCS service specification for arc-serve (bundled image). Upload with the service or inline it in CREATE SERVICE.
+spec:
+  containers:
+    - name: arc
+      image: /arc_db/arc/images/arc-transcriber:0.1.0-mini
+      args: ["serve"]
+      env:
+        PORT: "8080"
+        ARC_WORKERS: "2"
+        ARC_FILE_ROOT: /stage
+        ARC_ACCESS_LOG: "1"
+      readinessProbe:
+        port: 8080
+        path: /v1/health/ready
+      resources:
+        requests:
+          cpu: 2
+          memory: 2G
+        limits:
+          cpu: 4
+          memory: 4G
+      volumeMounts:
+        - name: audio
+          mountPath: /stage
+  endpoints:
+    - name: api
+      port: 8080
+      public: false
+  volumes:
+    - name: audio
+      source: "@arc_db.arc.audio"
+      uid: 65532     # the image's non-root user (distroless :nonroot)
+      gid: 65532

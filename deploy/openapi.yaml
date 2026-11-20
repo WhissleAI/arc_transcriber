@@ -1,0 +1,362 @@
+openapi: 3.1.0
+info:
+  title: Arc Transcriber service (arc-serve)
+  version: 0.1.0
+  summary: Arc Mini speech-to-text with linked names, number values, inline tags and utterance tags. CPU, C (libarc).
+  description: |
+    OpenAI-compatible `POST /v1/audio/transcriptions` plus Arc's fields, a realtime WebSocket, health / model routes,
+    and Amazon SageMaker's container contract (`GET /ping`, `POST /invocations`, port 8080).
+
+    * Audio: WAV (PCM 8/16/24/32-bit or float 32/64, any channels, any sample rate: resampled to 16 kHz mono) or raw
+      little-endian PCM16 (`audio/pcm`, `?sample_rate=`). MP3 / FLAC / Ogg / MP4 / WebM are refused with 415: no
+      decoder is linked, by design (no third-party code in the image).
+    * Language: English (Arc Mini). `language` other than `en` is refused with 400.
+    * The server makes no network calls (it runs under SageMaker network isolation).
+    * The combined image (transcriber + Arc Tagger, `Dockerfile.combined`) adds `POST /v1/tags`, `arc_tags` on
+      transcripts and realtime finals. Routes and fields marked "combined" exist only there.
+    * Speakers: libarc has no speaker / diarization read-out yet (arc_audio has; not ported), so responses carry no
+      speaker field.
+  license:
+    name: CC BY-NC 4.0 with the Whissle terms (commercial licences from Whissle Inc.)
+    url: https://github.com/WhissleAI/arc_transcriber/blob/main/LICENSE
+servers:
+  - url: http://localhost:8080
+paths:
+  /v1/audio/transcriptions:
+    post:
+      operationId: createTranscription
+      summary: Transcribe one clip (OpenAI-compatible request and response, plus Arc fields)
+      parameters:
+        - {name: sample_rate, in: query, schema: {type: integer, default: 16000}, description: raw PCM bodies only}
+        - {name: response_format, in: query, schema: {$ref: '#/components/schemas/ResponseFormat'}}
+        - {name: domain, in: query, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: {$ref: '#/components/schemas/TranscriptionForm'}
+            encoding:
+              file: {contentType: 'audio/wav, audio/x-wav, audio/pcm, application/octet-stream'}
+          application/json:
+            schema: {$ref: '#/components/schemas/TranscriptionJson'}
+          audio/wav:
+            schema: {type: string, format: binary}
+          audio/pcm:
+            schema: {type: string, format: binary}
+      responses:
+        '200':
+          description: The transcript in the requested format
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/TranscriptionJsonResponse'
+                  - $ref: '#/components/schemas/TranscriptionVerbose'
+                  - $ref: '#/components/schemas/ArcJsonRecord'
+            text/plain: {schema: {type: string}}
+            text/vtt: {schema: {type: string}}
+            application/x-subrip: {schema: {type: string}}
+        '400': {$ref: '#/components/responses/Error'}
+        '413': {$ref: '#/components/responses/Error'}
+        '415': {$ref: '#/components/responses/Error'}
+        '503': {$ref: '#/components/responses/Error'}
+  /v1/realtime:
+    get:
+      operationId: realtime
+      summary: Realtime transcription over WebSocket
+      description: |
+        Upgrade to WebSocket. Send audio as binary frames of 16 kHz mono little-endian PCM16 (any size), or as
+        `{"type": "input_audio_buffer.append", "audio": "<base64 PCM16>"}`. Control messages (text frames, JSON):
+        `{"type": "session.update", "session": {"names": [...], "prompt": "...", "terms": [...], "topic": "..."}}`,
+        `{"type": "input_audio_buffer.commit"}` (end the turn now: push-to-talk release),
+        `{"type": "input_audio_buffer.finish"}` (end of audio: everything open is closed, then `session.closed`).
+
+        Server messages: `session.created`, `transcript.partial` (text so far of the open utterance),
+        `transcript.endpoint` (Arc's segmenter closed an utterance), `transcript.final` (the utterance: text, words with
+        times and inline tags, tags, intent, act, device_directed; identical to the offline decode),
+        `transcript.tags` (settled utterance tags when the final came before they settled), `event` (sound / channel
+        events), `frame` (with `frames=1`: every 100 ms), `session.updated`, `session.closed`, `error`.
+        Combined image: `transcript.final` also has `arc_tags` (the tagger's poll output for that utterance).
+        One session holds one engine (`ARC_WORKERS`); when all are busy the upgrade is refused with 503.
+      parameters:
+        - {name: domain, in: query, schema: {type: string, default: unknown}}
+        - {name: sample_rate, in: query, schema: {type: integer, enum: [16000]}}
+        - {name: partials, in: query, schema: {type: integer, default: 400}, description: 'ms of audio between partials; -1 none'}
+        - {name: events, in: query, schema: {type: boolean, default: true}}
+        - {name: frames, in: query, schema: {type: boolean, default: false}}
+        - {name: beams, in: query, schema: {type: integer, default: 4}}
+        - {name: delay_ms, in: query, schema: {type: integer, enum: [0, 100, 200, 300, 500, 800]}}
+        - {name: names, in: query, schema: {type: string}, description: JSON array or comma-separated names to bias toward}
+        - {name: tags, in: query, schema: {type: boolean, default: true}, description: combined image only}
+      responses:
+        '101': {description: Switching Protocols}
+        '400': {$ref: '#/components/responses/Error'}
+        '503': {$ref: '#/components/responses/Error'}
+  /v1/tags:
+    post:
+      operationId: createTags
+      summary: (combined image only) Arc Tagger on text, words or transcript segments
+      description: Same contract as arc-tagger-c's `POST /v1/tags` (see that repository's deploy/openapi.yaml).
+      requestBody:
+        required: true
+        content:
+          application/json: {schema: {type: object}}
+          text/plain: {schema: {type: string}}
+      responses:
+        '200': {description: Tagger output, content: {application/json: {schema: {type: object}}}}
+        '400': {$ref: '#/components/responses/Error'}
+  /health:
+    get: {operationId: health, summary: Liveness (the process is up), responses: {'200': {$ref: '#/components/responses/Status'}}}
+  /v1/health/live:
+    get: {operationId: healthLive, summary: Liveness (NIM-style path), responses: {'200': {$ref: '#/components/responses/Status'}}}
+  /v1/health/ready:
+    get:
+      operationId: healthReady
+      summary: Readiness (the weights are loaded)
+      responses: {'200': {$ref: '#/components/responses/Status'}, '503': {$ref: '#/components/responses/Status'}}
+  /ping:
+    get:
+      operationId: sagemakerPing
+      summary: SageMaker health check (= readiness)
+      responses: {'200': {$ref: '#/components/responses/Status'}, '503': {$ref: '#/components/responses/Status'}}
+  /invocations:
+    post:
+      operationId: sagemakerInvocations
+      summary: SageMaker inference (real-time endpoints and batch transform), routed on Content-Type
+      description: |
+        * `audio/wav`, `audio/pcm`, `application/octet-stream`, `multipart/form-data` -> transcription
+          (`verbose_json`, or text with `Accept: text/plain`). Options in `X-Amzn-SageMaker-Custom-Attributes`:
+          `domain=nba;response_format=text;sample_rate=8000`.
+        * `application/json` -> `{"audio": "<base64>", ...options}` transcribes; combined image:
+          `{"text" | "words" | "segments": ...}` tags. A batch: `{"instances": [...]}`, `{"inputs": [...]}` or a bare
+          array -> `{"model", "results": [...]}` in order.
+        * `application/jsonlines` -> one request per line, one result per line (batch transform with
+          `SplitType=Line`).
+        * `text/plain` (combined image) -> tags.
+      requestBody:
+        required: true
+        content:
+          audio/wav: {schema: {type: string, format: binary}}
+          application/json: {schema: {type: object}}
+          application/jsonlines: {schema: {type: string}}
+      responses:
+        '200': {description: Result(s)}
+        '400': {$ref: '#/components/responses/Error'}
+        '415': {$ref: '#/components/responses/Error'}
+  /execution-parameters:
+    get:
+      operationId: sagemakerExecutionParameters
+      summary: SageMaker batch transform defaults (MaxConcurrentTransforms = ARC_WORKERS, SINGLE_RECORD, MaxPayloadInMB)
+      responses: {'200': {description: OK}}
+  /v1/models:
+    get:
+      operationId: listModels
+      summary: The loaded model(s), OpenAI list shape
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object: {const: list}
+                  data: {type: array, items: {$ref: '#/components/schemas/Model'}}
+  /v1/models/{id}:
+    get:
+      operationId: getModel
+      parameters: [{name: id, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {description: OK}, '404': {$ref: '#/components/responses/Error'}}
+components:
+  responses:
+    Error:
+      description: OpenAI-style error envelope
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  message: {type: string}
+                  type: {type: string, examples: [invalid_request_error, server_busy, server_error]}
+                  code: {type: integer}
+    Status:
+      description: Status
+      content: {application/json: {schema: {type: object, properties: {status: {type: string}}}}}
+  schemas:
+    ResponseFormat:
+      type: string
+      enum: [json, text, verbose_json, srt, vtt, arc_json]
+      default: json
+      description: '`arc_json` is the record of `arc-transcribe --json` / arc_audio (used by the conformance parity check)'
+    TranscriptionOptions:
+      type: object
+      properties:
+        model: {type: string, description: Accepted and ignored (OpenAI clients send whisper-1); the response names the loaded model}
+        prompt: {type: string, description: Earlier text for the decoder's context prompt}
+        names:
+          description: The list names are linked to (and the decoder is biased toward). JSON array of strings or NameEntry, or names separated by newlines / commas. `names[]` repeated form fields also work.
+          oneOf:
+            - type: string
+            - type: array
+              items: {oneOf: [{type: string}, {$ref: '#/components/schemas/NameEntry'}]}
+        terms: {description: Vocabulary for the context prompt and the decoder bias (JSON array or comma-separated), oneOf: [{type: string}, {type: array, items: {type: string}}]}
+        topic: {type: string}
+        response_format: {$ref: '#/components/schemas/ResponseFormat'}
+        language: {type: string, enum: [en, english]}
+        temperature: {type: number, description: Accepted and ignored (beam search)}
+        domain:
+          type: string
+          default: unknown
+          description: Arc domain (assistant, meeting, talk, news, nba, nfl, nhl, soccer, cricket, esports, stream_chat, court_trial, ...)
+        events: {type: boolean, default: true}
+        words: {type: boolean, default: true}
+        trunk: {type: boolean, default: true, description: Utterance tags (device-directed, intent, act)}
+        link_names: {type: boolean, default: true}
+        numbers: {type: boolean, default: true}
+        one_utterance: {type: boolean, default: false, description: Decode the whole clip as one utterance (a held-key command)}
+        beams: {type: integer, default: 4, minimum: 1, maximum: 16}
+        tags: {type: boolean, default: true, description: (combined) add arc_tags}
+        tagger_domain: {type: string, description: (combined) Arc Tagger profile}
+        tagger: {type: object, description: '(combined) per-request Arc Tagger options: domain, asr, emit, tags, redact, thresholds, guard'}
+    TranscriptionForm:
+      allOf:
+        - $ref: '#/components/schemas/TranscriptionOptions'
+        - type: object
+          required: [file]
+          properties:
+            file: {type: string, format: binary}
+    TranscriptionJson:
+      allOf:
+        - $ref: '#/components/schemas/TranscriptionOptions'
+        - type: object
+          required: [audio]
+          properties:
+            audio: {type: string, description: base64 audio bytes, or a data URI. URLs are refused (no network).}
+            content_type: {type: string}
+    NameEntry:
+      type: object
+      required: [name]
+      properties:
+        name: {type: string}
+        kind: {type: string, enum: [person, team, organization, place, work_product, event_name, legal_ref, game_entity, game_map, other]}
+        group: {type: string}
+        aliases: {type: array, items: {type: string}}
+    Usage:
+      type: object
+      properties:
+        type: {const: duration}
+        seconds: {type: number}
+    TranscriptionJsonResponse:
+      type: object
+      required: [text]
+      properties:
+        text: {type: string}
+        model: {type: string}
+        usage: {$ref: '#/components/schemas/Usage'}
+    Word:
+      type: object
+      properties:
+        word: {type: string}
+        start: {type: number}
+        end: {type: number}
+        tag: {type: string, description: 'Inline tag of the word: ENTITY_PERSON, NUMBER_TIME, CONTACT_PHONE, ...'}
+        tag_begin: {type: boolean}
+        segment: {type: integer}
+    Label:
+      type: [object, 'null']
+      properties:
+        label: {type: string}
+        p: {type: number}
+    Segment:
+      type: object
+      properties:
+        id: {type: integer}
+        start: {type: number}
+        end: {type: number}
+        text: {type: string}
+        tags:
+          type: array
+          items:
+            type: object
+            properties:
+              tag: {type: string}
+              text: {type: string}
+              word_begin: {type: integer}
+              word_end: {type: integer}
+        intent: {$ref: '#/components/schemas/Label'}
+        act: {$ref: '#/components/schemas/Label'}
+        device_directed: {type: [number, 'null']}
+        command_complete: {type: [number, 'null']}
+        directed_head: {type: [number, 'null']}
+        words: {type: array, items: {$ref: '#/components/schemas/Word'}}
+        alternatives:
+          type: array
+          items: {type: object, properties: {text: {type: string}, score: {type: number}}}
+    LinkedName:
+      type: object
+      properties:
+        heard: {type: string}
+        entity: {type: [string, 'null'], description: The list's name when linked}
+        state: {type: string, enum: [linked, not_in_list, abstain]}
+        tag: {type: string}
+        kb_index: {type: [integer, 'null']}
+        p: {type: [number, 'null']}
+        start: {type: number}
+        end: {type: number}
+        src: {type: [string, 'null'], enum: [decoder, snap, null]}
+        via: {type: [string, 'null']}
+        show: {type: boolean}
+    NumberValue:
+      type: object
+      properties:
+        heard: {type: string}
+        kind: {type: [string, 'null'], examples: [score, duration, ordinal, time_of_day, money, date]}
+        unit: {type: [string, 'null']}
+        value: {type: [number, 'null'], description: 'duration in seconds, time of day in seconds after midnight, score as value-value2'}
+        value2: {type: [number, 'null']}
+        state: {type: string, enum: [read_text, read, no_words]}
+        start: {type: number}
+        end: {type: number}
+    Event:
+      type: object
+      properties:
+        label: {type: string}
+        start: {type: number}
+        end: {type: number}
+        p: {type: number}
+    TranscriptionVerbose:
+      type: object
+      properties:
+        task: {const: transcribe}
+        language: {const: english}
+        duration: {type: number}
+        text: {type: string}
+        segments: {type: array, items: {$ref: '#/components/schemas/Segment'}}
+        words: {type: array, items: {$ref: '#/components/schemas/Word'}}
+        names: {type: array, items: {$ref: '#/components/schemas/LinkedName'}}
+        numbers: {type: array, items: {$ref: '#/components/schemas/NumberValue'}}
+        events: {type: array, items: {$ref: '#/components/schemas/Event'}}
+        arc_tags: {type: object, description: (combined) Arc Tagger output for the transcript's words}
+        model: {type: string}
+        usage: {$ref: '#/components/schemas/Usage'}
+        wall_ms: {type: number}
+    ArcJsonRecord:
+      type: object
+      description: The keys of arc_audio's predict() as tools/dump_names.py writes them
+      properties:
+        domain: {type: string}
+        transcript: {type: array, items: {type: object}}
+        names: {type: array, items: {type: object}}
+        numbers: {type: array, items: {type: object}}
+        audio_events: {type: array, items: {type: object}}
+    Model:
+      type: object
+      properties:
+        id: {type: string}
+        object: {const: model}
+        created: {type: integer}
+        owned_by: {type: string}
+        capabilities: {type: array, items: {type: string}}

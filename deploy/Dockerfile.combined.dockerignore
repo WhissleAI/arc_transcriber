@@ -1,0 +1,14 @@
+# build context = the parent folder of both checkouts; only what the image needs
+*
+!*/c/include
+!*/c/src
+!*/c/Makefile
+!*/deploy/Makefile
+!*/deploy/server
+!*/deploy/openapi.yaml
+!*/deploy/weights
+!*/include
+!*/src
+!*/third_party/cjson
+!*/LICENSE
+!*/NOTICE

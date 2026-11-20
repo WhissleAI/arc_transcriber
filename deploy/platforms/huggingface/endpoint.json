@@ -1,0 +1,25 @@
+{
+  "name": "arc-mini",
+  "type": "protected",
+  "provider": {"vendor": "aws", "region": "us-east-1"},
+  "compute": {
+    "accelerator": "cpu",
+    "instanceType": "intel-spr",
+    "instanceSize": "x2",
+    "scaling": {"minReplica": 1, "maxReplica": 2}
+  },
+  "model": {
+    "repository": "WhissleAI/arc-v1.1",
+    "revision": "main",
+    "task": "custom",
+    "framework": "custom",
+    "image": {
+      "custom": {
+        "url": "<registry>/arc-transcriber:0.1.0",
+        "port": 8080,
+        "healthRoute": "/v1/health/ready",
+        "env": {"ARC_WORKERS": "2", "ARC_MODEL_ID": "arc-mini"}
+      }
+    }
+  }
+}
