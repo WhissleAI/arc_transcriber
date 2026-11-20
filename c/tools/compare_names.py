@@ -2,19 +2,13 @@
 
     python tools/dump_names.py MINI NAMES.json DOMAIN ref.jsonl clips...                                  # arc_audio
     build/arc-transcribe MINI clips... --domain DOMAIN --names NAMES.json --json > cand.jsonl              # libarc
-    python tools/compare_names.py [--known-alias-index] ref.jsonl cand.jsonl [ref2.jsonl cand2.jsonl ...]
+    python tools/compare_names.py ref.jsonl cand.jsonl [ref2.jsonl cand2.jsonl ...]
 
 Checks per clip: the transcript text; every aligned word (text, start, end to 1 ms, inline tag); every name (heard,
 entity, state, tag, src, via, words; start / end to 1.5 ms; p, span_p and the pointer head's entity / p to 2e-3) and
 number (heard, kind, unit, value, value2, state, kind_head, date, iso; start / end to 1.5 ms); and, when both sides carry
 them, the speakers (ids, each group's label, tags; p to 2e-3, last_seen to 0.05 s), the diarization turns (speaker; start /
 end to 0.05 s, i.e. the same 100 ms frame) and each utterance's speaker. Exit status 1 on any difference.
-
---known-alias-index: a KNOWN gap, not a pass. arc_audio's last list check before a name stays unlinked (engine.py
-_name_extras with kbsnap.AliasIndex: a heard part of only one entry's name, "Daniel" for "Daniel Brooks", links with
-via "partial"; a punctuation / spacing variant with via "alias") is not ported to libarc. With the flag, a name that
-arc_audio linked that way and libarc left not_in_list / abstain (same heard text and times) is counted as KNOWN instead
-of a difference.
 
 Part of arc_transcriber (Whissle Inc.), CC BY-NC 4.0; see LICENSE.
 """
@@ -23,16 +17,6 @@ import json, sys
 
 def close(a, b, tol):
     return (a is None) == (b is None) and (a is None or abs(a - b) <= tol)
-
-
-KNOWN_ALIAS = False
-known = []
-
-
-def alias_gap(a, b):
-    """arc_audio linked a by its AliasIndex; libarc left b unlinked (the gap --known-alias-index carries)"""
-    return (KNOWN_ALIAS and a.get('via') in ('partial', 'alias') and a.get('state') == 'linked' and b.get('state') in ('not_in_list', 'abstain')
-            and a.get('heard') == b.get('heard') and close(a['start'], b['start'], 1.5e-3) and close(a['end'], b['end'], 1.5e-3))
 
 
 def compare(py, c):
@@ -50,9 +34,6 @@ def compare(py, c):
     if len(py['names']) != len(c['names']):
         out.append(f'names: {len(py["names"])} vs {len(c["names"])}')
     for a, b in zip(py['names'], c['names']):
-        if alias_gap(a, b):
-            known.append(f'{py["clip"]}: {a["heard"]!r} -> {a["entity"]!r} via {a["via"]} (libarc: {b["state"]})')
-            continue
         for k in ('heard', 'entity', 'state', 'tag', 'src', 'via'):
             if a.get(k) != b.get(k):
                 out.append(f'name {a.get("heard")!r}: {k} {a.get(k)!r} vs {b.get(k)!r}')
@@ -114,9 +95,6 @@ def compare_speakers(py, c):
 
 
 def main(argv):
-    global KNOWN_ALIAS
-    if argv and argv[0] == '--known-alias-index':
-        KNOWN_ALIAS, argv = True, argv[1:]
     clips = bad = names = numbers = words = turns = speakers = 0
     pmax = 0.0
     for rp, cp in zip(argv[0::2], argv[1::2]):
@@ -144,10 +122,7 @@ def main(argv):
                 bad += 1
                 print(py['clip'], *diff, sep='\n  ')
     print(f'{clips} clips ({words} words, {names} names, {numbers} numbers, {speakers} speakers, {turns} diarization turns): '
-          f'{clips - bad} identical, {bad} with differences' + (f'; speaker read-out p max |diff| {pmax:.4f}' if speakers else '')
-          + (f'; KNOWN alias-index gap: {len(known)} name(s)' if known else ''))
-    for k in known:
-        print('  KNOWN', k)
+          f'{clips - bad} identical, {bad} with differences' + (f'; speaker read-out p max |diff| {pmax:.4f}' if speakers else ''))
     return 1 if bad else 0
 
 

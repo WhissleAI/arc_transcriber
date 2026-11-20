@@ -181,6 +181,7 @@ build/test_num   tests/data/num.jsonl     3215/3215   numlib / numvalue / textla
 build/test_ntext tests/data/ntext.jsonl   7849/7849   rescorer, namesim, ExactNames, kbsnap, metaphone, difflib, NFKD (tools/dump_ntext.py)
 build/test_tidy  tests/data/tidy.jsonl      98/98     tidy.py (tools/dump_tidy.py)
 build/test_date  tests/data/date.jsonl    169/169    spoken dates: written.parse_date / date_iso, api.extend_date (tools/dump_date.py)
+build/test_alias tests/data/alias.jsonl   606/606    kbsnap akey and AliasIndex.lookup: partial, alias and ambiguous cases (tools/dump_alias.py)
 build/test_speaker tests/data/speakers.jsonl 16/16  diarization turns (slots, fused, voice) and speaker indices on 4 multi-voice clips (tools/dump_speakers.py)
 ```
 
@@ -298,6 +299,13 @@ from; compare them with the header you compile against.
   of March") and `arc_number_date(r, i)` gives its `year` / `month` / `day` (0: not said) and `iso` ("--03-03",
   "2024-03-03", "2024"; NULL for a day alone), as arc_audio's `date` / `iso` fields. NULL when the number names no date.
   A function, not new `arc_number` fields, so the ABI stays 2.
+
+- **Partial names** (1.4.1): before a name is left `not_in_list` / `abstain`, arc_audio's last list check
+  (engine.py `_name_extras` with kbsnap `AliasIndex`, `arc_alias.c`): the heard words, command / stop words trimmed
+  off the edges, against each entry's name and aliases with punctuation, case, spacing and a possessive ignored
+  ("DeMarco" = "De'Marco", `via` "alias"), then against the runs of words only one entry's name has ("Daniel" = "Daniel
+  Brooks", `via` "partial"; runs of stop / common / short words never count). Ambiguity as there: a whole name several
+  entries share links only when the kinds allow exactly one of them; a part several entries share never links.
 
 - **Speakers** (1.4.0): `arc_speakers(r, &sp)` gives arc_audio's `speakers` (id "S1" ..., the best `speaker.role`
   label and p of the speaker query over the speaker's pooled frames, `last_seen`), `arc_diarization(r, &turns)` its

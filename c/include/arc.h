@@ -30,7 +30,7 @@ extern "C" {
  * counts); new functions alone do not change it. A binding generated from this header should compare it with
  * arc_abi_version() of the library it loads. ARC_VERSION is for people (logs). */
 #define ARC_ABI_VERSION 2
-#define ARC_VERSION "1.4.0"
+#define ARC_VERSION "1.4.1"
 int arc_abi_version(void);
 const char* arc_version(void);
 

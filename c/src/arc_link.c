@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "arc_alias.h"
 #include "arc_date.h"
 #include "arc_engine.h"
 #include "arc_ntext.h"
@@ -47,6 +48,7 @@ struct arc_link {
   arc_nt_candtab* ct;
   arc_nt_exact* exn;
   arc_nt_kbsnap* snap;
+  arc_alias* alias;   /* engine.py _name_extras: the list check before a name is left unlinked (kbsnap.AliasIndex) */
   /* config */
   const arc_json *nwt_vocab, *unit_vocab;
   int ptr_src;   /* ptr.src_by_source of the transcript's words (moonshine; external for NFT2's RNNT words) */
@@ -151,6 +153,8 @@ static void free_kb(arc_link* l) {
   arc_nt_candtab_free(l->ct);
   arc_nt_exact_free(l->exn);
   arc_nt_kbsnap_free(l->snap);
+  arc_alias_free(l->alias);
+  l->alias = NULL;
   l->kb = NULL;
   l->strs = NULL;
   l->n_strs = l->nkb = 0;
@@ -288,6 +292,7 @@ int arc_link_set_names(arc_link* l, const arc_name_entry* names, int n) {
   arc_free(nm);
   l->exn = arc_nt_exact_new(l->kb, n);
   l->snap = arc_nt_kbsnap_new(l->kb, n);
+  l->alias = arc_alias_new(l->kb, n);
   return 0;
 }
 
@@ -992,6 +997,20 @@ static int read_name(run_ctx* x, const pend* pd, name_rec* r) {
   } else {
     r->n.entity = NULL;
     r->n.state = "not_in_list";
+  }
+  /* engine.py _name_extras: a name the linker left not_in_list / abstain that is one entry's name or alias (punctuation,
+   * case, spacing aside), or a part of only one entry's name, links to it (via "alias" / "partial"); the rows the kinds
+   * allowed restrict an ambiguous one (allowed is never None here: the list has entity heads) */
+  if (arc_alias_any(l->alias) && span_text[0] && r->n.state &&
+      (!strcmp(r->n.state, "not_in_list") || !strcmp(r->n.state, "abstain"))) {
+    const char* via;
+    int row = arc_alias_lookup(l->alias, span_text, allowed, na, &via);
+    if (row >= 0) {
+      r->n.entity = l->kb[row].name;
+      r->n.state = "linked";
+      r->n.kb_index = row;
+      r->n.via = via;
+    }
   }
   r->nw = pd->nk;
   r->w = arc_malloc(sizeof(arc_wordb) * (size_t)pd->nk);

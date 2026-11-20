@@ -338,7 +338,7 @@ components:
         start: {type: number}
         end: {type: number}
         src: {type: [string, 'null'], enum: [decoder, snap, null]}
-        via: {type: [string, 'null']}
+        via: {type: [string, 'null'], description: 'how the link was made beyond the linker, e.g. "alias" (a list name or alias with punctuation, case, spacing ignored), "partial" (a part only one list name has), "snap" / "text" (similarity), "number"; null: the linker'}
         show: {type: boolean}
     NumberValue:
       type: object
