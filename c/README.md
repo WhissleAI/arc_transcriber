@@ -139,6 +139,7 @@ and the latency of each kind of record.
 | **Names**: decoder tag spans → pointer head (NameEncoder char CNN, span text embedding, similarity features) → rescorer (fuzzy + metaphone similarity, team / recent terms) → name policy; list snapping of unlinked names and capitalised phrases | `engine.py`, `model.py`, `rescorer.py`, `namesim.py`, `textlayer.py`, `kbsnap.py` | `arc_link.c`, `arc_ntext.c` | see below |
 | **Numbers**: decoder tag spans → number words → value heads (word tokens, unit) and the words' own value; extend_number | `engine.py`, `numvalue.py`, `numlib.py`, `textlayer.py`, `api.py` | `arc_link.c`, `arc_num.c` | see below |
 | Output tidying (word edges, names trimmed to the mention, de-duplication; number words) | `tidy.py` | `arc_tidy.c` | 98/98 cases |
+| **Dates**: a date number covers its month ("March third", "the third of March", with or without a year) and names the date (year / month / day, ISO) | `written.py` (parse_date, date_iso), `api.py` (extend_date), `tidy.py` | `arc_date.c` | 169/169 checks |
 
 **Golden parity** (the release's own port check, `tests/golden/mini.json` with `scripts/check_parity.py`):
 
@@ -178,6 +179,7 @@ the snap of an unlinked decoder name.
 build/test_num   tests/data/num.jsonl     3215/3215   numlib / numvalue / textlayer (tools/dump_num.py)
 build/test_ntext tests/data/ntext.jsonl   7849/7849   rescorer, namesim, ExactNames, kbsnap, metaphone, difflib, NFKD (tools/dump_ntext.py)
 build/test_tidy  tests/data/tidy.jsonl      98/98     tidy.py (tools/dump_tidy.py)
+build/test_date  tests/data/date.jsonl    169/169    spoken dates: written.parse_date / date_iso, api.extend_date (tools/dump_date.py)
 ```
 
 The metaphone is checked against `jellyfish.metaphone` (an arc_audio dependency) on 1,850 cases and on all 471,967
@@ -289,6 +291,11 @@ arc_nft2_destroy(m);
 
 `arc_abi_version()` / `arc_version()` report the header's `ARC_ABI_VERSION` (2) and `ARC_VERSION` the library was built
 from; compare them with the header you compile against.
+
+- **Dates** (1.3.1): a number of kind `date` with a month name keeps the month in `heard` ("March third", "the third
+  of March") and `arc_number_date(r, i)` gives its `year` / `month` / `day` (0: not said) and `iso` ("--03-03",
+  "2024-03-03", "2024"; NULL for a day alone), as arc_audio's `date` / `iso` fields. NULL when the number names no date.
+  A function, not new `arc_number` fields, so the ABI stays 2.
 
 - **Words** (`arc_word`): `conf` (the RNNT's unbiased probability of the word's least likely token), `alts` / `alt_p`
   (the runner-up spelling; with `options.nbest = 4`, also the words other beam hypotheses have there) and `disfl`

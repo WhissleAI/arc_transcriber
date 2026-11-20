@@ -135,7 +135,7 @@ CUDA path after the CPU one. See [`platforms/nim/`](platforms/nim/README.md).
 
 ## Model card (draft)
 
-**Model**: Arc Mini (Arc v1.1, `WhissleAI/arc-v1.1`, folder `mini/`), served by libarc 1.3.0. Moonshine-streaming-tiny
+**Model**: Arc Mini (Arc v1.1, `WhissleAI/arc-v1.1`, folder `mini/`), served by libarc 1.3.1. Moonshine-streaming-tiny
 speech encoder and decoder (4-bit packed) plus Arc's trunk and heads; 68 MB of weights.
 
 **Does**: English transcripts, punctuated and cased, with inline tags on names, numbers and contacts and word times;
@@ -160,9 +160,9 @@ everything, about 1 GB for 8 minutes. Raspberry Pi 5 streaming (`README.md`): RT
 **Accuracy**: benchmarks against other systems are on the model card, https://huggingface.co/WhissleAI/arc-v1.1. They
 were measured with arc_audio; libarc reproduces arc_audio's decisions on the clips listed above.
 
-**Known difference from arc_audio 1.3**: dates with a month name ("March third") read the same value and kind, but
-arc_audio's `heard` keeps the month and adds `date` / `iso` fields; libarc 1.3.0 says `heard: "third"`. Found by this
-service's conformance run (`c/build/arc-transcribe` gives the same, so it is the library, not the server).
+**Dates**: a date number with a month name ("March third", "the third of March", "June twenty first, twenty twenty
+five") keeps the month in `heard` and carries `date` ({year, month, day}) and `iso` ("--03-03"), as arc_audio does.
+libarc 1.3.0 did not (its `heard` was "third"); this service's conformance run found it, and libarc 1.3.1 closes it.
 
 **Licence**: code and weights CC BY-NC 4.0 with the Whissle terms ([LICENSE](../LICENSE)); Moonshine-streaming-tiny inside
 `mini/` is MIT. Commercial use, including a paid marketplace listing, needs Whissle's commercial licence: the listing's

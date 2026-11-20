@@ -6,7 +6,7 @@ reference (arc_audio) on the same audio.
 
 Parity: c/tools/dump_names.py runs arc_audio's Arc.predict on each clip; the server's response_format=arc_json writes the
 same keys; c/tools/compare_names.py compares transcript text, every word (text, inline tag, start / end to 1 ms) and every
-name / number (heard, entity, state, kind, values; times to 1.5 ms; probabilities to 2e-3). Clips: the repository's
+name / number (heard, entity, state, kind, values, a date's date / iso; times to 1.5 ms; probabilities to 2e-3). Clips: the repository's
 examples/example_synth.wav (nba, examples/example_names.json) plus clips synthesized here with the OS text-to-speech
 (macOS `say`, or espeak-ng; written to files, never played), a tone and silence.
 
@@ -18,7 +18,6 @@ import base64
 import json
 import math
 import os
-import re
 import shutil
 import struct
 import subprocess
@@ -105,19 +104,6 @@ def run_reference(py, mini, names, domain, clips, out):
     return p.returncode == 0
 
 
-MONTHS = {"january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"}
-
-
-def known_divergence(line):
-    """Differences that come from libarc itself (the same with c/build/arc-transcribe), not from the server.
-    arc_audio 1.3 reads month names into date numbers ("March third": heard keeps the month, plus date / iso fields);
-    libarc 1.3.0 has not ported that, so its heard is "third" (same kind, value and times)."""
-    m = re.match(r"number '(.+)': heard '(.+)' vs '(.+)'$", line)
-    if m and m.group(2).endswith(" " + m.group(3)) and m.group(2).split()[0].lower() in MONTHS:
-        return True
-    return False
-
-
 def server_arc_json(url, clip, names_path, domain):
     fields = {"response_format": "arc_json", "domain": domain, "events": "false"}
     if names_path:
@@ -151,11 +137,7 @@ def parity(url, args, tmp, sets):
         n_nums = sum(len(r["numbers"]) for r in refs)
         detail = (f"{len(clips)} clips, {n_words} words, {n_names} names, {n_nums} numbers; reference {t_ref:.0f} s; "
                   + (p.stdout.strip().splitlines()[-1] if p.stdout.strip() else ""))
-        diffs = [l.strip() for l in p.stdout.splitlines() if l.startswith("  ")]
-        known = [d for d in diffs if known_divergence(d)]
-        if p.returncode and diffs and len(known) == len(diffs):
-            detail += f"; {len(known)} KNOWN libarc gap(s): " + "; ".join(known)
-        ok = p.returncode == 0 or (diffs and len(known) == len(diffs))
+        ok = p.returncode == 0
         ok_all &= check(f"parity vs arc_audio: set {k} ({domain}, {os.path.basename(names_path)})", ok, detail)
         if not ok:
             print(p.stdout[-4000:], p.stderr[-2000:])

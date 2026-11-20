@@ -6,7 +6,7 @@
 
 Checks per clip: the transcript text; every aligned word (text, start, end to 1 ms, inline tag); every name (heard,
 entity, state, tag, src, via, words; start / end to 1.5 ms; p, span_p and the pointer head's entity / p to 2e-3) and
-number (heard, kind, unit, value, value2, state, kind_head; start / end to 1.5 ms). Exit status 1 on any difference.
+number (heard, kind, unit, value, value2, state, kind_head, date, iso; start / end to 1.5 ms). Exit status 1 on any difference.
 
 Part of arc_transcriber (Whissle Inc.), CC BY-NC 4.0; see LICENSE.
 """
@@ -49,7 +49,7 @@ def compare(py, c):
     if len(py['numbers']) != len(c['numbers']):
         out.append(f'numbers: {len(py["numbers"])} vs {len(c["numbers"])}')
     for a, b in zip(py['numbers'], c['numbers']):
-        for k in ('heard', 'kind', 'unit', 'value', 'value2', 'state', 'kind_head'):
+        for k in ('heard', 'kind', 'unit', 'value', 'value2', 'state', 'kind_head', 'date', 'iso'):
             if a.get(k) != b.get(k):
                 out.append(f'number {a.get("heard")!r}: {k} {a.get(k)!r} vs {b.get(k)!r}')
         for k in ('start', 'end'):

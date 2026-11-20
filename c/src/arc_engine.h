@@ -79,6 +79,7 @@ typedef struct {
   int n_names;
   arc_number* numbers;   /* in the arena */
   int n_numbers;
+  arc_date* dates;       /* in the arena, one per number (year = month = day = 0: none), or NULL */
 } arc_result_build;
 
 arc_result_build* arc_result_new(int n_utts);

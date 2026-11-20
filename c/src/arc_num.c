@@ -526,6 +526,23 @@ static int compose_int(const char* const* tok, int n, pn* out) {
   return 1;
 }
 
+int arc_num_compose_int(const char* const* tok, int n, double* v) {
+  pn x;
+  if (!compose_int(tok, n, &x)) return 0;
+  *v = x.d;
+  return 1;
+}
+
+char* arc_num_lw(const char* w) { return lw(w ? w : ""); }
+
+int arc_num_numw(const char* c) {
+  if (!c) return 0;
+  if (val_of(c) >= 0 || sc_of(c)) return 1;
+  for (int i = 0; i < LEN(ORD); ++i)
+    if (eq(c, ORD[i].o)) return 1;
+  return 0;
+}
+
 /* numlib._groups: the count (g filled), or -1 for None */
 static int groups(const char* const* tok, int n, long long* g) {
   int ng = 0, c0 = 0, cn = 0;   /* the current group: tok[c0 .. c0+cn) (groups are consecutive slices) */

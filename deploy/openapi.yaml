@@ -320,6 +320,14 @@ components:
         state: {type: string, enum: [read_text, read, no_words]}
         start: {type: number}
         end: {type: number}
+        date:
+          type: object
+          description: 'only on a kind "date" number that names a date ("March third": heard keeps the month); absent otherwise'
+          properties:
+            year: {type: [integer, 'null']}
+            month: {type: [integer, 'null']}
+            day: {type: [integer, 'null']}
+        iso: {type: [string, 'null'], description: 'with date: "2024-03-03", "--03-03" (month and day), "2024-03", "2024"; null for a day alone', examples: ['--03-03']}
     Event:
       type: object
       properties:
