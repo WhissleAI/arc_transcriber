@@ -61,6 +61,13 @@ void arc_arena_free(arc_arena* a) {
 typedef struct {
   arc_result r;   /* first: arc_result_free gets this pointer */
   arc_arena* a;
+  const arc_date* dates;   /* parallel to r.numbers, or NULL */
+  int has_speakers;
+  const arc_speaker* speakers;
+  int n_speakers;
+  const arc_speaker_turn* turns;
+  int n_turns;
+  const char** utt_speaker;   /* parallel to r.utts */
 } result_full;
 
 arc_result_build* arc_result_new(int n_utts) {
@@ -230,10 +237,43 @@ arc_result* arc_result_finish(arc_result_build* b, float audio_s, float wall_ms)
   r->names = b->names;       /* built in the arena */
   r->n_numbers = b->n_numbers;
   r->numbers = b->numbers;
+  full->dates = b->dates;
+  full->has_speakers = b->has_speakers;
+  full->speakers = b->speakers;
+  full->n_speakers = b->n_speakers;
+  full->turns = b->turns;
+  full->n_turns = b->n_turns;
+  full->utt_speaker = arc_arena_alloc(a, sizeof(char*) * (size_t)(b->n + 1));
+  for (int i = 0; i < b->n; ++i) full->utt_speaker[i] = b->u[i].speaker;
   arc_free(b->u);
   arc_free(b->ev);
   arc_free(b);
   return r;
+}
+
+const arc_date* arc_number_date(const arc_result* r, int i) {
+  if (!r || i < 0 || i >= r->n_numbers) return NULL;
+  const arc_date* d = ((const result_full*)r)->dates;
+  if (!d || !(d[i].year || d[i].month || d[i].day)) return NULL;
+  return &d[i];
+}
+
+int arc_speakers(const arc_result* r, const arc_speaker** speakers) {
+  const result_full* f = (const result_full*)r;
+  if (speakers) *speakers = r && f->has_speakers ? f->speakers : NULL;
+  return r && f->has_speakers ? f->n_speakers : -1;
+}
+
+int arc_diarization(const arc_result* r, const arc_speaker_turn** turns) {
+  const result_full* f = (const result_full*)r;
+  if (turns) *turns = r && f->has_speakers ? f->turns : NULL;
+  return r && f->has_speakers ? f->n_turns : -1;
+}
+
+const char* arc_utt_speaker(const arc_result* r, int i) {
+  if (!r || i < 0 || i >= r->n_utts) return NULL;
+  const result_full* f = (const result_full*)r;
+  return f->utt_speaker ? f->utt_speaker[i] : NULL;
 }
 
 void arc_result_free(arc_result* r) {

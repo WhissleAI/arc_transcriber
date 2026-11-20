@@ -10,6 +10,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "arc_alias.h"
+#include "arc_date.h"
 #include "arc_engine.h"
 #include "arc_ntext.h"
 #include "arc_num.h"
@@ -46,6 +48,7 @@ struct arc_link {
   arc_nt_candtab* ct;
   arc_nt_exact* exn;
   arc_nt_kbsnap* snap;
+  arc_alias* alias;   /* engine.py _name_extras: the list check before a name is left unlinked (kbsnap.AliasIndex) */
   /* config */
   const arc_json *nwt_vocab, *unit_vocab;
   int ptr_src;   /* ptr.src_by_source of the transcript's words (moonshine; external for NFT2's RNNT words) */
@@ -150,6 +153,8 @@ static void free_kb(arc_link* l) {
   arc_nt_candtab_free(l->ct);
   arc_nt_exact_free(l->exn);
   arc_nt_kbsnap_free(l->snap);
+  arc_alias_free(l->alias);
+  l->alias = NULL;
   l->kb = NULL;
   l->strs = NULL;
   l->n_strs = l->nkb = 0;
@@ -287,6 +292,7 @@ int arc_link_set_names(arc_link* l, const arc_name_entry* names, int n) {
   arc_free(nm);
   l->exn = arc_nt_exact_new(l->kb, n);
   l->snap = arc_nt_kbsnap_new(l->kb, n);
+  l->alias = arc_alias_new(l->kb, n);
   return 0;
 }
 
@@ -992,6 +998,20 @@ static int read_name(run_ctx* x, const pend* pd, name_rec* r) {
     r->n.entity = NULL;
     r->n.state = "not_in_list";
   }
+  /* engine.py _name_extras: a name the linker left not_in_list / abstain that is one entry's name or alias (punctuation,
+   * case, spacing aside), or a part of only one entry's name, links to it (via "alias" / "partial"); the rows the kinds
+   * allowed restrict an ambiguous one (allowed is never None here: the list has entity heads) */
+  if (arc_alias_any(l->alias) && span_text[0] && r->n.state &&
+      (!strcmp(r->n.state, "not_in_list") || !strcmp(r->n.state, "abstain"))) {
+    const char* via;
+    int row = arc_alias_lookup(l->alias, span_text, allowed, na, &via);
+    if (row >= 0) {
+      r->n.entity = l->kb[row].name;
+      r->n.state = "linked";
+      r->n.kb_index = row;
+      r->n.via = via;
+    }
+  }
   r->nw = pd->nk;
   r->w = arc_malloc(sizeof(arc_wordb) * (size_t)pd->nk);
   int show = 0;
@@ -1015,6 +1035,8 @@ typedef struct {
   double start, end;
   int has_vm, has_v2m;
   double vm;
+  int has_date;       /* extend_date read a date (api.py: date / iso) */
+  arc_ymd date;
 } num_rec;
 
 static const char* number_kind(run_ctx* x, int a, int b) {   /* Engine._number_kind */
@@ -1233,6 +1255,14 @@ static void extend_number(run_ctx* x, num_rec* r, const arc_result_build* R) {
       r->n.state = "read_text";
     }
     arc_free(ws);
+  }
+  if (r->n.kind && !strcmp(r->n.kind, "date")) {   /* extend_date: the month too, and the date it names */
+    arc_tword* tw = arc_malloc(sizeof(arc_tword) * (size_t)n);
+    for (int q = 0; q < n; ++q) tw[q] = (arc_tword){Wd[q]->w, Wd[q]->start, Wd[q]->end};
+    char* h = (char*)r->n.heard;
+    r->has_date = arc_extend_date(tw, n, i, j, &h, &r->start, &r->end, &r->date);
+    r->n.heard = h;
+    arc_free(tw);
   }
   arc_free(Wd);
   (void)x;
@@ -1461,12 +1491,18 @@ int arc_link_run(arc_link* l, const arc_link_ctx* c, const arc_wstore* W, arc_re
   R->names = out;
   R->n_names = nk;
   arc_number* on = arc_arena_alloc(x.A, sizeof(arc_number) * (size_t)(nu + 1));
+  arc_date* dates = arc_arena_alloc(x.A, sizeof(arc_date) * (size_t)(nu + 1));
   int nko = 0;
   for (int k = 0; k < nu; ++k) {
     num_rec* r = &nums[k];
     if (!arc_keep_number(r->n.has_value, r->n.heard)) continue;   /* keep_number on the record as read */
     extend_number(&x, r, R);
-    char* h = arc_tidy_number(r->n.heard);
+    char* h = arc_tidy_number(r->n.heard, r->n.kind);
+    if (r->has_date) {
+      char iso[16];
+      dates[nko] = (arc_date){r->date.year, r->date.month, r->date.day,
+                              arc_date_iso(&r->date, iso) ? arc_arena_strdup(x.A, iso) : NULL};
+    }
     arc_number* o = &on[nko++];
     *o = r->n;
     o->start = (float)r->start;
@@ -1476,6 +1512,7 @@ int arc_link_run(arc_link* l, const arc_link_ctx* c, const arc_wstore* W, arc_re
   }
   R->numbers = on;
   R->n_numbers = nko;
+  R->dates = dates;
   /* free */
   for (int k = 0; k < nu; ++k) arc_free((void*)nums[k].n.heard);
   for (int k = 0; k < na; ++k) {

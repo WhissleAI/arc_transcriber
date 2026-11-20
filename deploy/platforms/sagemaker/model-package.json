@@ -1,0 +1,36 @@
+{
+  "ModelPackageName": "arc-transcriber-mini",
+  "ModelPackageDescription": "Arc Mini speech-to-text with linked names, number values, inline tags and utterance tags (CPU).",
+  "CertifyForMarketplace": true,
+  "InferenceSpecification": {
+    "Containers": [
+      {
+        "Image": "<account>.dkr.ecr.<region>.amazonaws.com/arc-transcriber:0.1.0-mini",
+        "Environment": {"ARC_WORKERS": "2", "ARC_MODEL_ID": "arc-mini"}
+      }
+    ],
+    "SupportedContentTypes": ["audio/wav", "audio/pcm", "application/json", "application/jsonlines", "multipart/form-data"],
+    "SupportedResponseMIMETypes": ["application/json", "text/plain", "application/jsonlines"],
+    "SupportedRealtimeInferenceInstanceTypes": ["ml.c6i.large", "ml.c6i.xlarge", "ml.c6i.2xlarge", "ml.c6i.4xlarge", "ml.m6i.xlarge", "ml.m6i.2xlarge"],
+    "SupportedTransformInstanceTypes": ["ml.c6i.xlarge", "ml.c6i.2xlarge", "ml.c6i.4xlarge", "ml.m6i.2xlarge"]
+  },
+  "ValidationSpecification": {
+    "ValidationRole": "arn:aws:iam::<account>:role/<sagemaker-role>",
+    "ValidationProfiles": [
+      {
+        "ProfileName": "example-clip",
+        "TransformJobDefinition": {
+          "TransformInput": {
+            "DataSource": {"S3DataSource": {"S3DataType": "S3Prefix", "S3Uri": "s3://<bucket>/arc/validation/"}},
+            "ContentType": "audio/wav",
+            "SplitType": "None"
+          },
+          "TransformOutput": {"S3OutputPath": "s3://<bucket>/arc/validation-out/", "Accept": "application/json"},
+          "TransformResources": {"InstanceType": "ml.c6i.xlarge", "InstanceCount": 1},
+          "BatchStrategy": "SingleRecord",
+          "MaxPayloadInMB": 100
+        }
+      }
+    ]
+  }
+}

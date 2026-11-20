@@ -125,7 +125,54 @@ static void print_names_numbers(const arc_result* r) {
     if (m->has_value2) jnum(m->value2, m->value2_int); else printf("null");
     printf(", \"state\": \"%s\", \"kind_head\": ", m->state);
     jstr_or_null(m->kind_head);
+    const arc_date* d = arc_number_date(r, i);
+    if (d) {   /* arc_audio's date / iso, only on a date record that names one */
+      printf(", \"date\": {\"year\": ");
+      if (d->year) printf("%d", d->year); else printf("null");
+      printf(", \"month\": ");
+      if (d->month) printf("%d", d->month); else printf("null");
+      printf(", \"day\": ");
+      if (d->day) printf("%d", d->day); else printf("null");
+      printf("}, \"iso\": ");
+      jstr_or_null(d->iso);
+    }
     printf("}");
+  }
+  printf("]");
+}
+
+/* arc_audio's "speakers" ({"S1": {"groups": {"speaker.role": {"label", "p"}}, "tags": {}, "last_seen"}}) and
+ * "diarization" ([{"speaker", "start", "end"}]); nothing when the result has no speaker read-out */
+static void print_speakers(const arc_result* r) {
+  const arc_speaker* sp;
+  const arc_speaker_turn* tu;
+  int ns = arc_speakers(r, &sp), nt = arc_diarization(r, &tu);
+  if (ns < 0) return;
+  printf(", \"speakers\": {");
+  for (int i = 0; i < ns; ++i) {
+    printf("%s", i ? ", " : "");
+    jstr(sp[i].id);
+    printf(": {\"groups\": {");
+    for (int k = 0; k < sp[i].n_groups; ++k) {
+      printf("%s", k ? ", " : "");
+      jstr(sp[i].groups[k].group);
+      printf(": {\"label\": ");
+      jstr(sp[i].groups[k].label);
+      printf(", \"p\": %.4f}", sp[i].groups[k].p);
+    }
+    printf("}, \"tags\": {");
+    for (int k = 0; k < sp[i].n_tags; ++k) {
+      printf("%s", k ? ", " : "");
+      jstr(sp[i].tags[k].label);
+      printf(": %.4f", sp[i].tags[k].p);
+    }
+    printf("}, \"last_seen\": %.1f}", sp[i].last_seen);
+  }
+  printf("}, \"diarization\": [");
+  for (int i = 0; i < nt; ++i) {
+    printf("%s{\"speaker\": ", i ? ", " : "");
+    jstr(tu[i].speaker);
+    printf(", \"start\": %.1f, \"end\": %.1f}", tu[i].start, tu[i].end);
   }
   printf("]");
 }

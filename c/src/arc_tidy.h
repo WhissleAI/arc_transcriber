@@ -12,9 +12,9 @@ int arc_split_words_tidy(const char* t, char*** out);
 char* arc_clean_text(const char* t);
 /* _numeric: a number word (digits, a number name, an ordinal word, "twenty-six"). */
 int arc_numeric_word(const char* w);
-/* tidy_number on a record's heard text: from the first to the last numeric word, plus unit words after and a
- * currency / sign word before; cleaned. Returns malloc'd text. */
-char* arc_tidy_number(const char* heard);
+/* tidy_number on a record's heard text and kind (may be NULL): from the first to the last numeric word (or month name,
+ * for kind "date"), plus unit words after and a currency / sign word before; cleaned. Returns malloc'd text. */
+char* arc_tidy_number(const char* heard, const char* kind);
 /* keep_number: a value, or a numeric word in what was heard. */
 int arc_keep_number(int has_value, const char* heard);
 

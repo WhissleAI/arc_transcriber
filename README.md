@@ -453,6 +453,13 @@ macOS, 100 LibriSpeech test-clean clips (latency and CPU: to be measured):
 | Apple SpeechTranscriber + Arc heads | 1.2 % | 2.2 % |
 | Arc full | 6.2 % | to be measured |
 
+### Hosted service
+
+[`deploy/`](deploy/README.md) serves libarc over HTTP and WebSocket (`arc-serve`, C, no Python): an OpenAI-compatible
+`POST /v1/audio/transcriptions` with Arc's fields, `WS /v1/realtime`, SageMaker's `/ping` and `/invocations`, a
+distroless image, adapters for Hugging Face Inference Endpoints, SageMaker / AWS Marketplace and Snowflake, and a
+conformance run against arc_audio.
+
 ## Tests
 
 ```bash

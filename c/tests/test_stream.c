@@ -5,6 +5,7 @@
  *   - its settled tags (device_directed, command_complete, intent, act) and directed_head identical to
  *     arc_transcribe with the trunk on (no word times, names or numbers: those change the read-out's input);
  *   - the events identical;
+ *   - the speakers and the diarization after arc_stream_finish identical to arc_transcribe's (the same trunk input);
  *   - ARC_STREAM_HEADS (an engine without the decoder): the same utterances' times and tags;
  *   - FRAME records: every column (arc_frame.labels / p) identical to arc_frames_compute's;
  *   - ARC_STREAM_EXTERNAL fed Arc's own aligned words (each 0.3 s after it ends): the same utterances' words;
@@ -38,7 +39,22 @@ typedef struct {
   int ne;
   arc_event ev[256];
   char seq[16384];   /* the FINALs' texts in the order they were sent */
+  char spk[8192];    /* speakers and diarization at the end (spk_str) */
 } got_t;
+
+/* speakers, then turns, as strings, for comparing a stream with arc_transcribe */
+static void spk_part(int ns, const arc_speaker* sp, char* out, size_t cap) {
+  size_t k = (size_t)snprintf(out, cap, "%d:", ns);
+  for (int i = 0; i < ns && k < cap; ++i) {
+    k += (size_t)snprintf(out + k, cap - k, " %s@%.1f", sp[i].id, sp[i].last_seen);
+    for (int g = 0; g < sp[i].n_groups && k < cap; ++g)
+      k += (size_t)snprintf(out + k, cap - k, " %s=%.6f", sp[i].groups[g].label, sp[i].groups[g].p);
+  }
+}
+static void turn_part(int nt, const arc_speaker_turn* tu, char* out, size_t cap) {
+  size_t k = (size_t)snprintf(out, cap, " | %d:", nt);
+  for (int i = 0; i < nt && k < cap; ++i) k += (size_t)snprintf(out + k, cap - k, " %s %.1f-%.1f", tu[i].speaker, tu[i].start, tu[i].end);
+}
 
 static void tags_str(const arc_utt* u, char* out, size_t cap) {
   out[0] = 0;
@@ -96,6 +112,14 @@ static int run(arc_engine* e, arc_stream_mode mode, const float* pcm, size_t n, 
     pos += k;
   }
   int r = arc_stream_finish(s);
+  const arc_speaker* sp = NULL;
+  int ns = arc_stream_speakers(s, &sp);
+  char a[4096], b[4096];
+  spk_part(ns, sp, a, sizeof a);   /* copied before the next call */
+  const arc_speaker_turn* tu = NULL;
+  int nt = arc_stream_diarization(s, &tu);
+  turn_part(nt, tu, b, sizeof b);
+  snprintf(g->spk, sizeof g->spk, "%s%s", a, b);
   arc_stream_close(s);
   return r;
 }
@@ -229,6 +253,25 @@ static void join_words(const arc_utt* u, char* out, size_t cap) {
 static int same(float a, float b) { return fabs((double)a - b) <= TOL; }
 static int same_s(const char* a, const char* b) { return !strcmp(a ? a : "", b ? b : ""); }
 
+static int spk_files = 0, spk_ok = 0;
+/* the FULL stream's speakers and diarization at the end against arc_transcribe's; 1 when they differ */
+static int mode_full_spk_check(const arc_result* r, const got_t* g, const char* name) {
+  const arc_speaker* sp;
+  const arc_speaker_turn* tu;
+  int ns = arc_speakers(r, &sp), nt = arc_diarization(r, &tu);
+  char a[4096], b[4096], want[8192];
+  spk_part(ns, sp, a, sizeof a);
+  turn_part(nt, tu, b, sizeof b);
+  snprintf(want, sizeof want, "%s%s", a, b);
+  spk_files++;
+  if (!strcmp(want, g->spk)) {
+    spk_ok++;
+    return 0;
+  }
+  printf("%s: speakers differ\n  offline %s\n  stream  %s\n", name, want, g->spk);
+  return 1;
+}
+
 int main(int argc, char** argv) {
   if (argc < 3) {
     fprintf(stderr, "usage: test_stream MINI_DIR file.wav [...]\n");
@@ -294,6 +337,7 @@ int main(int argc, char** argv) {
       printf("%s: events differ (%d offline, %d streamed)\n", argv[fi], r->n_events, g.ne);
       fb++;
     }
+    if (mode_full_spk_check(r, &g, argv[fi])) fb++;
     bad += fb != 0;
     /* EXTERNAL with Arc's own aligned words: the same utterances get the same words */
     arc_options ow = {.domain = "assistant", .words = 1};
@@ -329,6 +373,7 @@ int main(int argc, char** argv) {
   bad += ext_ok != ext_n;
   printf("external words given late: %d/%d files, every word once and in order\n", late_ok, argc - 2);
   bad += late_ok != argc - 2;
+  printf("speakers: %d/%d files: speakers and diarization identical to arc_transcribe's\n", spk_ok, spk_files);
   printf("frames: %d/%d files: every column identical to arc_frames_compute\n", frames_ok, argc - 2);
   bad += frames_ok != argc - 2;
   printf("%d/%d files identical (%d utterances: text, tags, read-out, directed head, events; heads-only too)\n",

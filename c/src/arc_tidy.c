@@ -2,6 +2,8 @@
  * Part of arc_transcriber (Whissle Inc.), CC BY-NC 4.0; see LICENSE. */
 #include "arc_tidy.h"
 
+#include "arc_date.h"
+
 #include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
@@ -188,11 +190,12 @@ static int clean_lower_in(const char* w, const char* const* l) {
   return r;
 }
 
-char* arc_tidy_number(const char* heard) {
+char* arc_tidy_number(const char* heard, const char* kind) {
   char** w;
   int n = arc_split_words_tidy(heard, &w), i = 0, j = n - 1, any = 0;
+  int date = kind && !strcmp(kind, "date");   /* a date keeps its month ("March third") */
   for (int k = 0; k < n; ++k)
-    if (arc_numeric_word(w[k])) {
+    if (arc_numeric_word(w[k]) || (date && arc_is_month(w[k]))) {
       if (!any) i = k;
       j = k;
       any = 1;

@@ -55,3 +55,6 @@ Deepgram and Verbit are third-party services; this repository only contains clie
 
 Runtime dependencies are installed by pip and are not included here. They keep their own licences; notably num2words
 and libsndfile (via soundfile) are LGPL, and the optional NeMo path is Apache-2.0.
+
+deploy/third_party/cjson contains cJSON 1.7.19 (https://github.com/DaveGamble/cJSON), MIT License, Copyright (c) 2009-2017 Dave
+Gamble and cJSON contributors (licence in deploy/third_party/cjson/LICENSE). It is used only by the deploy server (deploy/).

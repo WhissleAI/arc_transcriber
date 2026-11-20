@@ -61,6 +61,10 @@ struct arc_stream {
   float covered;       /* the recogniser's final words reach this far */
   long pauses;         /* the read-out's pauses seen */
   int finished, failed;
+  arc_arena* spk_arena;   /* the last arc_stream_speakers / diarization / speaker answer */
+  const arc_speaker* spk;
+  const arc_speaker_turn* turns;
+  int n_spk, n_turns;
 };
 
 static int pump(arc_stream* s);
@@ -610,7 +614,36 @@ void arc_stream_close(arc_stream* s) {
   for (int i = 0; i < s->n_fw; ++i) arc_free(s->fw[i].w);
   arc_free(s->fw);
   clear_interim(s);
+  arc_arena_free(s->spk_arena);
   arc_free(s);
+}
+
+/* the speakers so far into a fresh arena (the previous answer's is freed) */
+static int stream_spk(arc_stream* s) {
+  arc_arena_free(s->spk_arena);
+  s->spk_arena = NULL;
+  s->spk = NULL;
+  s->turns = NULL;
+  s->n_spk = s->n_turns = 0;
+  if (!s->live || !(s->spk_arena = arc_arena_new())) return -1;
+  return arc_live_speakers(s->live, s->spk_arena, &s->spk, &s->n_spk, &s->turns, &s->n_turns);
+}
+
+int arc_stream_speakers(arc_stream* s, const arc_speaker** speakers) {
+  int rc = s ? stream_spk(s) : -1;
+  if (speakers) *speakers = rc ? NULL : s->spk;
+  return rc ? -1 : s->n_spk;
+}
+
+int arc_stream_diarization(arc_stream* s, const arc_speaker_turn** turns) {
+  int rc = s ? stream_spk(s) : -1;
+  if (turns) *turns = rc ? NULL : s->turns;
+  return rc ? -1 : s->n_turns;
+}
+
+const char* arc_stream_speaker(arc_stream* s, float start, float end) {
+  if (!s || stream_spk(s)) return NULL;
+  return arc_turn_speaker(s->turns, s->n_turns, start, end);
 }
 
 /* encoder frames to the read-out and the partials' window */

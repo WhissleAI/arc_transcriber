@@ -1,0 +1,68 @@
+# syntax=docker/dockerfile:1
+# Combined image: Arc Transcriber (libarc, Arc Mini) + Arc Tagger (arc-tagger-c, native backend) in one binary.
+# Audio in -> transcript with names / numbers / inline tags + Arc Tagger read-outs (PII, safety, intent, affect, ...).
+# The build context is the folder that holds BOTH checkouts (WhissleAI/arc_transcriber and WhissleAI/arc-tagger-c):
+#
+#   cd ..   # the parent of arc_transcriber/ and arc-tagger-c/
+#   docker buildx build --platform linux/amd64,linux/arm64 -f arc_transcriber/deploy/Dockerfile.combined --target runtime \
+#       -t arc-transcriber-tagger:0.1.0 .
+#   # weights inside: arc_transcriber/deploy/fetch_weights.sh mini tagger, then --target bundled
+#
+# Model folders at run time: Arc Mini at /opt/ml/model/mini (or $ARC_MODEL_DIR), Arc Tagger at /opt/ml/model/arc-tagger
+# (or $ARCTAG_MODEL_DIR); /repository/... on Hugging Face; /opt/arc/model/... in the bundled image.
+# Part of arc_transcriber (Whissle Inc.), CC BY-NC 4.0 with the Whissle terms; see LICENSE.
+
+ARG BUILD_IMAGE=debian:bookworm-slim
+ARG RUNTIME_IMAGE=gcr.io/distroless/cc-debian12:nonroot
+
+FROM ${BUILD_IMAGE} AS build
+RUN apt-get update && apt-get install -y --no-install-recommends gcc make libc6-dev binutils && rm -rf /var/lib/apt/lists/*
+ARG ARC_DIR=arc_transcriber
+ARG ARCTAG_DIR=arc-tagger-c
+WORKDIR /src
+COPY ${ARC_DIR}/c/include arc/c/include
+COPY ${ARC_DIR}/c/src arc/c/src
+COPY ${ARC_DIR}/c/Makefile arc/c/Makefile
+COPY ${ARC_DIR}/deploy/Makefile arc/deploy/Makefile
+COPY ${ARC_DIR}/deploy/server arc/deploy/server
+COPY ${ARCTAG_DIR}/include arctag/include
+COPY ${ARCTAG_DIR}/src arctag/src
+COPY ${ARCTAG_DIR}/third_party/cjson arctag/third_party/cjson
+COPY ${ARCTAG_DIR}/deploy/server arctag/deploy/server
+ARG VERSION=0.1.0
+# CFLAGS / LDFLAGS from the environment: the Makefiles append their own flags (-std, -I, ...) to them
+ENV CFLAGS="-O2 -fstack-protector-strong -D_FORTIFY_SOURCE=2" LDFLAGS="-Wl,-z,relro,-z,now"
+RUN make -C arc/c -j2 build/libarc.a \
+ && make -C arc/deploy -j2 ARCTAG=/src/arctag VERSION="${VERSION}" \
+ && strip arc/deploy/build/arc-serve-combined \
+ && ./arc/deploy/build/arc-serve-combined --version
+
+FROM ${RUNTIME_IMAGE} AS runtime
+ARG VERSION=0.1.0
+ARG ARC_DIR=arc_transcriber
+ARG ARCTAG_DIR=arc-tagger-c
+LABEL org.opencontainers.image.title="arc-transcriber-tagger" \
+      org.opencontainers.image.description="Arc Mini speech-to-text plus Arc Tagger read-outs in one CPU service" \
+      org.opencontainers.image.vendor="Whissle Inc." \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.licenses="CC-BY-NC-4.0" \
+      com.amazonaws.sagemaker.capabilities.accept-bind-to-port="true"
+COPY --from=build /src/arc/deploy/build/arc-serve-combined /opt/arc/bin/serve
+COPY ${ARC_DIR}/deploy/openapi.yaml /opt/arc/openapi.yaml
+COPY ${ARC_DIR}/LICENSE /opt/arc/LICENSE
+COPY ${ARC_DIR}/NOTICE /opt/arc/NOTICE
+COPY ${ARCTAG_DIR}/NOTICE /opt/arc/NOTICE.arc-tagger
+ENV PORT=8080 HOST=0.0.0.0 ARC_WORKERS=2 ARCTAG_WORKERS=2 ARC_ACCESS_LOG=1
+EXPOSE 8080
+USER 65532:65532
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s CMD ["/opt/arc/bin/serve", "--healthcheck"]
+ENTRYPOINT ["/opt/arc/bin/serve"]
+
+FROM runtime AS bundled
+ARG ARC_DIR=arc_transcriber
+ARG WEIGHTS_MINI=${ARC_DIR}/deploy/weights/mini
+ARG WEIGHTS_TAGGER=${ARC_DIR}/deploy/weights/arc-tagger
+ARG MODEL_ID=arc-mini
+COPY --chown=0:0 ${WEIGHTS_MINI} /opt/arc/model/mini
+COPY --chown=0:0 ${WEIGHTS_TAGGER} /opt/arc/model/arc-tagger
+ENV ARC_MODEL_ID=${MODEL_ID}
