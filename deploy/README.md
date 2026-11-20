@@ -140,7 +140,7 @@ CUDA path after the CPU one. See [`platforms/nim/`](platforms/nim/README.md).
 
 ## Model card (draft)
 
-**Model**: Arc Mini (Arc v1.1, `WhissleAI/arc-v1.1`, folder `mini/`), served by libarc 1.4.0. Moonshine-streaming-tiny
+**Model**: Arc Mini (Arc v1.1, `WhissleAI/arc-v1.1`, folder `mini/`), served by libarc 1.4.1. Moonshine-streaming-tiny
 speech encoder and decoder (4-bit packed) plus Arc's trunk and heads; 68 MB of weights.
 
 **Does**: English transcripts, punctuated and cased, with inline tags on names, numbers and contacts and word times;
@@ -149,9 +149,7 @@ names linked to a caller-supplied list (with kinds, groups, aliases; also biases
 read-outs; sound and channel events (silence, telephone / narrowband, clipping, ...); speakers (diarization turns, each
 segment's speaker, a role read-out per speaker); n-best alternatives; streaming with partials and finals.
 
-**Does not (in this C build)**: languages other than English; names / numbers linking inside streams; arc_audio's
-AliasIndex list check (a bare part of one entry's name, "Daniel" for "Daniel Brooks", stays not_in_list / abstain where
-arc_audio links it with via "partial"; the conformance run carries it as a KNOWN gap);
+**Does not (in this C build)**: languages other than English; names / numbers linking inside streams;
 Arc Transcriber (full, Parakeet backbone) and its accuracy; compressed audio formats (send WAV or PCM).
 
 **Checked against the Python reference** (from `c/README.md`): golden parity on `tests/golden/mini.json` (transcript,
@@ -198,5 +196,10 @@ contract, resampled and raw-PCM input, SageMaker `/invocations` (audio, JSON, ba
 the diarization turns and each utterance's speaker). Clips: `examples/example_synth.wav` with its names list, three
 clips synthesized with the OS text-to-speech and two two- / three-voice dialogues (written to files, never played; the
 dialogues in `unknown`, `meeting` and `nhl`, one slot and two TrackBank set-ups), a tone and silence. Realtime also
-checks the dialogues' speakers (`unknown`, `meeting`). KNOWN, reported but not failed: the AliasIndex names gap above. With a running Docker daemon it repeats everything against the image, after
+checks the dialogues' speakers (`unknown`, `meeting`).
+
+**Partial names** (libarc 1.4.1): a name the linker leaves not_in_list / abstain is checked against the list once more,
+as arc_audio does (kbsnap AliasIndex): one entry's name or alias with punctuation, case and spacing ignored links with
+`via: "alias"`, and a part only one entry's name has ("Daniel" for "Daniel Brooks") with `via: "partial"`; a part two
+entries share stays unlinked. The 1.4.0 conformance run found it on a dialogue saying a bare "Daniel". With a running Docker daemon it repeats everything against the image, after
 checking that the image starts and is ready with `--network none`; it never starts Docker itself.

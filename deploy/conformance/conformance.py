@@ -184,20 +184,13 @@ def parity(url, args, tmp, sets):
         with open(cand, "w") as f:
             for c in clips:
                 f.write(json.dumps(server_arc_json(url, c, names_path, domain)) + "\n")
-        # --known-alias-index: arc_audio's AliasIndex list check (a bare part of one entry's name links, via "partial") is
-        # not in libarc yet; such names are reported as KNOWN, every other field stays strict
-        p = subprocess.run([sys.executable, os.path.join(ROOT, "c", "tools", "compare_names.py"), "--known-alias-index", ref, cand],
-                           capture_output=True, text=True)
+        p = subprocess.run([sys.executable, os.path.join(ROOT, "c", "tools", "compare_names.py"), ref, cand], capture_output=True, text=True)
         refs = [json.loads(l) for l in open(ref)]
         n_words = sum(len(u["words"]) for r in refs for u in r["transcript"])
         n_names = sum(len(r["names"]) for r in refs)
         n_nums = sum(len(r["numbers"]) for r in refs)
-        summ = [l for l in p.stdout.strip().splitlines() if not l.startswith("  KNOWN")]
         detail = (f"{len(clips)} clips, {n_words} words, {n_names} names, {n_nums} numbers; reference {t_ref:.0f} s; "
-                  + (summ[-1] if summ else ""))
-        for l in p.stdout.splitlines():
-            if l.startswith("  KNOWN"):
-                print("note:" + l[1:], flush=True)
+                  + (p.stdout.strip().splitlines()[-1] if p.stdout.strip() else ""))
         ok = p.returncode == 0
         ok_all &= check(f"parity vs arc_audio: set {k} ({domain}, {os.path.basename(names_path)})", ok, detail)
         if not ok:
