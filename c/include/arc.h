@@ -30,7 +30,7 @@ extern "C" {
  * counts); new functions alone do not change it. A binding generated from this header should compare it with
  * arc_abi_version() of the library it loads. ARC_VERSION is for people (logs). */
 #define ARC_ABI_VERSION 2
-#define ARC_VERSION "1.3.1"
+#define ARC_VERSION "1.4.0"
 int arc_abi_version(void);
 const char* arc_version(void);
 
@@ -275,6 +275,45 @@ typedef struct {
   const char* iso;
 } arc_date;
 const arc_date* arc_number_date(const arc_result* r, int i);
+
+/* Speakers (arc_audio's "diarization", "speakers" and each transcript line's "speaker"), from Arc's own heads: the
+ * diarization slot head with the engine's speaker state machine (a speaker switches after 5 frames, 2 for the first),
+ * or, in the domains config.json names for it ("fused": nhl cricket esports court_appellate; "voice": meeting news
+ * talk), the diar embedding head with arc_audio's TrackBank (tracks confirmed after 20 frames, switched after 10). Filled
+ * when the trunk ran (arc_options.trunk). Valid until arc_result_free. (Functions rather than arc_result fields, so the
+ * ABI stays 2.)
+ *
+ * A turn: speaker "S1", "S2" ... (slot k + 1) or, with the TrackBank, "T1", "T2" ..., over [start, end) seconds (10 Hz
+ * frames). */
+typedef struct {
+  const char* speaker;
+  float start, end;
+} arc_speaker_turn;
+/* the most likely label of an exclusive tag group for a speaker: group "speaker.role", label "speaker.role.host" */
+typedef struct {
+  const char* group;
+  const char* label;
+  float p;
+} arc_speaker_group;
+/* a speaker the slot state machine found (engine.py speaker_summary): id "S1" ..., the speaker read-out (the speaker
+ * query over the speaker's pooled frames) per group and its ungrouped shipped tags, and the last frame it spoke in */
+typedef struct {
+  const char* id;
+  float last_seen;          /* seconds */
+  int n_groups;
+  const arc_speaker_group* groups;
+  int n_tags;
+  const arc_label* tags;
+} arc_speaker;
+/* the speakers (by index); -1 when there is no speaker read-out (trunk off, or weights without one) */
+int arc_speakers(const arc_result* r, const arc_speaker** speakers);
+/* the diarization turns in time order; -1 as arc_speakers */
+int arc_diarization(const arc_result* r, const arc_speaker_turn** turns);
+/* the speaker of utterance i: the turn it overlaps most (arc_transcriber's lines), or NULL (none overlaps) */
+const char* arc_utt_speaker(const arc_result* r, int i);
+/* The diarization for the next calls: "auto" (or NULL: by domain, as above), "slots", "fused" or "voice" (arc_audio's
+ * predict(diarization=...)). "fused" / "voice" need the diar embedding head (Arc Mini has it). 0, or -1. */
+int arc_set_diarization(arc_engine* e, const char* mode);
 const char* arc_last_error(void);
 
 /* ================================================================ load options, streaming
@@ -386,6 +425,14 @@ int arc_stream_end_turn(arc_stream* s);
 /* End of the audio: everything still open is closed and sent. */
 int arc_stream_finish(arc_stream* s);
 void arc_stream_close(arc_stream* s);
+/* Speakers so far (as arc_speakers / arc_diarization on the stream's audio; the turn still open is included, up to the
+ * last frame read out; after arc_stream_finish they are what arc_transcribe gives). Valid until the next call on s. -1:
+ * no speaker read-out. Callable inside the callback. */
+int arc_stream_speakers(arc_stream* s, const arc_speaker** speakers);
+int arc_stream_diarization(arc_stream* s, const arc_speaker_turn** turns);
+/* the speaker of [start, end) seconds (a FINAL utterance's times): the turn so far that overlaps it most, or NULL.
+ * Valid until the next call on s. */
+const char* arc_stream_speaker(arc_stream* s, float start, float end);
 
 /* ================================================================ Arc Transcriber Space (NFT2)
  *

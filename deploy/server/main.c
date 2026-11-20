@@ -3,7 +3,7 @@
  *   arc-serve [serve] [--port N] [--host ADDR] [--model DIR]
  *
  * Routes (deploy/openapi.yaml): POST /v1/audio/transcriptions (OpenAI-compatible, plus Arc's words, inline tags, linked
- * names, number values, utterance tags and events), WS /v1/realtime, GET /health, GET /v1/health/live,
+ * names, number values, utterance tags, events and speakers), WS /v1/realtime, GET /health, GET /v1/health/live,
  * GET /v1/health/ready, GET /v1/models, and SageMaker's GET /ping, POST /invocations, GET /execution-parameters.
  * Built with -DARC_SERVE_TAGGER (the combined image) it also links Arc Tagger (arc-tagger-c's tagsrv.c): POST /v1/tags,
  * tags on transcripts (tags=true) and on realtime finals.
@@ -429,6 +429,45 @@ static cJSON* events_json(const arc_event* ev, int n) {
   return a;
 }
 
+/* arc_audio's "diarization": [{"speaker", "start", "end"}] */
+static void add_turns(cJSON* o, int nt, const arc_speaker_turn* tu) {
+  cJSON* d = cJSON_AddArrayToObject(o, "diarization");
+  for (int i = 0; i < nt; ++i) {
+    cJSON* x = cJSON_CreateObject();
+    cJSON_AddStringToObject(x, "speaker", tu[i].speaker);
+    add_num(x, "start", tu[i].start, 1);
+    add_num(x, "end", tu[i].end, 1);
+    cJSON_AddItemToArray(d, x);
+  }
+}
+
+/* arc_audio's "speakers": {"S1": {"groups": {"speaker.role": {"label", "p"}}, "tags": {}, "last_seen"}} */
+static void add_speakers(cJSON* o, int ns, const arc_speaker* sp) {
+  cJSON* so = cJSON_AddObjectToObject(o, "speakers");
+  for (int i = 0; i < ns; ++i) {
+    cJSON* x = cJSON_AddObjectToObject(so, sp[i].id);
+    cJSON* g = cJSON_AddObjectToObject(x, "groups");
+    for (int k = 0; k < sp[i].n_groups; ++k) {
+      cJSON* y = cJSON_AddObjectToObject(g, sp[i].groups[k].group);
+      cJSON_AddStringToObject(y, "label", sp[i].groups[k].label);
+      add_num(y, "p", sp[i].groups[k].p, 4);
+    }
+    cJSON* t = cJSON_AddObjectToObject(x, "tags");
+    for (int k = 0; k < sp[i].n_tags; ++k) add_num(t, sp[i].tags[k].label, sp[i].tags[k].p, 4);
+    add_num(x, "last_seen", sp[i].last_seen, 1);
+  }
+}
+
+/* both, when the result has a speaker read-out (the trunk ran) */
+static void add_result_speakers(cJSON* o, const arc_result* r) {
+  const arc_speaker* sp;
+  const arc_speaker_turn* tu;
+  int ns = arc_speakers(r, &sp), nt = arc_diarization(r, &tu);
+  if (ns < 0) return;
+  add_speakers(o, ns, sp);
+  add_turns(o, nt, tu);
+}
+
 /* arc-transcribe --json's record (arc_audio's keys: tools/dump_names.py writes the same), for parity checks */
 static cJSON* arc_json_record(const arc_result* r, const char* domain) {
   cJSON* o = cJSON_CreateObject();
@@ -448,6 +487,7 @@ static cJSON* arc_json_record(const arc_result* r, const char* domain) {
       cJSON_AddItemToArray(t, cJSON_CreateString(u->tags[k].text));
       cJSON_AddItemToArray(tg, t);
     }
+    if (arc_speakers(r, NULL) >= 0) add_str_or_null(x, "speaker", arc_utt_speaker(r, i));   /* arc_transcriber's lines */
     cJSON_AddItemToArray(tr, x);
   }
   cJSON* nm = cJSON_AddArrayToObject(o, "names");
@@ -499,6 +539,7 @@ static cJSON* arc_json_record(const arc_result* r, const char* domain) {
     cJSON_AddItemToArray(nu, x);
   }
   cJSON_AddItemToObject(o, "audio_events", events_json(r->events, r->n_events));
+  add_result_speakers(o, r);
   return o;
 }
 
@@ -661,6 +702,14 @@ static char* transcribe(const float* pcm, size_t n, const cJSON* opts, const cha
   const char* prompt = opt_str(opts, "prompt");
   const char* topic = opt_str(opts, "topic");
   int trunk = opt_bool(opts, "trunk", 1);
+  const char* diar = opt_str(opts, "diarization");
+  if (diar && *diar && strcmp(diar, "auto") && strcmp(diar, "slots") && strcmp(diar, "fused") && strcmp(diar, "voice")) {
+    names_free(&nl);
+    free(terms);
+    cJSON_Delete(terms_keep);
+    fail(oc, 400, "invalid_request_error", "diarization: auto | slots | fused | voice");
+    return NULL;
+  }
   arc_options o = {.domain = domain,
                    .one_utterance = opt_bool(opts, "one_utterance", 0),
                    .beams = opt_int(opts, "beams", 0),
@@ -680,8 +729,8 @@ static char* transcribe(const float* pcm, size_t n, const cJSON* opts, const cha
     return NULL;
   }
   arc_engine* e = S.e[wi];
-  int rc = 0;
-  if (nl.n) rc = arc_set_names(e, nl.e, nl.n);
+  int rc = arc_set_diarization(e, diar && *diar ? diar : NULL);   /* per request (the engine is shared) */
+  if (!rc && nl.n) rc = arc_set_names(e, nl.e, nl.n);
   if (!rc && (prompt || topic || n_terms)) rc = arc_set_context(e, NULL, NULL, 0, terms, n_terms, topic, prompt, 0);
   if (!rc && n_terms && !nl.n) rc = arc_set_bias(e, terms, n_terms);
   arc_result* r = rc ? NULL : arc_transcribe(e, pcm, n, &o);
@@ -720,8 +769,11 @@ static char* transcribe(const float* pcm, size_t n, const cJSON* opts, const cha
       if (!strcmp(fmt, "verbose_json")) {
         cJSON* segs = cJSON_AddArrayToObject(out, "segments");
         cJSON* allw = cJSON_AddArrayToObject(out, "words");
+        int has_spk = arc_speakers(r, NULL) >= 0;
         for (int i = 0; i < r->n_utts; ++i) {
-          cJSON_AddItemToArray(segs, utt_json(&r->utts[i], i));
+          cJSON* seg = utt_json(&r->utts[i], i);
+          if (has_spk) add_str_or_null(seg, "speaker", arc_utt_speaker(r, i));
+          cJSON_AddItemToArray(segs, seg);
           for (int k = 0; k < r->utts[i].n_words; ++k) {
             const arc_word* w = &r->utts[i].words[k];
             cJSON* x = cJSON_CreateObject();
@@ -736,6 +788,7 @@ static char* transcribe(const float* pcm, size_t n, const cJSON* opts, const cha
         cJSON_AddItemToObject(out, "names", names_json(r));
         cJSON_AddItemToObject(out, "numbers", numbers_json(r));
         cJSON_AddItemToObject(out, "events", events_json(r->events, r->n_events));
+        add_result_speakers(out, r);
       }
     }
 #ifdef ARC_SERVE_TAGGER
@@ -1066,6 +1119,7 @@ static void handle_models(http_req* r, const char* only) {
 typedef struct {
   int fd;
   int frames;
+  arc_stream* st;   /* set once open (callbacks come from push / finish calls) */
 #ifdef ARC_SERVE_TAGGER
   tagsrv_stream* tag;
 #endif
@@ -1114,6 +1168,9 @@ static void on_stream(const arc_stream_out* out, void* user) {
           it = next;
         }
         cJSON_Delete(u);
+        /* the diarization turn so far it overlaps most (the turn still open included) */
+        if (c->st && arc_stream_diarization(c->st, NULL) >= 0)
+          add_str_or_null(o, "speaker", arc_stream_speaker(c->st, out->utt->start, out->utt->end));
       }
 #ifdef ARC_SERVE_TAGGER
       if (out->kind == ARC_OUT_FINAL && c->tag && out->utt && out->utt->text && *out->utt->text) {
@@ -1223,6 +1280,14 @@ static void handle_realtime(http_req* r) {
                           .bias_names = 1,
                           .delay_ms = opt_int(q, "delay_ms", 0)};
   char err[512] = "";
+  const char* diar = opt_str(q, "diarization");
+  if (arc_set_diarization(e, diar && *diar ? diar : NULL)) {
+    snprintf(err, sizeof err, "%s", arc_last_error());
+    release_engine(wi);
+    cJSON_Delete(q);
+    http_respond_error(r, 400, "invalid_request_error", "%s", err);
+    return;
+  }
   if (cJSON_GetObjectItemCaseSensitive(q, "names") && apply_session(e, q, err, sizeof err)) {
     release_engine(wi);
     cJSON_Delete(q);
@@ -1247,6 +1312,7 @@ static void handle_realtime(http_req* r) {
     http_respond_error(r, 500, "server_error", "stream: %s", err);
     return;
   }
+  ctx.st = st;
   if (ws_accept(r)) goto done;
   {
     cJSON* o = cJSON_CreateObject();
@@ -1296,6 +1362,14 @@ static void handle_realtime(http_req* r) {
       arc_stream_finish(st);
       cJSON* o = cJSON_CreateObject();
       cJSON_AddStringToObject(o, "type", "session.closed");
+      {   /* the whole stream's speakers and diarization (as a transcription of the same audio) */
+        const arc_speaker* sp = NULL;
+        const arc_speaker_turn* tu = NULL;
+        int ns = arc_stream_speakers(st, &sp);   /* each call answers into a fresh buffer: copy before the next */
+        if (ns >= 0) add_speakers(o, ns, sp);
+        int nt = arc_stream_diarization(st, &tu);
+        if (nt >= 0) add_turns(o, nt, tu);
+      }
       ws_obj(r->fd, o);
       ws_close(r->fd, 1000, "done");
       cJSON_Delete(m);

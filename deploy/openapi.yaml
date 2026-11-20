@@ -14,8 +14,11 @@ info:
     * The server makes no network calls (it runs under SageMaker network isolation).
     * The combined image (transcriber + Arc Tagger, `Dockerfile.combined`) adds `POST /v1/tags`, `arc_tags` on
       transcripts and realtime finals. Routes and fields marked "combined" exist only there.
-    * Speakers: libarc has no speaker / diarization read-out yet (arc_audio has; not ported), so responses carry no
-      speaker field.
+    * Speakers (libarc 1.4.0): `verbose_json` and `arc_json` carry arc_audio's `speakers` (per speaker: the role read-out
+      and last_seen) and `diarization` (turns), and each segment / transcript utterance its `speaker` (the turn it
+      overlaps most, as arc_transcriber's lines). From Arc's own heads: the slot state machine ("S1", "S2" ...), or the
+      TrackBank over the voice embedding ("T1", "T2" ...) in the domains Arc's config names (meeting, news, talk: voice;
+      nhl, cricket, esports, court_appellate: fused); `diarization` overrides. Present when `trunk` is on.
   license:
     name: CC BY-NC 4.0 with the Whissle terms (commercial licences from Whissle Inc.)
     url: https://github.com/WhissleAI/arc_transcriber/blob/main/LICENSE
@@ -69,11 +72,13 @@ paths:
         `{"type": "input_audio_buffer.append", "audio": "<base64 PCM16>"}`. Control messages (text frames, JSON):
         `{"type": "session.update", "session": {"names": [...], "prompt": "...", "terms": [...], "topic": "..."}}`,
         `{"type": "input_audio_buffer.commit"}` (end the turn now: push-to-talk release),
-        `{"type": "input_audio_buffer.finish"}` (end of audio: everything open is closed, then `session.closed`).
+        `{"type": "input_audio_buffer.finish"}` (end of audio: everything open is closed, then `session.closed`, which
+        carries the stream's `speakers` and `diarization`, as a transcription of the same audio gives them).
 
         Server messages: `session.created`, `transcript.partial` (text so far of the open utterance),
         `transcript.endpoint` (Arc's segmenter closed an utterance), `transcript.final` (the utterance: text, words with
-        times and inline tags, tags, intent, act, device_directed; identical to the offline decode),
+        times and inline tags, tags, intent, act, device_directed, and `speaker`: the diarization turn so far it overlaps
+        most, the open turn included; identical to the offline decode except that speaker can still change),
         `transcript.tags` (settled utterance tags when the final came before they settled), `event` (sound / channel
         events), `frame` (with `frames=1`: every 100 ms), `session.updated`, `session.closed`, `error`.
         Combined image: `transcript.final` also has `arc_tags` (the tagger's poll output for that utterance).
@@ -88,6 +93,7 @@ paths:
         - {name: delay_ms, in: query, schema: {type: integer, enum: [0, 100, 200, 300, 500, 800]}}
         - {name: names, in: query, schema: {type: string}, description: JSON array or comma-separated names to bias toward}
         - {name: tags, in: query, schema: {type: boolean, default: true}, description: combined image only}
+        - {name: diarization, in: query, schema: {$ref: '#/components/schemas/Diarization'}}
       responses:
         '101': {description: Switching Protocols}
         '400': {$ref: '#/components/responses/Error'}
@@ -216,6 +222,7 @@ components:
         trunk: {type: boolean, default: true, description: Utterance tags (device-directed, intent, act)}
         link_names: {type: boolean, default: true}
         numbers: {type: boolean, default: true}
+        diarization: {$ref: '#/components/schemas/Diarization'}
         one_utterance: {type: boolean, default: false, description: Decode the whole clip as one utterance (a held-key command)}
         beams: {type: integer, default: 4, minimum: 1, maximum: 16}
         tags: {type: boolean, default: true, description: (combined) add arc_tags}
@@ -295,6 +302,30 @@ components:
         alternatives:
           type: array
           items: {type: object, properties: {text: {type: string}, score: {type: number}}}
+        speaker: {type: [string, 'null'], description: 'the diarization turn the segment overlaps most ("S1", "T2"), null when none; absent with trunk=false', examples: [S1]}
+    Diarization:
+      type: string
+      enum: [auto, slots, fused, voice]
+      default: auto
+      description: 'arc_audio predict(diarization=...): auto = by domain (Arc config diarization.by_domain, else slots); slots = the slot state machine (turns "S<k>"); voice = TrackBank on the voice embedding; fused = TrackBank on the embedding and the slot posteriors (turns "T<k>")'
+    SpeakerTurn:
+      type: object
+      properties:
+        speaker: {type: string, examples: [S1]}
+        start: {type: number}
+        end: {type: number}
+    Speakers:
+      type: object
+      description: 'arc_audio speaker_summary: per speaker id ("S1", ...) its read-out at the last frame it spoke in'
+      additionalProperties:
+        type: object
+        properties:
+          groups:
+            type: object
+            description: 'per exclusive group ("speaker.role"): the most likely label and its probability'
+            additionalProperties: {type: object, properties: {label: {type: string}, p: {type: number}}}
+          tags: {type: object, additionalProperties: {type: number}}
+          last_seen: {type: number}
     LinkedName:
       type: object
       properties:
@@ -347,6 +378,8 @@ components:
         names: {type: array, items: {$ref: '#/components/schemas/LinkedName'}}
         numbers: {type: array, items: {$ref: '#/components/schemas/NumberValue'}}
         events: {type: array, items: {$ref: '#/components/schemas/Event'}}
+        speakers: {$ref: '#/components/schemas/Speakers'}
+        diarization: {type: array, items: {$ref: '#/components/schemas/SpeakerTurn'}}
         arc_tags: {type: object, description: (combined) Arc Tagger output for the transcript's words}
         model: {type: string}
         usage: {$ref: '#/components/schemas/Usage'}
@@ -360,6 +393,8 @@ components:
         names: {type: array, items: {type: object}}
         numbers: {type: array, items: {type: object}}
         audio_events: {type: array, items: {type: object}}
+        speakers: {$ref: '#/components/schemas/Speakers'}
+        diarization: {type: array, items: {$ref: '#/components/schemas/SpeakerTurn'}}
     Model:
       type: object
       properties:

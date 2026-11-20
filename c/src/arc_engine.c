@@ -13,6 +13,7 @@
 #include "arc_store.h"
 #include "arc_wordch.h"
 #include "arc_link.h"
+#include "arc_speaker.h"
 
 #define DM 512   /* trunk width */
 #define DIN 640  /* pooled encoder features */
@@ -72,6 +73,14 @@ struct arc_trunk {
   arc_w slot_w, slotx_w;
   const float *slot_b, *slotx_b;
   int n_slot, n_slotx;
+  /* DiarHeads.embed (h_proj, x_norm, x_proj, out) for the "fused" / "voice" diarization; de 0: not in the weights */
+  arc_w dh_w, dx_w, do1_w, do3_w;
+  const float *dh_b, *dxn_w, *dxn_b, *dx_b, *do1_b, *do3_b;
+  int de, dhid;
+  /* config.json diarization: the mode of each domain (by_domain, else default) and its TrackBank settings */
+  int diar_mode[NDOM];
+  arc_bank_cfg bank[NDOM];
+  int diar_force;   /* arc_set_diarization: ARC_DIAR_*, -1 auto (by domain) */
   /* aux heads */
   const float *dd_ln_w, *dd_ln_b, *dd_fc_w, *dd_fc_b;
   const float *ev_ln_w, *ev_ln_b, *ev_c1_w, *ev_c1_b, *ev_c2_w, *ev_c2_b;
@@ -318,7 +327,44 @@ int arc_engine_load_trunk(arc_engine* e, const char* dir) {
     if (WW(s, "diar.slot_ext.weight", (int64_t)t->n_slotx * DM, &t->slotx_w)) return -1;
     G(slotx_b, "diar.slot_ext.bias", t->n_slotx);
   }
+  if (arc_store_has(s, "diar.h_proj.bias") && arc_store_has(s, "diar.out.3.bias")) {
+    arc_store_shape(s, "diar.h_proj.bias", sh);
+    t->dhid = (int)sh[0];
+    arc_store_shape(s, "diar.out.3.bias", sh);
+    int de = (int)sh[0];
+    if (WW(s, "diar.h_proj.weight", (int64_t)t->dhid * DM, &t->dh_w) || WW(s, "diar.x_proj.weight", (int64_t)t->dhid * DIN, &t->dx_w) ||
+        WW(s, "diar.out.1.weight", (int64_t)t->dhid * t->dhid, &t->do1_w) || WW(s, "diar.out.3.weight", (int64_t)de * t->dhid, &t->do3_w))
+      return -1;
+    G(dh_b, "diar.h_proj.bias", t->dhid);
+    G(dxn_w, "diar.x_norm.weight", DIN);
+    G(dxn_b, "diar.x_norm.bias", DIN);
+    G(dx_b, "diar.x_proj.bias", t->dhid);
+    G(do1_b, "diar.out.1.bias", t->dhid);
+    G(do3_b, "diar.out.3.bias", de);
+    t->de = de;
+  }
 #undef G
+  /* diarization modes (engine.py: diarization='auto' takes by_domain, else default; 'fused' / 'voice' need the
+   * embedding) */
+  {
+    const arc_json* dc = arc_json_get(e->cfg, "diarization");
+    const arc_json* bd = arc_json_get(dc, "by_domain");
+    const arc_json* fb = arc_json_get(dc, "fused_bank");
+    const char* def = arc_json_str(arc_json_get(dc, "default"), "slots");
+    t->diar_force = -1;
+    for (int d = 0; d < NDOM; ++d) {
+      const char* m = arc_json_str(arc_json_get(bd, DOMAINS[d]), def);
+      t->diar_mode[d] = !strcmp(m, "fused") ? ARC_DIAR_FUSED : !strcmp(m, "voice") ? ARC_DIAR_VOICE : ARC_DIAR_SLOTS;
+      arc_bank_cfg* b = &t->bank[d];
+      b->beta = (float)arc_json_num(arc_json_get(arc_json_get(fb, "beta_by_domain"), DOMAINS[d]),
+                                    arc_json_num(arc_json_get(fb, "beta_default"), 2.0));
+      b->tau_new = (float)arc_json_num(arc_json_get(fb, "tau_new"), 0.5);
+      b->tau_upd = (float)arc_json_num(arc_json_get(fb, "tau_upd"), 0.5);
+      b->confirm = (int)arc_json_num(arc_json_get(fb, "confirm"), 20);
+      b->sw = (int)arc_json_num(arc_json_get(fb, "switch"), 10);
+      b->smooth = (int)arc_json_num(arc_json_get(fb, "smooth"), 5);
+    }
+  }
   /* aux heads (heads.safetensors) load on first use: Arc's deployment notes, lazy optional heads */
   t->dd_thr = (float)arc_json_num(arc_json_get(arc_json_get(e->cfg, "device_directed"), "threshold"), 0.5);
   const arc_json* ae = arc_json_get(e->cfg, "audio_events");
@@ -688,8 +734,157 @@ typedef struct {
   float p[MAXTAG];   /* utt probs at the last speech frame */
 } trunk_utt;
 
+/* ------------------------------------------------------------------ speakers */
+
+/* the diarization of a domain (engine.py: 'auto' = by_domain, else the default); 'fused' / 'voice' need the embedding */
+static int diar_mode(struct arc_trunk* t, int dom) {
+  int m = t->diar_force >= 0 ? t->diar_force : t->diar_mode[dom];
+  return m != ARC_DIAR_SLOTS && !t->de ? ARC_DIAR_SLOTS : m;
+}
+
+/* a speaker tracker for a domain (NULL: these weights have no speaker read-out) */
+static arc_spk* spk_new(struct arc_trunk* t, int dom) {
+  if (!t->n_slot) return NULL;
+  int m = diar_mode(t, dom);
+  arc_bank_cfg bc = t->bank[dom];
+  if (m == ARC_DIAR_VOICE) bc.beta = 0.0f;
+  return arc_spk_new(m, &bc, DM, t->n_slot + t->n_slotx, t->de);
+}
+
+/* DiarHeads.embed: normalize(out(h_proj(h) + x_proj(x_norm(x)))), out = GELU, Linear, GELU, Linear. [N, de] */
+static float* diar_embed(struct arc_trunk* t, const float* Ha, const float* xs, int N) {
+  int hid = t->dhid, de = t->de;
+  float* a = arc_malloc(sizeof(float) * (size_t)N * hid);
+  float* b = arc_malloc(sizeof(float) * (size_t)N * hid);
+  float* xn = arc_malloc(sizeof(float) * (size_t)N * DIN);
+  float* o = arc_malloc(sizeof(float) * (size_t)N * de);
+  if (!a || !b || !xn || !o) {
+    arc_free(a);
+    arc_free(b);
+    arc_free(xn);
+    arc_free(o);
+    return NULL;
+  }
+  lin(t->pool, Ha, N, DM, &t->dh_w, hid, t->dh_b, a);
+  memcpy(xn, xs, sizeof(float) * (size_t)N * DIN);
+  arc_layernorm(xn, N, DIN, DIN, t->dxn_w, t->dxn_b, 1e-5f);
+  lin(t->pool, xn, N, DIN, &t->dx_w, hid, t->dx_b, b);
+  for (size_t k = 0; k < (size_t)N * hid; ++k) a[k] += b[k];
+  arc_gelu(a, (size_t)N * hid);
+  lin(t->pool, a, N, hid, &t->do1_w, hid, t->do1_b, b);
+  arc_gelu(b, (size_t)N * hid);
+  lin(t->pool, b, N, hid, &t->do3_w, de, t->do3_b, o);
+  for (int i = 0; i < N; ++i) {   /* F.normalize: x / max(|x|, 1e-12) */
+    float* r = o + (size_t)i * de;
+    double n = 0;
+    for (int c = 0; c < de; ++c) n += (double)r[c] * r[c];
+    n = sqrt(n);
+    if (n < 1e-12) n = 1e-12;
+    for (int c = 0; c < de; ++c) r[c] = (float)(r[c] / n);
+  }
+  arc_free(a);
+  arc_free(b);
+  arc_free(xn);
+  return o;
+}
+
+static float* pool_in(struct arc_trunk* t, const float* H, int N, const arc_w* w0, const float* b0, const arc_w* w2,
+                      const float* b2);
+
+/* the tracker's per-frame inputs for frames [0, n) of a trunk run: zs = h + pool_in.speaker(h) and (bank modes) the
+ * embedding */
+static int spk_inputs(struct arc_trunk* t, arc_spk* sk, const float* Ha, const float* xs, int n, float** zs, float** emb) {
+  *zs = pool_in(t, Ha, n, &t->spool_w0, t->spool_b0, &t->spool_w2, t->spool_b2);
+  *emb = arc_spk_mode(sk) != ARC_DIAR_SLOTS ? diar_embed(t, Ha, xs, n) : NULL;
+  return !*zs || (arc_spk_mode(sk) != ARC_DIAR_SLOTS && !*emb) ? -1 : 0;
+}
+
+/* engine.py speaker_summary / diarization into arena a: each speaker's read-out at its last frame (the speaker query on
+ * its pooled mean): the best label of each exclusive group and the shipped ungrouped tags; the turns (open: with the
+ * one still open, for streams) */
+static int spk_build(struct arc_trunk* t, const arc_spk* sk, int dom, arc_arena* a, int open, arc_speaker** sp, int* nsp,
+                     arc_speaker_turn** tu, int* ntu) {
+  *sp = NULL;
+  *tu = NULL;
+  *nsp = *ntu = 0;
+  if (!sk) return 0;
+  int nc = t->ncols[Q_SPEAKER];
+  int n = nc ? arc_spk_count(sk) : 0;
+  arc_speaker* S = arc_arena_alloc(a, sizeof(arc_speaker) * (size_t)(n + 1));
+  float* mean = arc_malloc(sizeof(float) * DM);
+  float* p = arc_malloc(sizeof(float) * (size_t)(nc ? nc : 1));
+  if (!S || !mean || !p) {
+    arc_free(mean);
+    arc_free(p);
+    return -1;
+  }
+  for (int i = 0; i < n; ++i) {
+    int k;
+    long last;
+    arc_spk_info(sk, i, &k, &last, mean);
+    logits_q(t, Q_SPEAKER, mean, 1, dom, p);
+    probs_q(t, Q_SPEAKER, p, 1, dom);
+    char id[16];
+    snprintf(id, sizeof id, "S%d", k + 1);
+    S[i].id = arc_arena_strdup(a, id);
+    S[i].last_seen = last / 10.0f;
+    arc_speaker_group* G = arc_arena_alloc(a, sizeof(arc_speaker_group) * (size_t)(t->ngroups + 1));
+    arc_label* T = arc_arena_alloc(a, sizeof(arc_label) * (size_t)(nc + 1));
+    int ng = 0, nt = 0;
+    for (int g = 0; g < t->ngroups; ++g) {
+      int best = -1;
+      for (int j = 0; j < nc; ++j) {
+        int c = t->cols[Q_SPEAKER][j];
+        if (t->group_of[c] == g && shipped(t, c, dom) && (best < 0 || p[j] > p[best])) best = j;
+      }
+      if (best >= 0) G[ng++] = (arc_speaker_group){t->groups[g], t->ids[t->cols[Q_SPEAKER][best]], p[best]};
+    }
+    for (int j = 0; j < nc; ++j) {
+      int c = t->cols[Q_SPEAKER][j];
+      if (t->group_of[c] < 0 && shipped(t, c, dom)) T[nt++] = (arc_label){t->ids[c], p[j]};
+    }
+    S[i].n_groups = ng;
+    S[i].groups = G;
+    S[i].n_tags = nt;
+    S[i].tags = T;
+  }
+  arc_free(mean);
+  arc_free(p);
+  arc_spk_turn* tr = NULL;
+  int m = arc_spk_turns(sk, open, &tr);
+  if (m < 0) return -1;
+  arc_speaker_turn* U = arc_arena_alloc(a, sizeof(arc_speaker_turn) * (size_t)(m + 1));
+  for (int i = 0; i < m; ++i) {
+    char lb[16];
+    U[i].speaker = arc_arena_strdup(a, arc_spk_label(sk, &tr[i], lb));
+    U[i].start = tr[i].f0 / 10.0f;
+    U[i].end = tr[i].f1 / 10.0f;
+  }
+  arc_free(tr);
+  *sp = S;
+  *nsp = n;
+  *tu = U;
+  *ntu = m;
+  return 0;
+}
+
+/* output.py lines_of: the turn overlapping [start, end) most, or NULL */
+static const char* turn_of(const arc_speaker_turn* tu, int n, double start, double end) {
+  int best = -1;
+  double bo = 0;
+  for (int i = 0; i < n; ++i) {
+    double ov = (tu[i].end < end ? tu[i].end : end) - (tu[i].start > start ? tu[i].start : start);
+    if (best < 0 || ov > bo) {
+      best = i;
+      bo = ov;
+    }
+  }
+  return best >= 0 && bo > 0 ? tu[best].speaker : NULL;
+}
+
 /* the engine's speaker / utterance state machine and utterance readout over the trunk output */
-static int readout(struct arc_trunk* t, const float* Ha, const float* H, int N, int dom, trunk_utt** out_utts) {
+static int readout(struct arc_trunk* t, const float* Ha, const float* H, const float* xs, int N, int dom, trunk_utt** out_utts,
+                   arc_spk** spk_out) {
   int ncf = t->ncols[Q_FRAME], ncu = t->ncols[Q_UTT];
   float* pf = arc_malloc(sizeof(float) * (size_t)N * ncf);
   logits_q(t, Q_FRAME, H, N, dom, pf);
@@ -712,6 +907,13 @@ static int readout(struct arc_trunk* t, const float* Ha, const float* H, int N, 
   }
   arc_free(sl1);
   arc_free(sl2);
+  /* the speakers (diarization turns, pooled read-out) frame by frame with the state machine */
+  arc_spk* sk = spk_out ? spk_new(t, dom) : NULL;
+  float *zsp = NULL, *emb = NULL;
+  if (sk && spk_inputs(t, sk, Ha, xs, N, &zsp, &emb)) {
+    arc_spk_free(sk);
+    sk = NULL;
+  }
   /* _spk_utt */
   unsigned char* ust = arc_malloc((size_t)N + 1);
   unsigned char* ucl = arc_malloc((size_t)N + 1);
@@ -757,7 +959,15 @@ static int readout(struct arc_trunk* t, const float* Ha, const float* H, int N, 
     }
     ust[i] = (unsigned char)start;
     ucl[i] = (unsigned char)close;
+    if (sk && arc_spk_frame(sk, i, sp, speech, z, emb ? emb + (size_t)i * t->de : NULL, zsp + (size_t)i * DM)) {
+      arc_spk_free(sk);
+      sk = NULL;
+    }
   }
+  if (sk) arc_spk_finish(sk, N);
+  arc_free(zsp);
+  arc_free(emb);
+  if (spk_out) *spk_out = sk;
   /* utt pooling: running mean of z = h + MLP(h) since the utterance start (double sums) */
   float* z = arc_malloc(sizeof(float) * (size_t)N * DM);
   float* z1 = arc_malloc(sizeof(float) * (size_t)N * DM);
@@ -865,6 +1075,27 @@ int arc_engine_set_names(arc_engine* e, const arc_name_entry* names, int n) {
     return n ? -1 : 0;
   }
   return arc_link_set_names(e->trunk->link, names, n);
+}
+
+int arc_set_diarization(arc_engine* e, const char* mode) {
+  if (!e || !e->trunk) {
+    arc_seterr("no trunk");
+    return -1;
+  }
+  struct arc_trunk* t = e->trunk;
+  if (!mode || !strcmp(mode, "auto")) t->diar_force = -1;
+  else if (!strcmp(mode, "slots")) t->diar_force = ARC_DIAR_SLOTS;
+  else if (!strcmp(mode, "fused") || !strcmp(mode, "voice")) {
+    if (!t->de) {
+      arc_seterr("diarization %s needs the diar embedding head (not in these weights)", mode);
+      return -1;
+    }
+    t->diar_force = !strcmp(mode, "fused") ? ARC_DIAR_FUSED : ARC_DIAR_VOICE;
+  } else {
+    arc_seterr("diarization must be auto | slots | fused | voice");
+    return -1;
+  }
+  return 0;
 }
 
 /* ------------------------------------------------------------------ run */
@@ -1015,7 +1246,15 @@ int arc_engine_run_feats(arc_engine* e, const float* X, const float* Xe, const f
     }
     arc_wstore_free(&ws);
     trunk_utt* U = NULL;
-    int nu = Hh && o->trunk ? readout(t, Hh, Hf, N, dom, &U) : 0;
+    arc_spk* sk = NULL;
+    int nu = Hh && o->trunk ? readout(t, Hh, Hf, xs, N, dom, &U, &sk) : 0;
+    /* speakers: engine.py speaker_summary and diarization; each transcript utterance takes the turn it overlaps most
+     * (arc_transcriber output.py lines_of) */
+    if (sk && !spk_build(t, sk, dom, R->arena, 0, &R->speakers, &R->n_speakers, &R->turns, &R->n_turns)) {
+      for (int i = 0; i < R->n; ++i) R->u[i].speaker = turn_of(R->turns, R->n_turns, R->u[i].start, R->u[i].end);
+      R->has_speakers = 1;
+    }
+    arc_spk_free(sk);
     /* each transcript utterance takes the trunk utterance it overlaps most */
     int ncu = t->ncols[Q_UTT];
     for (int i = 0; i < R->n; ++i) {
@@ -1513,6 +1752,7 @@ struct arc_live {
   arc_live_utt* U;
   int nU, capU;
   long pause_seq;        /* trunk utterances that have paused (first non-speech frame after speech) */
+  arc_spk* spk;          /* speakers (NULL: no speaker read-out) */
   /* full frames (the columns of arc_frames_compute): trunk part of each frame read out, waiting for its events */
   int fullfr, nlab, nlt, qcols[NQ][MAXTAG], nq_cols[NQ];
   char** labels;
@@ -1588,6 +1828,7 @@ arc_live* arc_live_new(arc_engine* e, const char* domain, int trunk, int events,
     L->fr_pend.w = L->nlt + 5;
     L->ev_p.w = t->nev;
   }
+  if (trunk) L->spk = spk_new(t, L->dom);
   L->mem = arc_calloc(sizeof *L->mem);
   L->acc = arc_calloc(sizeof(double) * DM);
   if (!L->mem || !L->acc) {
@@ -1611,6 +1852,7 @@ void arc_live_free(arc_live* L) {
   arc_free(L->labels);
   arc_free(L->fr_pend.d);
   arc_free(L->ev_p.d);
+  arc_spk_free(L->spk);
   arc_free(L);
 }
 
@@ -1705,6 +1947,18 @@ int arc_live_tags(arc_live* L, float start, float end, arc_utt_build* u, int* se
   }
   return 1;
 }
+
+int arc_live_speakers(arc_live* L, arc_arena* a, const arc_speaker** sp, int* nsp, const arc_speaker_turn** tu, int* ntu) {
+  if (!L->spk) return -1;
+  arc_speaker* S;
+  arc_speaker_turn* T;
+  if (spk_build(L->t, L->spk, L->dom, a, 1, &S, nsp, &T, ntu)) return -1;
+  *sp = S;
+  *tu = T;
+  return 0;
+}
+
+const char* arc_turn_speaker(const arc_speaker_turn* tu, int n, double start, double end) { return turn_of(tu, n, start, end); }
 
 /* rows [a, b) of h1 (conv k5, pad 2 each side, + GELU) from xe, zeros outside [0, M) */
 static int live_conv(struct arc_trunk* t, lbuf* in, long M, long a, long b, int k, int Cin, const float* w,
@@ -1835,8 +2089,16 @@ static int live_trunk(arc_live* L, long to) {
     memcpy(xs + (size_t)i * DIN, lb_at(&L->X.out, src), sizeof(float) * DIN);
   }
   float* Hh = trunk_run_mem(t, xs, (int)n, L->dom, L->di, L->mem);
+  if (!Hh) {
+    arc_free(xs);
+    return -1;
+  }
+  float *zsp = NULL, *emb = NULL;
+  if (L->spk && spk_inputs(t, L->spk, Hh, xs, (int)n, &zsp, &emb)) {   /* speakers off for the rest of the stream */
+    arc_spk_free(L->spk);
+    L->spk = NULL;
+  }
   arc_free(xs);
-  if (!Hh) return -1;
   int ncf = L->ncf, ncu = L->ncu, ns = t->n_slot + t->n_slotx;
   float* pf = arc_malloc(sizeof(float) * (size_t)n * (ncf ? ncf : 1));
   float* slot = arc_malloc(sizeof(float) * (size_t)n * (ns ? ns : 1));
@@ -1910,6 +2172,10 @@ static int live_trunk(arc_live* L, long to) {
         L->u_spk = -1;
       }
     }
+    if (L->spk && arc_spk_frame(L->spk, fi, sp, speech, zs, emb ? emb + (size_t)i * t->de : NULL, zsp + (size_t)i * DM)) {
+      arc_spk_free(L->spk);
+      L->spk = NULL;
+    }
     /* utterance pooling: running mean since the utterance start (double sums) */
     float* zi = z + (size_t)i * DM;
     if (ust) {
@@ -1967,6 +2233,8 @@ out:
   arc_free(z);
   arc_free(z1);
   arc_free(pu);
+  arc_free(zsp);
+  arc_free(emb);
   for (int w = 0; w < 3; ++w) arc_free(pev[w]);
   return rc;
 }
@@ -2005,6 +2273,7 @@ int arc_live_push(arc_live* L, const float* H, long n, const float* tap, long n_
   if (L->events_on && live_events(L)) return -1;
   if (L->trunk_on && live_trunk(L, L->finished ? N : N - L->d)) return -1;
   if (L->finished && L->trunk_on && L->in_utt && live_close_utt(L)) return -1;
+  if (L->finished && L->spk) arc_spk_finish(L->spk, L->nT);
   if (L->fullfr) live_emit_frames(L);
   /* keep 2 frames of features for the trunk's look-ahead and the pooling's repeat; the dd logits stay (4 bytes per
    * 100 ms) so any utterance can be scored */
