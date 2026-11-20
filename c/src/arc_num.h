@@ -42,4 +42,11 @@ int arc_num_word_tokens(const char* const* words, int n, const char*** toks, int
 /* textlayer.has_num(w): a numeral token in the word. */
 int arc_num_has_num(const char* w);
 
+/* numlib._compose_int(tok): 1 and *v, or 0 for None. */
+int arc_num_compose_int(const char* const* tok, int n, double* v);
+/* numvalue.lw(w): lower case, edge quotes / brackets / punctuation off, U+2019 -> '. malloc'd: free() it. */
+char* arc_num_lw(const char* w);
+/* c in numlib's VAL, SC or ORD (written.NUMW; api.NUMWORDS_DATE): a number word, scale or ordinal word. */
+int arc_num_numw(const char* c);
+
 #endif

@@ -386,6 +386,17 @@ static void add_value(cJSON* o, const char* k, int has, double v, int is_int) {
   else cJSON_AddNumberToObject(o, k, v);
 }
 
+/* arc_audio's date / iso on a number of kind "date" that names one (absent otherwise, as there) */
+static void add_date(cJSON* o, const arc_result* r, int i) {
+  const arc_date* d = arc_number_date(r, i);
+  if (!d) return;
+  cJSON* x = cJSON_AddObjectToObject(o, "date");
+  add_value(x, "year", d->year != 0, d->year, 1);
+  add_value(x, "month", d->month != 0, d->month, 1);
+  add_value(x, "day", d->day != 0, d->day, 1);
+  add_str_or_null(o, "iso", d->iso);
+}
+
 static cJSON* numbers_json(const arc_result* r) {
   cJSON* a = cJSON_CreateArray();
   for (int i = 0; i < r->n_numbers; ++i) {
@@ -399,6 +410,7 @@ static cJSON* numbers_json(const arc_result* r) {
     cJSON_AddStringToObject(o, "state", m->state ? m->state : "");
     add_num(o, "start", m->start, 3);
     add_num(o, "end", m->end, 3);
+    add_date(o, r, i);
     cJSON_AddItemToArray(a, o);
   }
   return a;
@@ -483,6 +495,7 @@ static cJSON* arc_json_record(const arc_result* r, const char* domain) {
     add_value(x, "value2", m->has_value2, m->value2, m->value2_int);
     cJSON_AddStringToObject(x, "state", m->state);
     add_str_or_null(x, "kind_head", m->kind_head);
+    add_date(x, r, i);
     cJSON_AddItemToArray(nu, x);
   }
   cJSON_AddItemToObject(o, "audio_events", events_json(r->events, r->n_events));

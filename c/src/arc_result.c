@@ -61,6 +61,7 @@ void arc_arena_free(arc_arena* a) {
 typedef struct {
   arc_result r;   /* first: arc_result_free gets this pointer */
   arc_arena* a;
+  const arc_date* dates;   /* parallel to r.numbers, or NULL */
 } result_full;
 
 arc_result_build* arc_result_new(int n_utts) {
@@ -230,10 +231,18 @@ arc_result* arc_result_finish(arc_result_build* b, float audio_s, float wall_ms)
   r->names = b->names;       /* built in the arena */
   r->n_numbers = b->n_numbers;
   r->numbers = b->numbers;
+  full->dates = b->dates;
   arc_free(b->u);
   arc_free(b->ev);
   arc_free(b);
   return r;
+}
+
+const arc_date* arc_number_date(const arc_result* r, int i) {
+  if (!r || i < 0 || i >= r->n_numbers) return NULL;
+  const arc_date* d = ((const result_full*)r)->dates;
+  if (!d || !(d[i].year || d[i].month || d[i].day)) return NULL;
+  return &d[i];
 }
 
 void arc_result_free(arc_result* r) {

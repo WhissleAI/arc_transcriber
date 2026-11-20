@@ -125,6 +125,17 @@ static void print_names_numbers(const arc_result* r) {
     if (m->has_value2) jnum(m->value2, m->value2_int); else printf("null");
     printf(", \"state\": \"%s\", \"kind_head\": ", m->state);
     jstr_or_null(m->kind_head);
+    const arc_date* d = arc_number_date(r, i);
+    if (d) {   /* arc_audio's date / iso, only on a date record that names one */
+      printf(", \"date\": {\"year\": ");
+      if (d->year) printf("%d", d->year); else printf("null");
+      printf(", \"month\": ");
+      if (d->month) printf("%d", d->month); else printf("null");
+      printf(", \"day\": ");
+      if (d->day) printf("%d", d->day); else printf("null");
+      printf("}, \"iso\": ");
+      jstr_or_null(d->iso);
+    }
     printf("}");
   }
   printf("]");

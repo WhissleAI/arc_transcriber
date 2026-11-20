@@ -37,7 +37,7 @@ endif
 SRC := $(filter-out src/arc_nft2_ort.c src/arc_nft2_none.c,$(wildcard src/*.c)) $(NFT2_BE)
 HDR := $(wildcard src/*.h include/*.h)
 OBJ := $(patsubst src/%.c,$(B)/%.o,$(SRC))
-UNIT := test_num test_ntext test_tidy test_post test_echo
+UNIT := test_num test_ntext test_tidy test_date test_post test_echo
 TESTS := $(UNIT) test_moon test_tok test_transcribe test_full store_hash test_whole_long test_score test_stream
 
 all: $(B)/libarc.a $(B)/arc-transcribe $(B)/arc-stream $(B)/arc-score $(B)/arc-parity $(B)/arc-trim $(B)/arc-nft2 $(B)/nft2-app-example $(addprefix $(B)/,$(TESTS))
@@ -67,11 +67,12 @@ $(B)/store_hash: tests/store_hash.c $(B)/libarc.a
 $(B):
 	mkdir -p $(B)
 
-# unit tests against arc_audio's own outputs (fixtures in tests/data, made by tools/dump_{num,ntext,tidy,post,echo}.py)
+# unit tests against arc_audio's own outputs (fixtures in tests/data, made by tools/dump_{num,ntext,tidy,date,post,echo}.py)
 test: $(addprefix $(B)/,$(UNIT))
 	$(B)/test_num tests/data/num.jsonl
 	$(B)/test_ntext tests/data/ntext.jsonl
 	$(B)/test_tidy tests/data/tidy.jsonl
+	$(B)/test_date tests/data/date.jsonl
 	$(B)/test_post tests/data/post.jsonl
 	$(B)/test_echo tests/data/echo.json ../examples/example_synth.wav
 

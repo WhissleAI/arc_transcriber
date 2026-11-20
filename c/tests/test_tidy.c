@@ -52,7 +52,7 @@ int main(int argc, char** argv) {
     } else if (!strcmp(k, "phrase")) {
       char* c = arc_clean_text(in);
       check(!strcmp(c, arc_json_str(arc_json_get(j, "clean"), "")), "clean_text", in, c, arc_json_str(arc_json_get(j, "clean"), ""));
-      char* t = arc_tidy_number(in);
+      char* t = arc_tidy_number(in, NULL);
       check(!strcmp(t, arc_json_str(arc_json_get(j, "num"), "")), "tidy_number", in, t, arc_json_str(arc_json_get(j, "num"), ""));
       int kp = arc_keep_number(0, in), want = (int)arc_json_num(arc_json_get(j, "keep"), 0);
       check(kp == want, "keep_number", in, kp ? "1" : "0", want ? "1" : "0");

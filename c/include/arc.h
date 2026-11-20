@@ -30,7 +30,7 @@ extern "C" {
  * counts); new functions alone do not change it. A binding generated from this header should compare it with
  * arc_abi_version() of the library it loads. ARC_VERSION is for people (logs). */
 #define ARC_ABI_VERSION 2
-#define ARC_VERSION "1.3.0"
+#define ARC_VERSION "1.3.1"
 int arc_abi_version(void);
 const char* arc_version(void);
 
@@ -265,6 +265,16 @@ int arc_score(arc_engine* e, const float* pcm, size_t n, const char* const* text
 /* A whole clip (16 kHz mono float, any length). NULL on failure (arc_last_error). */
 arc_result* arc_transcribe(arc_engine* e, const float* pcm, size_t n, const arc_options* opt);
 void arc_result_free(arc_result* r);
+
+/* The date a number of kind "date" names (arc_audio's date / iso fields): its heard words then cover the month too
+ * ("March third", "the third of March", "March third, twenty twenty four"). year / month / day 0: not said; iso
+ * "2024-03-03", "--03-03" (month and day), "2024-03", "2024", or NULL for a day alone. Returns NULL when numbers[i]
+ * carries no date. Valid until arc_result_free. (A function rather than arc_number fields, so the ABI stays 2.) */
+typedef struct {
+  int year, month, day;
+  const char* iso;
+} arc_date;
+const arc_date* arc_number_date(const arc_result* r, int i);
 const char* arc_last_error(void);
 
 /* ================================================================ load options, streaming
