@@ -58,6 +58,7 @@ typedef struct {
   float leak;          /* playback leak, -1: none */
   int playback;
   char* tagger_json;
+  const char* speaker;   /* the diarization turn it overlaps most (in the result's arena), or NULL */
 } arc_utt_build;
 /* frees an utterance build's NFT2 read-outs and its words' (arc_result_finish / streams) */
 void arc_utt_post_free(arc_utt_build* u);
@@ -80,6 +81,11 @@ typedef struct {
   arc_number* numbers;   /* in the arena */
   int n_numbers;
   arc_date* dates;       /* in the arena, one per number (year = month = day = 0: none), or NULL */
+  int has_speakers;      /* the trunk ran and these weights have a speaker read-out */
+  arc_speaker* speakers; /* in the arena (engine.py speaker_summary) */
+  int n_speakers;
+  arc_speaker_turn* turns;   /* in the arena (engine.py diarization) */
+  int n_turns;
 } arc_result_build;
 
 arc_result_build* arc_result_new(int n_utts);
@@ -214,5 +220,10 @@ long arc_live_trunk_frames(const arc_live* L);   /* trunk frames read out */
 float arc_live_directed(arc_live* L, long a, long b);
 /* tags of the trunk utterance overlapping [start, end) most into u (dd, cc, intent, act); *settled 1 when final */
 int arc_live_tags(arc_live* L, float start, float end, arc_utt_build* u, int* settled);
+/* the speakers so far into arena a (engine.py speaker_summary; the diarization turns, the open one included): 0, or -1
+ * (no speaker read-out) */
+int arc_live_speakers(arc_live* L, arc_arena* a, const arc_speaker** sp, int* nsp, const arc_speaker_turn** tu, int* ntu);
+/* the turn overlapping [start, end) most (arc_transcriber output.py lines_of), or NULL */
+const char* arc_turn_speaker(const arc_speaker_turn* tu, int n, double start, double end);
 
 #endif

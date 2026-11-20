@@ -141,4 +141,40 @@ static void print_names_numbers(const arc_result* r) {
   printf("]");
 }
 
+/* arc_audio's "speakers" ({"S1": {"groups": {"speaker.role": {"label", "p"}}, "tags": {}, "last_seen"}}) and
+ * "diarization" ([{"speaker", "start", "end"}]); nothing when the result has no speaker read-out */
+static void print_speakers(const arc_result* r) {
+  const arc_speaker* sp;
+  const arc_speaker_turn* tu;
+  int ns = arc_speakers(r, &sp), nt = arc_diarization(r, &tu);
+  if (ns < 0) return;
+  printf(", \"speakers\": {");
+  for (int i = 0; i < ns; ++i) {
+    printf("%s", i ? ", " : "");
+    jstr(sp[i].id);
+    printf(": {\"groups\": {");
+    for (int k = 0; k < sp[i].n_groups; ++k) {
+      printf("%s", k ? ", " : "");
+      jstr(sp[i].groups[k].group);
+      printf(": {\"label\": ");
+      jstr(sp[i].groups[k].label);
+      printf(", \"p\": %.4f}", sp[i].groups[k].p);
+    }
+    printf("}, \"tags\": {");
+    for (int k = 0; k < sp[i].n_tags; ++k) {
+      printf("%s", k ? ", " : "");
+      jstr(sp[i].tags[k].label);
+      printf(": %.4f", sp[i].tags[k].p);
+    }
+    printf("}, \"last_seen\": %.1f}", sp[i].last_seen);
+  }
+  printf("}, \"diarization\": [");
+  for (int i = 0; i < nt; ++i) {
+    printf("%s{\"speaker\": ", i ? ", " : "");
+    jstr(tu[i].speaker);
+    printf(", \"start\": %.1f, \"end\": %.1f}", tu[i].start, tu[i].end);
+  }
+  printf("]");
+}
+
 #endif

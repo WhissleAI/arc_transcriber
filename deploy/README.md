@@ -54,6 +54,7 @@ attributes (`X-Amzn-SageMaker-Custom-Attributes: domain=nba;response_format=text
 | `domain` | `unknown` (`ARC_DOMAIN`) | Arc's domain: `assistant`, `meeting`, `talk`, `news`, `nba`, `nfl`, `nhl`, `soccer`, `cricket`, `esports`, `stream_chat`, `court_trial`, ... |
 | `language` | | only `en` (Arc Mini is English); anything else is refused with 400 |
 | `events`, `words`, `trunk`, `link_names`, `numbers` | `true` | switch read-outs off to save time |
+| `diarization` | `auto` | speaker turns: `auto` (by domain, as arc_audio: `meeting` / `news` / `talk` use `voice`, `nhl` / `cricket` / `esports` / `court_appellate` use `fused`, the rest `slots`), `slots`, `fused`, `voice` |
 | `one_utterance` | `false` | decode the clip as one utterance (a held-key command) |
 | `beams` | 4 | beam width (1 = greedy) |
 | `model`, `temperature` | | accepted and ignored (OpenAI clients send them) |
@@ -68,6 +69,10 @@ ws://host:8080/v1/realtime?domain=assistant&partials=400&events=1
 -> {"type":"session.update","session":{"names":[...],"prompt":"..."}}   {"type":"input_audio_buffer.commit"}   {"type":"input_audio_buffer.finish"}
 <- session.created, transcript.partial, transcript.endpoint, transcript.final, transcript.tags, event, frame (frames=1), session.closed, error
 ```
+
+Finals and tags records carry `speaker` (the diarization turn so far that the utterance overlaps most, the open turn
+included); `session.closed` carries the stream's `speakers` and `diarization`, identical to a transcription of the same
+audio. `diarization=` works as for files.
 
 A session holds one engine for its lifetime. Names / numbers linking is not done in streams (libarc: linking needs
 the word times of a whole utterance; use the file route for it).
@@ -135,17 +140,18 @@ CUDA path after the CPU one. See [`platforms/nim/`](platforms/nim/README.md).
 
 ## Model card (draft)
 
-**Model**: Arc Mini (Arc v1.1, `WhissleAI/arc-v1.1`, folder `mini/`), served by libarc 1.3.1. Moonshine-streaming-tiny
+**Model**: Arc Mini (Arc v1.1, `WhissleAI/arc-v1.1`, folder `mini/`), served by libarc 1.4.0. Moonshine-streaming-tiny
 speech encoder and decoder (4-bit packed) plus Arc's trunk and heads; 68 MB of weights.
 
 **Does**: English transcripts, punctuated and cased, with inline tags on names, numbers and contacts and word times;
 names linked to a caller-supplied list (with kinds, groups, aliases; also biases the decoder); numbers with values
 (scores, durations, times of day, money, ordinals, dates, ...); per-utterance device-directed, intent and dialogue-act
-read-outs; sound and channel events (silence, telephone / narrowband, clipping, ...); n-best alternatives; streaming
-with partials and finals.
+read-outs; sound and channel events (silence, telephone / narrowband, clipping, ...); speakers (diarization turns, each
+segment's speaker, a role read-out per speaker); n-best alternatives; streaming with partials and finals.
 
-**Does not (in this C build)**: languages other than English; speakers / diarization and speaker roles (arc_audio has
-them; libarc has not ported them, so the service returns no speaker field); names / numbers linking inside streams;
+**Does not (in this C build)**: languages other than English; names / numbers linking inside streams; arc_audio's
+AliasIndex list check (a bare part of one entry's name, "Daniel" for "Daniel Brooks", stays not_in_list / abstain where
+arc_audio links it with via "partial"; the conformance run carries it as a KNOWN gap);
 Arc Transcriber (full, Parakeet backbone) and its accuracy; compressed audio formats (send WAV or PCM).
 
 **Checked against the Python reference** (from `c/README.md`): golden parity on `tests/golden/mini.json` (transcript,
@@ -164,6 +170,15 @@ were measured with arc_audio; libarc reproduces arc_audio's decisions on the cli
 five") keeps the month in `heard` and carries `date` ({year, month, day}) and `iso` ("--03-03"), as arc_audio does.
 libarc 1.3.0 did not (its `heard` was "third"); this service's conformance run found it, and libarc 1.3.1 closes it.
 
+**Speakers** (libarc 1.4.0): `verbose_json` and `arc_json` carry arc_audio's `speakers` and `diarization`, and each
+segment its `speaker` (the turn it overlaps most, as arc_transcriber's lines). They come from Arc Mini's own heads (no
+extra model, no new weights): the slot state machine (turns "S1", "S2" ...) or, in the TrackBank domains, the voice
+embedding head (turns "T1", "T2" ...). On Arc Mini's synthetic multi-voice clips the slot machine mostly keeps one "S1"
+for several TTS voices, while the TrackBank (`meeting`, or `diarization=voice`) separates them; arc_audio does exactly
+the same, which is what parity means here. Checked: turns, speaker ids, role labels identical to arc_audio and role p
+within 1e-4 (4-decimal rounding) on every clip of the conformance run and 16 more multi-voice clip runs (`unknown`,
+`meeting`, `nhl`, `cricket`); realtime `session.closed` equals the offline result.
+
 **Licence**: code and weights CC BY-NC 4.0 with the Whissle terms ([LICENSE](../LICENSE)); Moonshine-streaming-tiny inside
 `mini/` is MIT. Commercial use, including a paid marketplace listing, needs Whissle's commercial licence: the listing's
 EULA must be Whissle's commercial terms, not CC BY-NC.
@@ -179,7 +194,9 @@ It builds the binary (`nice -n 19`, `make -j2`), starts it, and checks every rou
 contract, resampled and raw-PCM input, SageMaker `/invocations` (audio, JSON, batch, JSON lines), Snowflake rows
 (base64 and stage files, path traversal refused), realtime (finals equal the offline transcript), concurrency, and
 **parity with arc_audio** on the same audio: `c/tools/dump_names.py` (Python) vs the server's `arc_json`, compared with
-`c/tools/compare_names.py` (text, every word with times to 1 ms and inline tags, every name and number). Clips:
-`examples/example_synth.wav` with its names list, three clips synthesized with the OS text-to-speech (written to files,
-never played), a tone and silence. With a running Docker daemon it repeats everything against the image, after
+`c/tools/compare_names.py` (text, every word with times to 1 ms and inline tags, every name and number, the speakers,
+the diarization turns and each utterance's speaker). Clips: `examples/example_synth.wav` with its names list, three
+clips synthesized with the OS text-to-speech and two two- / three-voice dialogues (written to files, never played; the
+dialogues in `unknown`, `meeting` and `nhl`, one slot and two TrackBank set-ups), a tone and silence. Realtime also
+checks the dialogues' speakers (`unknown`, `meeting`). KNOWN, reported but not failed: the AliasIndex names gap above. With a running Docker daemon it repeats everything against the image, after
 checking that the image starts and is ready with `--network none`; it never starts Docker itself.

@@ -139,6 +139,7 @@ and the latency of each kind of record.
 | **Names**: decoder tag spans → pointer head (NameEncoder char CNN, span text embedding, similarity features) → rescorer (fuzzy + metaphone similarity, team / recent terms) → name policy; list snapping of unlinked names and capitalised phrases | `engine.py`, `model.py`, `rescorer.py`, `namesim.py`, `textlayer.py`, `kbsnap.py` | `arc_link.c`, `arc_ntext.c` | see below |
 | **Numbers**: decoder tag spans → number words → value heads (word tokens, unit) and the words' own value; extend_number | `engine.py`, `numvalue.py`, `numlib.py`, `textlayer.py`, `api.py` | `arc_link.c`, `arc_num.c` | see below |
 | Output tidying (word edges, names trimmed to the mention, de-duplication; number words) | `tidy.py` | `arc_tidy.c` | 98/98 cases |
+| **Speakers**: the slot state machine's turns and speaker index, the speaker query over each speaker's pooled frames (role), the diar embedding head and the TrackBank (`fused` / `voice` domains), each utterance's speaker (the turn it overlaps most) | `engine.py` (`_spk_utt`, `_decode_frame`, `_bank_step`, `speaker_summary`), `model.py` (`pool_speaker`, `DiarHeads`), `trackbank.py`, arc_transcriber `output.py` (`lines_of`) | `arc_speaker.c`, `arc_engine.c` | 16/16 unit checks (4 clips × 3 modes); server parity on speakers and turns, see `deploy/README.md` |
 | **Dates**: a date number covers its month ("March third", "the third of March", with or without a year) and names the date (year / month / day, ISO) | `written.py` (parse_date, date_iso), `api.py` (extend_date), `tidy.py` | `arc_date.c` | 169/169 checks |
 
 **Golden parity** (the release's own port check, `tests/golden/mini.json` with `scripts/check_parity.py`):
@@ -180,6 +181,7 @@ build/test_num   tests/data/num.jsonl     3215/3215   numlib / numvalue / textla
 build/test_ntext tests/data/ntext.jsonl   7849/7849   rescorer, namesim, ExactNames, kbsnap, metaphone, difflib, NFKD (tools/dump_ntext.py)
 build/test_tidy  tests/data/tidy.jsonl      98/98     tidy.py (tools/dump_tidy.py)
 build/test_date  tests/data/date.jsonl    169/169    spoken dates: written.parse_date / date_iso, api.extend_date (tools/dump_date.py)
+build/test_speaker tests/data/speakers.jsonl 16/16  diarization turns (slots, fused, voice) and speaker indices on 4 multi-voice clips (tools/dump_speakers.py)
 ```
 
 The metaphone is checked against `jellyfish.metaphone` (an arc_audio dependency) on 1,850 cases and on all 471,967
@@ -297,6 +299,18 @@ from; compare them with the header you compile against.
   "2024-03-03", "2024"; NULL for a day alone), as arc_audio's `date` / `iso` fields. NULL when the number names no date.
   A function, not new `arc_number` fields, so the ABI stays 2.
 
+- **Speakers** (1.4.0): `arc_speakers(r, &sp)` gives arc_audio's `speakers` (id "S1" ..., the best `speaker.role`
+  label and p of the speaker query over the speaker's pooled frames, `last_seen`), `arc_diarization(r, &turns)` its
+  `diarization` turns (`speaker`, `start`, `end`), and `arc_utt_speaker(r, i)` the turn utterance i overlaps most (the
+  speaker arc_transcriber prints on each line). All from Arc Mini's own heads, no extra model: the diarization slot head
+  with the engine's state machine (turns "S<k>"), or in the domains config.json names (`meeting`, `news`, `talk`:
+  `voice`; `nhl`, `cricket`, `esports`, `court_appellate`: `fused`) the diar embedding head with the TrackBank (turns
+  "T<k>"). `arc_set_diarization(e, "auto" | "slots" | "fused" | "voice")` overrides, as `predict(diarization=...)`.
+  Streams: `arc_stream_speakers` / `arc_stream_diarization` (so far, the open turn included; after `arc_stream_finish`
+  identical to `arc_transcribe`) and `arc_stream_speaker(s, start, end)` for a FINAL's speaker. Functions, so the ABI
+  stays 2. Cost: two 512×512 layers per 100 ms frame (plus a 256-wide embedding MLP in the TrackBank domains), next to
+  the trunk's dozens per frame and the decoder's far more; no new weights (all in `model.q4.safetensors`).
+
 - **Words** (`arc_word`): `conf` (the RNNT's unbiased probability of the word's least likely token), `alts` / `alt_p`
   (the runner-up spelling; with `options.nbest = 4`, also the words other beam hypotheses have there) and `disfl`
   (`filler` / `repeat` / `fragment`).
@@ -389,8 +403,8 @@ feature chunks, as arc_audio does.
 arc_audio has these and libarc does not: in streams (other than live NFT2 events), early commit and names / numbers (linking needs the word times
 of a whole utterance; EXTERNAL words get the utterance read-out, not word-sourced names), the builtin fallback for
 external words, the
-`moonshine_release` and `parakeet` transcript tiers, speaker read-outs and diarization beyond the slot state machine
-(`voice` / `fused` modes, roles), segments, bio events, trunk span tags (`spans`), the `frames` output of `predict`
+`moonshine_release` and `parakeet` transcript tiers, `Stream.add_voice_segment` / `voice_roles` (roles for voice
+segments an app supplies), segments, bio events, trunk span tags (`spans`), the `frames` output of `predict`
 other than `arc_frames_compute`, and the full backbone. Text handling is exact for ASCII; non-ASCII text follows
 Python for the cases the tests cover (accented Latin names fold as NFKD does; lower-casing is ASCII-only).
 

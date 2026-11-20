@@ -1,8 +1,9 @@
 /* arc-transcribe: WAV files (16 kHz mono; other rates are not resampled here) through libarc, printed as text: each
  * utterance with its tags and readout, the linked names and numbers, the sound events, timing and peak memory; or
- * with --json one JSON line per file (transcript with word times, names, numbers, events).
+ * with --json one JSON line per file (transcript with word times and each utterance's speaker, names, numbers, events,
+ * speakers and diarization).
  *   arc-transcribe MINI_DIR file.wav [file.wav ...] [--domain D] [--names list.json] [--context "A,B"] [--whole]
- *                  [--no-trunk] [--words] [--json] [--threads N]
+ *                  [--no-trunk] [--words] [--json] [--threads N] [--diarization auto|slots|fused|voice]
  * --names: a list as examples/example_names.json (strings or {"name", "kind", "group", "aliases"}); names are linked
  * to it and the decoder is biased towards it, as Arc.predict(names=...). --context: names for the decoder's context
  * prompt (and bias) only. Part of arc_transcriber (Whissle Inc.), CC BY-NC 4.0; see LICENSE. */
@@ -22,13 +23,14 @@ static const char* base(const char* p) {
 int main(int argc, char** argv) {
   if (argc < 3) {
     fprintf(stderr, "usage: arc-transcribe MINI_DIR file.wav [file.wav ...] [--domain D] [--names list.json] "
-                    "[--context A,B] [--whole] [--no-trunk] [--words] [--json] [--threads N]\n");
+                    "[--context A,B] [--whole] [--no-trunk] [--words] [--json] [--threads N] [--diarization auto|slots|fused|voice]\n");
     return 2;
   }
   const char* domain = "unknown";
   const char* names_path = NULL;
   char* ctx = NULL;
   int whole = 0, trunk = 1, threads = 4, json = 0, words = 0;
+  const char* diar = NULL;
   const char* files[4096];
   int nf = 0;
   for (int i = 2; i < argc; ++i) {
@@ -40,6 +42,7 @@ int main(int argc, char** argv) {
     else if (!strcmp(argv[i], "--words")) words = 1;
     else if (!strcmp(argv[i], "--json")) json = 1;
     else if (!strcmp(argv[i], "--threads") && i + 1 < argc) threads = atoi(argv[++i]);
+    else if (!strcmp(argv[i], "--diarization") && i + 1 < argc) diar = argv[++i];
     else if (nf < 4096) files[nf++] = argv[i];
   }
   double t0 = arc_time_ms();
@@ -47,6 +50,7 @@ int main(int argc, char** argv) {
   arc_engine* e = arc_create(argv[1], threads, err, sizeof err);
   if (!e) { fprintf(stderr, "arc: %s\n", err); return 1; }
   double t_load = arc_time_ms() - t0;
+  if (diar && arc_set_diarization(e, diar)) { fprintf(stderr, "arc: %s\n", arc_last_error()); return 1; }
   const char* nm[256];
   int nn = 0;
   if (ctx) {
@@ -98,10 +102,15 @@ int main(int argc, char** argv) {
         if (u->intent.label) printf(", \"intent\": [\"%s\", %.4f]", u->intent.label, u->intent.p);
         if (u->act.label) printf(", \"act\": [\"%s\", %.4f]", u->act.label, u->act.p);
         if (u->device_directed >= 0) printf(", \"device_directed\": %.4f", u->device_directed);
+        if (arc_speakers(r, NULL) >= 0) {   /* the turn the utterance overlaps most (arc_transcriber's lines) */
+          printf(", \"speaker\": ");
+          jstr_or_null(arc_utt_speaker(r, i));
+        }
         printf("}");
       }
       printf("], ");
       print_names_numbers(r);
+      print_speakers(r);
       printf(", \"audio_events\": [");
       for (int i = 0; i < r->n_events; ++i)
         printf("%s{\"label\": \"%s\", \"start\": %.1f, \"end\": %.1f, \"p\": %.4f}", i ? ", " : "", r->events[i].label,
@@ -112,7 +121,8 @@ int main(int argc, char** argv) {
       if (nf > 1) printf("== %s\n", files[fi]);
       for (int i = 0; i < r->n_utts; ++i) {
         const arc_utt* u = &r->utts[i];
-        printf("[%6.2f-%6.2f] %s\n", u->start, u->end, u->text);
+        const char* who = arc_utt_speaker(r, i);
+        printf("[%6.2f-%6.2f]%s%s%s %s\n", u->start, u->end, who ? " " : "", who ? who : "", who ? ":" : "", u->text);
         for (int k = 0; k < u->n_tags; ++k) printf("    %s: %s\n", u->tags[k].tag, u->tags[k].text);
         int any = 0;
         if (u->intent.label) any += printf("    intent %s %.3f", u->intent.label + 17, u->intent.p);
@@ -143,6 +153,16 @@ int main(int argc, char** argv) {
       }
       for (int i = 0; i < r->n_events; ++i)
         printf("event %s %.1f-%.1f p=%.3f\n", r->events[i].label, r->events[i].start, r->events[i].end, r->events[i].p);
+      const arc_speaker* sp;
+      int nsp = arc_speakers(r, &sp);
+      for (int i = 0; i < nsp; ++i) {
+        printf("speaker %s (last %.1f s)", sp[i].id, sp[i].last_seen);
+        for (int k = 0; k < sp[i].n_groups; ++k) printf(" %s %.3f", sp[i].groups[k].label, sp[i].groups[k].p);
+        printf("\n");
+      }
+      const arc_speaker_turn* tu;
+      int ntu = arc_diarization(r, &tu);
+      for (int i = 0; i < ntu; ++i) printf("turn %s %.1f-%.1f\n", tu[i].speaker, tu[i].start, tu[i].end);
       fprintf(stderr, "load %.0f ms; %.2f s of audio in %.0f ms (RTF %.3f); peak RSS %zu MB\n", t_load, r->audio_s,
               r->wall_ms, r->wall_ms / 1000 / (r->audio_s > 0 ? r->audio_s : 1), arc_peak_rss_kb() / 1024);
     }
