@@ -103,6 +103,6 @@ gives SageMaker these defaults (`MaxConcurrentTransforms` = `ARC_WORKERS`).
       `ml.m6i.*`; add Graviton types only after testing the arm64 image on them.
 - [ ] **Listing content**: description and the model card (`../../README.md`), usage instructions (this file), sample
       input and output, a sample notebook (invoke-endpoint and a batch transform), support contact, and the known
-      limits (English only, WAV / PCM input, 6 MB real-time payloads, no speaker read-out).
+      limits (English only, WAV / PCM input, 6 MB real-time payloads; speakers and diarization since libarc 1.4.0).
 - [ ] **Pro tier later**: a second model package from the same Dockerfile with the Pro weights bundled and
       `MODEL_ID=arc-pro`, listed as a separate product or version.
