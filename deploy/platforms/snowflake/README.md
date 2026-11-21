@@ -30,3 +30,7 @@ Notes:
   `{"error": ...}` as their value instead of failing the whole batch.
 - Keep `MAX_BATCH_ROWS` small for audio (each row is a whole clip); one replica handles `ARC_WORKERS` clips at a time.
 - `CPU_X64_S` / `CPU_X64_M` pools fit Arc Mini (about 180 MB for a 30 s clip with every read-out; more for long files).
+
+To list on the Snowflake Marketplace, [`native_app/`](native_app/README.md) wraps the combined image (transcriber +
+tagger) as a **Native App**: manifest, setup script (application roles, versioned schema, compute pool, service,
+`TRANSCRIBE` / `TAGS` service functions), a SQL quick start and the provider steps.

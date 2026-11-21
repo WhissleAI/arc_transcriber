@@ -5,6 +5,10 @@ arc-serve implements SageMaker's inference container contract: started as `docke
 transform. It reads the model from `/opt/ml/model` and makes no network calls, so it runs with
 `EnableNetworkIsolation: true` (required for Marketplace model packages).
 
+Also here: [`sample_notebook.ipynb`](sample_notebook.ipynb), the buyer notebook Marketplace asks for (subscribe, model
+from the model package ARN, real-time endpoint, invoke with a WAV, batch transform, clean up), and
+[`combined/`](combined/README.md), the model package for the transcriber + tagger image (`Dockerfile.combined`).
+
 ## Model artifacts (`model.tar.gz`)
 
 With the **runtime** image, SageMaker downloads `ModelDataUrl` and unpacks it into `/opt/ml/model`. Either layout works:
@@ -102,7 +106,8 @@ gives SageMaker these defaults (`MaxConcurrentTransforms` = `ARC_WORKERS`).
 - [ ] **Instance types**: list only CPU types (Arc Mini has no GPU path), e.g. `ml.c6i.large`-`ml.c6i.4xlarge`,
       `ml.m6i.*`; add Graviton types only after testing the arm64 image on them.
 - [ ] **Listing content**: description and the model card (`../../README.md`), usage instructions (this file), sample
-      input and output, a sample notebook (invoke-endpoint and a batch transform), support contact, and the known
-      limits (English only, WAV / PCM input, 6 MB real-time payloads, no speaker read-out).
+      input and output, the sample notebook ([`sample_notebook.ipynb`](sample_notebook.ipynb): model package, endpoint,
+      invoke, batch transform, clean up), support contact, and the known
+      limits (English only, WAV / PCM input, 6 MB real-time payloads).
 - [ ] **Pro tier later**: a second model package from the same Dockerfile with the Pro weights bundled and
       `MODEL_ID=arc-pro`, listed as a separate product or version.

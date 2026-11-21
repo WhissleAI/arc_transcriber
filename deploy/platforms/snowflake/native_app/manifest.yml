@@ -1,0 +1,37 @@
+# Snowflake Native App manifest: Whissle Arc (Arc Mini transcriber + Arc Tagger) on Snowpark Container Services.
+# The app runs the combined image (deploy/Dockerfile.combined --target bundled) as a service in the consumer's account.
+# It requests a compute pool and a warehouse, and NOTHING else: no external access integration, no public endpoint
+# (so no BIND SERVICE ENDPOINT), no references to consumer objects. The container makes no outbound calls.
+# Part of arc_transcriber (Whissle Inc.), CC BY-NC 4.0 with the Whissle terms; see LICENSE.
+manifest_version: 2
+
+version:
+  name: v0_1_0
+  label: "0.1.0"
+  comment: "Arc Mini (libarc 1.4.1) + Arc Tagger v0.4.1, CPU"
+
+artifacts:
+  setup_script: setup_script.sql
+  readme: README.md            # the consumer-facing readme (app_readme.md in this folder; snowflake.yml renames it)
+  container_services:
+    # Must match the image in services/arc.yaml. The path is the provider's image repository:
+    # /<database>/<schema>/<image repository>/<image>:<tag>. Push it before `snow app run` / `snow app version create`.
+    images:
+      - /arc_db/arc/images/arc-transcriber-tagger:0.1.0
+
+configuration:
+  log_level: WARN
+  trace_level: "OFF"
+  # Runs once the consumer (or automated granting, manifest v2) gives the app the privileges below: creates the compute
+  # pool, warehouse, service and service functions. core.start_app() does the same by hand.
+  grant_callback: core.grant_callback
+
+lifecycle_callbacks:
+  # On upgrade: point the existing service at the new version's spec / image.
+  version_initializer: core.version_init
+
+privileges:
+  - CREATE COMPUTE POOL:
+      description: "Creates one CPU_X64_S compute pool (1 node) that runs the Arc service. Suspend or drop it with the app."
+  - CREATE WAREHOUSE:
+      description: "Creates one X-SMALL warehouse (auto-suspend 60 s, initially suspended) set as the service's query warehouse. The container never queries, so it stays suspended."
