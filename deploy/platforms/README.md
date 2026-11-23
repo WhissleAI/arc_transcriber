@@ -1,13 +1,81 @@
-# Platform adapters
+# Platforms and marketplace listings
 
-One image, one contract ([`../openapi.yaml`](../openapi.yaml)); each platform only differs in where the weights come
-from, which port and health route it probes, and how requests reach the container.
+One image, one contract ([`../openapi.yaml`](../openapi.yaml)). Platforms differ only in where the weights come from,
+which health route they probe, and how requests reach the container. The server never reaches the network, so every
+platform's network isolation works as is.
 
-| platform | weights | port / health | requests | status |
+This page is the single place for marketplace status and listing checklists. Each folder has the how-to.
+
+## Status
+
+| platform | guide | weights | health | status |
 |---|---|---|---|---|
-| [Hugging Face Inference Endpoints](huggingface/README.md) | the model repo, mounted at `/repository` (runtime image) | 8080, `/v1/health/ready` | `/v1/audio/transcriptions`, `/v1/realtime` | ready to try |
-| [Amazon SageMaker / AWS Marketplace](sagemaker/README.md) | `model.tar.gz` at `/opt/ml/model`, or inside the image (bundled) | 8080, `/ping` | `/invocations` (real-time, batch transform) | ready to try; model packages for Arc Mini and the [combined](sagemaker/combined/README.md) image, [sample notebook](sagemaker/sample_notebook.ipynb); listing needs the checklist |
-| [Snowflake SPCS](snowflake/README.md) | inside the image (bundled) | 8080, `/v1/health/ready` | service functions -> `/v1/snowflake/transcribe` | ready to try (amd64); [Native App package](snowflake/native_app/README.md) for the Marketplace (untested in an account) |
-| [NVIDIA NIM](nim/README.md) | | NIM-style health / models routes exist | | blocked: no GPU path |
+| Hugging Face Inference Endpoints | [huggingface/](huggingface/README.md) | model repo mounted at `/repository` | `/v1/health/ready` | ready to try |
+| Amazon SageMaker / AWS Marketplace | [sagemaker/](sagemaker/README.md), [combined](sagemaker/combined/README.md) | `model.tar.gz` or bundled | `/ping` | packages for Arc Mini and Mini + Tagger, [sample notebook](sagemaker/sample_notebook.ipynb); not yet validated in an AWS account; not listed |
+| Snowflake (SPCS, Native App) | [snowflake/](snowflake/README.md), [native_app](snowflake/native_app/README.md) | bundled | `/v1/health/ready` | service ready to try (amd64); Native App package not yet run in an account; not listed |
+| NVIDIA NIM | [nim/](nim/README.md) | | | **blocked: CPU-only** (no GPU path) |
 
-The server never reaches the network, so every platform's network isolation works as is.
+## Checklist for every paid listing
+
+- [ ] **Licence**: code and weights are CC BY-NC 4.0. A paid or commercial listing needs Whissle's commercial EULA as
+      its terms, not CC BY-NC.
+- [ ] **Image** in the platform's registry, immutable version tags, scanned (critical / high findings cleared),
+      rebuilt on base-image security updates.
+- [ ] **No network at run time**: the conformance run checks readiness under `--network none`.
+- [ ] **Listing copy**: description and model card (below), usage (the platform guide), sample input and output,
+      support contact, limits.
+
+## AWS Marketplace (SageMaker model package)
+
+- [ ] Image in ECR in the seller account, in each listed region.
+- [ ] Model package from [`sagemaker/model-package.json`](sagemaker/model-package.json) (or
+      [`combined/`](sagemaker/combined/model-package.json)): content types, CPU instance types, `CertifyForMarketplace`,
+      and a validation batch transform on `examples/example_synth.wav` in S3.
+- [ ] Run the test endpoint and the validation transform in an AWS account before submitting.
+- [ ] Price per instance-hour in the listing; SageMaker meters, the container does not.
+- [ ] CPU instance types only (`ml.c6i.*`, `ml.m6i.*`); add Graviton only after testing the arm64 image.
+- [ ] Buyer notebook: [`sagemaker/sample_notebook.ipynb`](sagemaker/sample_notebook.ipynb).
+
+## Snowflake Marketplace (Native App)
+
+Steps in [snowflake/native_app/](snowflake/native_app/README.md#provider-steps).
+
+- [ ] First `snow app run` in a provider account: the service reaches `READY`, `services.transcribe` returns a
+      transcript and `arc_tags`, and the app owns no external access integration.
+- [ ] Confirm the parts written from Snowflake's docs but not yet run: manifest v2 keys and grant callback, the app
+      stage mounted as a volume, compute pool limits on `CPU_X64_S`.
+- [ ] Version registered, `DISTRIBUTION = EXTERNAL`, security review `APPROVED`, release directive set.
+- [ ] Provider profile approved; listing with `quickstart.sql` as the usage example; tested privately from a second
+      account.
+
+## Hugging Face
+
+- [ ] Check WebSocket support on the endpoint type before advertising `/v1/realtime`.
+- [ ] Check `endpoint.json` field names against the current Inference Endpoints API.
+
+## NVIDIA NIM
+
+Blocked. A NIM is a GPU container and libarc is CPU-only. See [nim/](nim/README.md) for the shortest GPU paths.
+
+## Listing copy (model card)
+
+**Model**: Arc Mini (`WhissleAI/arc-v1.1`, `mini/`), served by libarc 1.4.1 (ABI 2). About 71 MB of weights.
+
+**Does**: English transcripts, punctuated and cased, with inline tags and word times; names linked to a caller's list;
+numbers with values (scores, durations, times, money, dates); device-directed, intent and dialogue-act read-outs;
+sound and channel events; speakers and roles; n-best alternatives; streaming with partials and finals. The combined
+image adds Arc Tagger: PII spans and redaction, safety, intent, act, affect.
+
+**Does not**: languages other than English; names and numbers linking inside streams; Arc Transcriber (full);
+compressed audio (send WAV or PCM).
+
+**Checked**: libarc reproduces arc_audio's transcripts, tags, linked names and number values on the golden clip and
+609 clip runs; the server's conformance run checks parity again on its own clips.
+
+**Speed and memory** (Apple M3 Pro, 4 threads): real-time factor 0.026 (transcript only) to 0.046 (everything);
+loads in 30-90 ms; about 180 MB for a 30 s clip. Raspberry Pi 5: RTF 0.24-0.37 on 4 threads.
+
+**Accuracy**: on the [model card](https://huggingface.co/WhissleAI/arc-v1.1).
+
+**Licence**: CC BY-NC 4.0 with the Whissle terms ([LICENSE](../../LICENSE)); Moonshine-streaming-tiny inside `mini/`
+is MIT. Commercial use: ksingla@whissle.ai.
