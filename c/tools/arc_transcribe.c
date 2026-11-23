@@ -95,6 +95,13 @@ int main(int argc, char** argv) {
         const arc_utt* u = &r->utts[i];
         printf("%s{\"start\": %.1f, \"end\": %.1f, \"text\": ", i ? ", " : "", u->start, u->end);
         jstr(u->text);
+        printf(", \"alts\": [");   /* the decoder's n-best (beam), best first, with their share of the beam */
+        for (int k = 0; k < u->n_alts; ++k) {
+          printf("%s{\"text\": ", k ? ", " : "");
+          jstr(u->alts[k]);
+          printf(", \"p\": %.4f}", u->alt_scores ? u->alt_scores[k] : 0.0f);
+        }
+        printf("]");
         printf(", \"words\": [");
         for (int k = 0; k < u->n_words; ++k) {
           printf("%s{\"text\": ", k ? ", " : "");
