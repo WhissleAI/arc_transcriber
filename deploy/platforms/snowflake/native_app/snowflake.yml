@@ -1,0 +1,20 @@
+# Snowflake CLI project definition (`snow app run`, `snow app version create`, `snow app deploy`). Run from this folder.
+# Identifiers are the provider's choices; change them freely.
+definition_version: 2
+entities:
+  arc_pkg:
+    type: application package
+    identifier: arc_app_pkg
+    manifest: manifest.yml
+    artifacts:
+      - manifest.yml
+      - setup_script.sql
+      - services/arc.yaml
+      - src: app_readme.md
+        dest: README.md
+  arc_app:
+    type: application
+    identifier: arc_app
+    from:
+      target: arc_pkg
+    debug: false

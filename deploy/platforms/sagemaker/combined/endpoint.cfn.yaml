@@ -1,0 +1,55 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Arc Transcriber + Tagger (arc-serve-combined) test endpoint on SageMaker, network isolated.
+Parameters:
+  ImageUri:
+    Type: String
+    Description: ECR image arc-transcriber-tagger (bundled weights, or the runtime image plus ModelDataUrl)
+  ModelDataUrl:
+    Type: String
+    Default: ""
+    Description: s3://.../model.tar.gz holding mini/ and arc-tagger/ for the runtime image; empty for the bundled image
+  ExecutionRoleArn:
+    Type: String
+  InstanceType:
+    Type: String
+    Default: ml.c6i.xlarge
+  Workers:
+    Type: String
+    Default: "2"
+    Description: ARC_WORKERS (concurrent clips)
+  TaggerWorkers:
+    Type: String
+    Default: "2"
+    Description: ARCTAG_WORKERS (concurrent tagger handles)
+Conditions:
+  HasModelData: !Not [!Equals [!Ref ModelDataUrl, ""]]
+Resources:
+  Model:
+    Type: AWS::SageMaker::Model
+    Properties:
+      ExecutionRoleArn: !Ref ExecutionRoleArn
+      EnableNetworkIsolation: true
+      PrimaryContainer:
+        Image: !Ref ImageUri
+        ModelDataUrl: !If [HasModelData, !Ref ModelDataUrl, !Ref AWS::NoValue]
+        Environment:
+          ARC_WORKERS: !Ref Workers
+          ARCTAG_WORKERS: !Ref TaggerWorkers
+          ARC_MODEL_ID: arc-mini
+  EndpointConfig:
+    Type: AWS::SageMaker::EndpointConfig
+    Properties:
+      ProductionVariants:
+        - VariantName: AllTraffic
+          ModelName: !GetAtt Model.ModelName
+          InitialInstanceCount: 1
+          InstanceType: !Ref InstanceType
+          ContainerStartupHealthCheckTimeoutInSeconds: 180
+  Endpoint:
+    Type: AWS::SageMaker::Endpoint
+    Properties:
+      EndpointName: !Ref AWS::StackName
+      EndpointConfigName: !GetAtt EndpointConfig.EndpointConfigName
+Outputs:
+  EndpointName:
+    Value: !GetAtt Endpoint.EndpointName
