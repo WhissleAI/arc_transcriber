@@ -1,0 +1,61 @@
+# syntax=docker/dockerfile:1
+# Arc Transcriber (full: Parakeet-TDT 0.6B v2 encoder + Arc) on an NVIDIA GPU: the Python package (arc_audio, PyTorch CUDA)
+# behind arc_transcriber.serve, which answers the batch routes of deploy/openapi.yaml (no realtime WebSocket, no tagger).
+# UNTESTED ON A GPU: built and checked on CPU only. See deploy/README.md ("GPU image") for what is and is not covered.
+#
+#   # weights downloaded on first start into /opt/arc/hf (mount a volume there; pass HF_TOKEN: WhissleAI/arc-v1.1 is gated)
+#   docker buildx build --platform linux/amd64 -f deploy/Dockerfile.cuda --target runtime -t arc-transcriber:cuda .
+#   docker run --gpus all -p 8080:8080 -e HF_TOKEN -v arc-hf:/opt/arc/hf arc-transcriber:cuda
+#   # weights inside the image (the token is a build secret: it never lands in a layer)
+#   docker buildx build --platform linux/amd64 -f deploy/Dockerfile.cuda --target bundled \
+#       --secret id=hf_token,env=HF_TOKEN -t arc-transcriber:cuda-bundled .
+#
+# Arc Mini runs in the same image with -e ARC_BACKBONE=mini. Part of arc_transcriber (Whissle Inc.), CC BY-NC 4.0 with the
+# Whissle terms; see LICENSE. The Parakeet encoder is NVIDIA's (CC-BY-4.0).
+
+ARG CUDA_IMAGE=nvidia/cuda:12.8.1-runtime-ubuntu24.04
+
+FROM ${CUDA_IMAGE} AS runtime
+ARG TORCH_INDEX=https://download.pytorch.org/whl/cu128
+ARG VERSION=1.3.0
+RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-venv ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+ENV VIRTUAL_ENV=/opt/arc/venv PATH=/opt/arc/venv/bin:$PATH PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONUNBUFFERED=1
+# versions as tested on CPU (pyproject.toml); torch from PyTorch's CUDA 12.8 wheel index (bundles the CUDA user-space libraries)
+RUN python3 -m venv "$VIRTUAL_ENV" \
+ && pip install --index-url "$TORCH_INDEX" torch==2.11.0 \
+ && pip install transformers==5.19.0 safetensors==0.8.0 numpy==1.26.4 soundfile==0.14.0 huggingface_hub==2.2.0 \
+        rapidfuzz==3.14.5 jellyfish==1.0.1 num2words==0.5.14
+WORKDIR /src
+COPY pyproject.toml README.md LICENSE NOTICE ./
+COPY arc_audio arc_audio
+COPY arc_transcriber arc_transcriber
+RUN pip install --no-deps . && rm -rf /src && python -c "import arc_transcriber.serve"
+WORKDIR /opt/arc
+COPY LICENSE NOTICE /opt/arc/
+LABEL org.opencontainers.image.title="arc-transcriber-cuda" \
+      org.opencontainers.image.description="Arc Transcriber (full) speech-to-text with linked names, number values and tags (PyTorch, NVIDIA GPU)" \
+      org.opencontainers.image.vendor="Whissle Inc." \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.licenses="CC-BY-NC-4.0" \
+      org.opencontainers.image.source="https://github.com/WhissleAI/arc_transcriber" \
+      com.amazonaws.sagemaker.capabilities.accept-bind-to-port="true"
+RUN useradd --system --uid 10001 --home-dir /opt/arc --shell /usr/sbin/nologin arc \
+ && mkdir -p /opt/arc/hf && chown 10001:10001 /opt/arc/hf
+ENV HF_HOME=/opt/arc/hf PORT=8080 HOST=0.0.0.0 ARC_BACKBONE=full ARC_DEVICE=cuda ARC_ACCESS_LOG=1
+EXPOSE 8080
+USER 10001:10001
+# ready = the weights are loaded on the GPU (the first start downloads about 2.6 GB unless the image bundles them)
+HEALTHCHECK --interval=30s --timeout=5s --start-period=600s --retries=3 \
+  CMD ["python", "-c", "import os,sys,urllib.request as u; sys.exit(u.urlopen('http://127.0.0.1:%s/v1/health/ready' % os.environ.get('PORT', '8080'), timeout=4).status != 200)"]
+ENTRYPOINT ["python", "-m", "arc_transcriber.serve"]
+
+FROM runtime AS bundled
+USER 0:0
+# Arc (WhissleAI/arc-v1.1 at the package's pinned revision) and the Parakeet encoder at the commit Arc's config pins,
+# read-only, owned by root; the server then never downloads anything
+RUN --mount=type=secret,id=hf_token,required=true \
+    HF_TOKEN="$(cat /run/secrets/hf_token)" python -m arc_transcriber.serve --fetch-only --backbone "${ARC_BACKBONE}" \
+ && chown -R 0:0 /opt/arc/hf && chmod -R a+rX,go-w /opt/arc/hf
+ENV HF_HUB_OFFLINE=1
+USER 10001:10001

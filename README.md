@@ -19,7 +19,9 @@ read-outs every 100 ms.
 | **Arc Transcriber** (full) | `full` (aliases `parakeet`, `server`) | about 77 MB + NVIDIA Parakeet-TDT 0.6B v2 encoder (about 2.5 GB) | GPU recommended; CPU for files | best transcript and name accuracy |
 | **Arc Transcriber Space** | `nft2` | separate repo, see [docs/SPACE.md](docs/SPACE.md) | CPU (int8 ONNX) | voice apps about the Moon and space flight |
 
-English, 16 kHz mono (other rates are resampled). Weights download on first use.
+English, 16 kHz mono (other rates are resampled). Weights download on first use. Arc Transcriber (full) runs on NVIDIA
+GPUs through the Python package (`--device cuda`; recommended for servers and batch); Arc Mini runs on CPU on-device and
+can use a GPU too. Only the C library (libarc) and its server image are CPU-only today.
 
 ## Quickstart
 
@@ -65,7 +67,8 @@ Requirements: Python 3.10+, torch 2.1+, transformers 5.19+. Extras: `[live]` (mi
 | where | folder | what |
 |---|---|---|
 | C / C++ apps | [c/](c/README.md) | libarc: one header, no Python, runs Arc Mini and Arc Transcriber Space |
-| Hosted service | [deploy/](deploy/README.md) | `arc-serve`: OpenAI-compatible HTTP, WebSocket, distroless image |
+| Hosted service | [deploy/](deploy/README.md) | `arc-serve`: OpenAI-compatible HTTP, WebSocket, distroless image (CPU) |
+| NVIDIA GPU server | [deploy/](deploy/README.md#gpu-image-nvidia-cuda) | Arc Transcriber (full) on CUDA: same HTTP routes, Python server, CUDA image |
 | Cloud platforms | [deploy/platforms/](deploy/platforms/README.md) | SageMaker / AWS Marketplace, Snowflake, Hugging Face, NVIDIA NIM: status and checklists |
 | Raspberry Pi | [raspberry-pi/](raspberry-pi/README.md) | Arc Mini on a Pi 4 or 5 |
 | macOS / Android | [macos/](macos/README.md) | Arc with the OS's on-device recogniser |

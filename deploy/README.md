@@ -88,8 +88,7 @@ docker buildx build --platform linux/amd64,linux/arm64 -f deploy/Dockerfile --ta
 - Runtime base: `gcr.io/distroless/cc-debian12:nonroot` (no shell, no package manager), uid 65532, read-only weights.
   `HEALTHCHECK` is the binary itself.
 - One build serves amd64 and arm64: libarc picks AVX2 or NEON kernels at run time.
-- **CPU only.** libarc has no CUDA, Metal or other GPU code, so there is no GPU image (see
-  [platforms/nim/](platforms/nim/README.md)).
+- **CPU only.** libarc has no GPU code. For an NVIDIA GPU use the [GPU image](#gpu-image-nvidia-cuda).
 - Other weights in the Arc Mini folder format work with the same image (`--build-arg WEIGHTS=... --build-arg MODEL_ID=...`).
 
 ### Combined image: transcriber + Arc Tagger
@@ -102,6 +101,26 @@ is the folder holding both checkouts.
 make -C deploy -j2 ARCTAG=/path/to/arc-tagger-c         # deploy/build/arc-serve-combined
 cd .. && docker buildx build -f arc_transcriber/deploy/Dockerfile.combined --target runtime -t arc-transcriber-tagger:0.1.0 .
 ```
+
+### GPU image (NVIDIA CUDA)
+
+Arc Transcriber (full) is built for GPUs and the Python package runs it on CUDA. `Dockerfile.cuda` serves it with
+`python -m arc_transcriber.serve`: the batch routes above (`/v1/audio/transcriptions`, health, `/v1/models`, SageMaker
+`/ping` and `/invocations`) with the same request options and response shapes. Not in it: `/v1/realtime`, the Snowflake
+and tagger routes; `one_utterance` and `beams` are ignored. One request runs at a time; the rest queue.
+
+```bash
+docker buildx build --platform linux/amd64 -f deploy/Dockerfile.cuda --target runtime -t arc-transcriber:cuda .
+docker run --gpus all -p 8080:8080 -e HF_TOKEN -v arc-hf:/opt/arc/hf arc-transcriber:cuda   # downloads weights on first start
+# weights inside the image (HF_TOKEN is a build secret, not a layer)
+docker buildx build --platform linux/amd64 -f deploy/Dockerfile.cuda --target bundled --secret id=hf_token,env=HF_TOKEN -t arc-transcriber:cuda-bundled .
+```
+
+- Base `nvidia/cuda:12.8.1-runtime-ubuntu24.04`, torch 2.11.0 (CUDA 12.8 wheels), uid 10001, `HEALTHCHECK` on readiness.
+- `ARC_BACKBONE=mini` serves Arc Mini instead. Also `ARC_DEVICE`, `ARC_MODEL` (repo or folder), `ARC_DOMAIN`, `ARC_MODEL_ID`.
+- Without Docker: `pip install .` then `python -m arc_transcriber.serve --backbone full --device cuda`.
+- **Untested on a GPU.** The server's unit tests (`tests/test_serve.py`) and an Arc Mini run on CPU (matches the golden
+  transcript and names) pass; the image has not been built or run on an NVIDIA host yet.
 
 ## Conformance
 
