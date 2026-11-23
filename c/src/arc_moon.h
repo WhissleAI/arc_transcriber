@@ -11,6 +11,7 @@
 
 #include "arc_base.h"
 #include "arc_store.h"
+#include "arc_lm.h"
 
 #define ARC_MOON_D 320
 #define ARC_MOON_LAYERS 6
@@ -93,6 +94,9 @@ typedef struct {
   int repeat_guard;        /* 1: on */
   int rg_max_unit, rg_copies, rg_min_tokens;
   const arc_moon_bias* bias;   /* NULL: off */
+  const arc_lm* lm;            /* shallow fusion (arc_lm_fuse) after the suppressed ids; NULL or lm_weight 0: off */
+  float lm_weight;
+  int lm_topk;
 } arc_moon_procs;
 
 /* Decode: prompt[n_prompt] (context tokens, may be 0) then the start token, up to max_length tokens in all

@@ -1,7 +1,7 @@
 # libarc reference
 
-Details behind [c/README.md](../c/README.md): how the C port was checked, the Arc Transcriber Space API, and what is
-not ported yet.
+Details behind [c/README.md](../c/README.md): how the C port was checked, the Arc Transcriber Space API, the n-gram
+LM, and what is not ported yet.
 
 ## How Arc Mini was checked
 
@@ -30,7 +30,7 @@ Every part of libarc is compared with the matching part of `arc_audio`.
   synthetic passages and voice commands, book requests, long recordings and an 8-minute file, across 13 domains and a
   misspelt list.
 - **Unit tests without weights** (`make -C c test`, CI): numbers 3215/3215, name text 7849/7849, tidy 98/98, dates
-  169/169, aliases 606/606, speakers 16/16.
+  169/169, aliases 606/606, speakers 16/16, n-gram LM 48/48.
 - **Scores and n-best**: 56/56 `arc_score` values within 2e-2 nats, 5/5 n-best lists identical.
 - Precision: kernels sum in float32 in a different order than PyTorch. Decisions (tokens, tags, links, values) matched
   everywhere tested; probabilities agree to about 1e-4.
@@ -75,6 +75,39 @@ echo and barge-in have their own tests (`tests/test_post.c`, `tests/test_echo.c`
 | peak RSS | 845 MB | 2.1 GB |
 
 Most of the time is the encoder in ONNX Runtime.
+
+## N-gram LM
+
+`arc_set_lm(engine, path, weight, topk)` loads a token n-gram LM for shallow fusion; `arc_set_lm_weight` changes the
+weight (cheap, per request), `path` NULL removes it, weight 0 keeps it loaded but off (output identical to no LM). The
+maths, when it helps and recommended weights: [USAGE.md](USAGE.md#n-gram-lm). It runs after the suppressed ids and
+before the repeat guard, in beam search and greedy decoding (finals and stream partials).
+
+**File format `ARCLM1`** (little endian, natural logs):
+
+| offset | field |
+|---|---|
+| 0 | `char magic[8]` = `"ARCLM1\0\0"` |
+| 8 | `int32 order` (1-8) |
+| 12 | `int32 vocab` (the decoder's: 32768 for Arc Mini) |
+| 16 | `float32 unscored` (<= 0): a typical text piece's ln p; a scored token with no unigram costs twice that |
+| 20 | `int32 cap`: table slots, a power of 2 |
+| 24 | `uint8 scored[vocab]`: 1 for ids the LM scores (text pieces, `<s>` = 1, `</s>` = 2), 0 for tags and markers; zero padded to a multiple of 8 bytes |
+| then | `cap` entries `{uint64 key, float32 logp, float32 bow}`; key 0 = empty slot (at least one) |
+
+- An entry is an n-gram of ids `g`: `logp` = ln P(g[-1] | g[:-1]) and `bow` = ln of its backoff weight as a context
+  (0 if none). A positive `logp` marks an entry that is only a context.
+- `key` = FNV-1a 64 over the ids as little-endian int32 bytes, then `^= n * 0x9E3779B97F4A7C15`, then `| 1`. Its slot
+  is `(key ^ key >> 32) & (cap - 1)`, then linear probing.
+- P(t | h): the longest stored (h_k, t), plus the `bow` of each longer context h_k that was looked up and missed (ARPA
+  backoff). Sentences are `<s> ... </s>`; tags and markers are skipped in the history.
+- The loader checks the magic and version, header ranges, the exact file size, finite values, odd keys and an empty
+  slot, and refuses a vocabulary other than the decoder's. The file is memory-mapped: engines loading the same file
+  share its pages.
+
+`arc_audio.lm` reads and writes the same format (`ArcLM`, `write_lm`). Checks: `tests/test_lm.c` (format, backoff,
+fusion maths, every load error) and `tests/test_lm.py` (Python and libarc give the same transcript and tags on the
+golden clip at weights 0, 0.3, 1 and 3; weight 0 is byte-identical to no LM).
 
 ## Not ported yet
 

@@ -37,7 +37,7 @@ endif
 SRC := $(filter-out src/arc_nft2_ort.c src/arc_nft2_none.c,$(wildcard src/*.c)) $(NFT2_BE)
 HDR := $(wildcard src/*.h include/*.h)
 OBJ := $(patsubst src/%.c,$(B)/%.o,$(SRC))
-UNIT := test_num test_ntext test_tidy test_date test_post test_echo test_speaker test_alias
+UNIT := test_num test_ntext test_tidy test_date test_post test_echo test_speaker test_alias test_lm
 TESTS := $(UNIT) test_moon test_tok test_transcribe test_full store_hash test_whole_long test_score test_stream
 
 all: $(B)/libarc.a $(B)/arc-transcribe $(B)/arc-stream $(B)/arc-score $(B)/arc-parity $(B)/arc-trim $(B)/arc-nft2 $(B)/nft2-app-example $(addprefix $(B)/,$(TESTS))
@@ -77,6 +77,7 @@ test: $(addprefix $(B)/,$(UNIT))
 	$(B)/test_echo tests/data/echo.json ../examples/example_synth.wav
 	$(B)/test_speaker tests/data/speakers.jsonl
 	$(B)/test_alias tests/data/alias.jsonl
+	$(B)/test_lm $(B)
 
 # the release's golden check (needs the weights): make parity MINI=/path/arc-v1.1/mini [ARC=..] [PY=python]
 ARC ?= ..

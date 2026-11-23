@@ -59,7 +59,7 @@ static int load_cfg(arc_engine* e, const char* dir) {
   for (int i = 32636; i < ARC_MOON_VOCAB; ++i) e->sup[e->n_sup++] = i;
   arc_align_cfg_load(&e->align, arc_json_get(e->cfg, "alignment"));
   e->procs = (arc_moon_procs){e->n_off, e->off_id, e->off_val, e->loop_guard ? e->n_sup : 0, e->sup, e->loop_guard,
-                              8, 4, 6, NULL};
+                              8, 4, 6, NULL, NULL, 0.0f, 0};
   return 0;
 }
 
@@ -150,6 +150,7 @@ int arc_set_threads(arc_engine* e, int threads) {
 void arc_destroy(arc_engine* e) {
   if (!e) return;
   arc_engine_free_trunk(e);
+  arc_lm_free(e->lm);
   arc_moon_free(e->moon);
   arc_tok_free(e->tok);
   arc_json_free(e->cfg);
@@ -300,6 +301,52 @@ int arc_set_names(arc_engine* e, const arc_name_entry* names, int n) {
   arc_free(al);
   return 0;
 }
+
+int arc_set_lm(arc_engine* e, const char* path, float weight, int topk) {
+  g_err[0] = 0;
+  if (!e || !(weight >= 0) || topk < 0 || topk > 64) {
+    snprintf(g_err, sizeof g_err, "arc_set_lm: bad arguments (weight >= 0, topk 0-64)");
+    return -1;
+  }
+  if (!path) {
+    arc_lm_free(e->lm);
+    e->lm = NULL;
+    e->procs.lm = NULL;
+    e->procs.lm_weight = 0.0f;
+    e->procs.lm_topk = 0;
+    return 0;
+  }
+  arc_lm* lm = arc_lm_load(path, g_err, sizeof g_err);
+  if (!lm) return -1;
+  if (arc_lm_vocab(lm) != ARC_MOON_VOCAB) {
+    snprintf(g_err, sizeof g_err, "lm %s: vocabulary %d, the decoder's is %d (built for another tokenizer)", path,
+             arc_lm_vocab(lm), ARC_MOON_VOCAB);
+    arc_lm_free(lm);
+    return -1;
+  }
+  arc_lm_free(e->lm);
+  e->lm = lm;
+  e->procs.lm = lm;
+  e->procs.lm_weight = weight;
+  e->procs.lm_topk = topk;
+  return 0;
+}
+
+int arc_set_lm_weight(arc_engine* e, float weight) {
+  g_err[0] = 0;
+  if (!e || !(weight >= 0)) {
+    snprintf(g_err, sizeof g_err, "arc_set_lm_weight: bad arguments (weight >= 0)");
+    return -1;
+  }
+  if (!e->lm && weight > 0) {
+    snprintf(g_err, sizeof g_err, "arc_set_lm_weight: no LM loaded (arc_set_lm)");
+    return -1;
+  }
+  e->procs.lm_weight = weight;
+  return 0;
+}
+
+float arc_lm_weight(const arc_engine* e) { return e && e->lm ? e->procs.lm_weight : 0.0f; }
 
 int arc_set_bias_strength(arc_engine* e, float start_bonus, float cont_bonus) {
   if (!e || start_bonus < 0 || cont_bonus < 0) return -1;

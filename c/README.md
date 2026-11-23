@@ -10,7 +10,7 @@ A dependency-free C11 library (libc, libm, threads) that runs **Arc Mini** from 
 - Not supported: Arc Transcriber (full, Parakeet backbone). See [docs/LIBARC.md](../docs/LIBARC.md#not-ported-yet).
 - Checked against `arc_audio`: identical transcripts, tags, names and numbers on the golden clip and 609 clip runs.
 
-Library version 1.4.1, ABI 2 (`ARC_VERSION`, `ARC_ABI_VERSION`; compare with `arc_version()` / `arc_abi_version()`).
+Library version 1.5.0, ABI 2 (`ARC_VERSION`, `ARC_ABI_VERSION`; compare with `arc_version()` / `arc_abi_version()`).
 
 ## Build
 
@@ -42,10 +42,11 @@ arc_destroy(e);
 ```
 
 ```bash
-build/arc-transcribe arc-v1.1/mini clip.wav --domain nba --names examples/example_names.json [--json]
+build/arc-transcribe arc-v1.1/mini clip.wav --domain nba --names examples/example_names.json [--json] [--lm car.arclm --lm-weight 0.3]
 ```
 
-Other calls: `arc_set_context` (names with kinds, terms, topic, earlier text), `arc_set_bias`, `arc_frames_compute`,
+Other calls: `arc_set_context` (names with kinds, terms, topic, earlier text), `arc_set_bias`, `arc_set_lm` (n-gram
+LM fusion, [docs/LIBARC.md](../docs/LIBARC.md#n-gram-lm)), `arc_frames_compute`,
 `arc_memory*` (carry state across calls), `arc_speakers` / `arc_diarization`, `arc_number_date`, and `arc_score`
 (log P(text | audio) for candidate texts, for catalogs and commands; `build/arc-score`). Results own their memory. One
 engine runs one call at a time: use one engine per thread.
@@ -125,6 +126,7 @@ Raspberry Pi numbers: [raspberry-pi/](../raspberry-pi/README.md). Arc Transcribe
 | `include/arc.h` | public API |
 | `src/arc_api.c`, `arc_engine.*`, `arc_link.*` | engine, transcript, heads and read-outs, names and numbers |
 | `src/arc_moon.*`, `arc_tok.*`, `arc_align.*` | Moonshine encoder / decoder, tokenizer, word times |
+| `src/arc_lm.*` | n-gram LM (ARCLM1 loader, shallow fusion); libc only |
 | `src/arc_nft2*` | Arc Transcriber Space; `arc_nft2_be.h` is its encoder backend interface |
 | `src/arc_store.*`, `arc_kernels.c`, `arc_weights.c` | weights, 4-bit kernels (AVX2 / NEON), thread pool |
 | `tools/` | CLI tools and the reference dumpers / comparers used for parity |

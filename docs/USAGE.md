@@ -27,6 +27,7 @@ arc-transcribe talk.wav --auto-context                                  # feed b
 arc-transcribe game.wav --format srt -o game.srt                        # or --format vtt
 arc-transcribe game.wav --live                                          # stream the file at real-time pace
 arc-transcribe --mic --domain talk                                      # microphone; Ctrl-C to stop
+arc-transcribe call.wav --lm car.arclm --lm-weight 0.3                  # n-gram LM fusion (see N-gram LM)
 ```
 
 | option | values |
@@ -42,6 +43,7 @@ arc-transcribe --mic --domain talk                                      # microp
 | `--format`, `-o` | `txt` (default), `json`, `srt`, `vtt`; output file (default stdout) |
 | `--written` | txt / srt / vtt show the written form instead of inline tags |
 | `--live`, `--mic`, `--duration S`, `--fast` | live mode from a file or the microphone |
+| `--lm`, `--lm-weight`, `--lm-topk` | token n-gram LM for decoder fusion (see [N-gram LM](#n-gram-lm)); weight default 0.3 |
 | `--model`, `--revision` | another Hugging Face repo or local folder; a revision of the model repo |
 
 Progress goes to stderr; the result goes to stdout or `-o`.
@@ -90,6 +92,8 @@ with arc.stream(domain="assistant", names=contacts) as s:
 | `name_candidates=5` | predict | ranked candidates per name record (0 = none) |
 | `masks="default"` / `None` / list / dict | stream, predict | per-domain output masks; `assistant` domains drop profanity and bio events by default |
 | `device="auto"` | from_pretrained | cuda, then mps, then cpu |
+| `lm=, lm_weight=0.3, lm_topk=0` | from_pretrained | n-gram LM fusion; also `arc.set_lm(path, weight, topk)`, `arc.set_lm_weight(w)` |
+| `lm_weight=` | stream, predict | this call's LM weight (0 = off; default: the loaded weight) |
 
 `arc.output_masks(domain)` shows what is masked; `arc.tags(domain, masks=...)` lists the remaining tags.
 
@@ -133,6 +137,30 @@ is not certain keeps its words ("two thirty" with no time cue); single-digit cou
 To score WER against written references, score `transcript_written` (or `arc-transcribe --written --format txt`). Use
 the spoken `transcript` for references written as words.
 
+## N-gram LM
+
+Arc's decoder can fuse a token n-gram LM (shallow fusion, the same in Python, libarc, the CLIs and arc-serve). It is
+a relative re-ranker: among the next tokens the audio already finds plausible (within 4 nats of the best), each text
+piece is charged `weight x (ln P_lm(token) - ln P_lm(the LM's favourite))`, capped at `6 x weight`. Tags are neutral and
+the end of an utterance follows the audio, so the LM never cuts speech short.
+
+```python
+arc = Arc.from_pretrained("WhissleAI/arc-v1.1", lm="car.arclm", lm_weight=0.3)
+out = arc.predict("drive.wav")                     # fused
+out = arc.predict("drive.wav", lm_weight=0)        # identical to no LM
+arc.set_lm(None)                                   # remove it
+```
+
+- **When it helps**: audio whose wording is close to the LM's training text (fixed commands, a product's phrasing).
+  The decoder already has a strong internal LM, so on new wording a second one double counts. In-car tests (Arc Mini,
+  weight 0.35): in-domain clips 9.0% -> 4.1% WER, held-out wording 9.9% -> 12.2-12.7%. Measure on your own audio.
+- **Weights**: 0.2-0.5; start at 0.3. `topk` (candidates scored per step) 16; more rarely changes anything.
+- **Cost**: none when no LM is set; about +10% decode time with one (Arc Mini, 4 beams, Apple M3 Pro).
+- **Applies to** Arc Mini and Arc Transcriber (full) transcripts, finals and partials; not to Arc Transcriber Space.
+- **The file** is `ARCLM1`: a hashed backoff model over the decoder's own SentencePiece ids, vocabulary 32768
+  ([format](LIBARC.md#n-gram-lm)). Training tools are not part of this repo; `arc_audio.lm.write_lm` writes the
+  format from n-gram probabilities you computed.
+
 ## External ASR words
 
 Arc can take another recogniser's words as its transcript and still read everything else from the audio.
@@ -156,6 +184,7 @@ pytest -q                                                   # Arc Mini, CPU; ski
 ARC_TEST_PARAKEET=1 pytest -q                               # also Arc Transcriber (full); ARC_MODEL=/local/arc-v1.1 for a local copy
 ARC_SPACE_MODEL=/local/arc-transcriber-space pytest -q tests/test_space.py    # Arc Transcriber Space
 pytest -q tests/test_integrations.py                        # cloud recognisers, recorded messages, no keys
+ARC_MODEL=/local/arc-v1.1 pytest -q tests/test_lm.py        # n-gram LM: Python vs libarc (after make -C c)
 ARC_LIVE_ASR=deepgram,assemblyai,speechmatics pytest -q tests/test_integrations.py   # live, with keys set
 python scripts/check_parity.py --backbone mini --candidate out.json   # check a port, see PORTING.md
 ```

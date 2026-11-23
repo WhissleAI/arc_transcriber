@@ -168,6 +168,7 @@ class Transcriber:
         self.auto_prev = False
         self.hist = []
         self._t_now = None
+        self.lm, self.lm_weight, self.lm_topk = (None, 0.0, 0)   # n-gram LM fusion (Arc.set_lm)
         if self.c.get('context'):
             self.set_context(**self.c['context'])
 
@@ -227,6 +228,9 @@ class Transcriber:
         P = self._prompt_ids()
         st = self.m.config.decoder_start_token_id
         pre, guards = self._guards(len(P) + 1)
+        if self.lm is not None and self.lm_weight > 0:   # libarc's order: ... suppressed ids, LM, repeat guard
+            from .lm import LMFusion
+            guards = guards[:1] + [LMFusion(self.lm, self.lm_weight, self.lm_topk, len(P), int(self.m.config.eos_token_id))] + guards[1:]
         nb = int(self.c.get('final_beams', 1)) if final and (not prefix) and (not return_ids) else 1
         if nb > 1:
             from .bias import RowBias

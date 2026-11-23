@@ -4,9 +4,12 @@
  * speakers and diarization).
  *   arc-transcribe MINI_DIR file.wav [file.wav ...] [--domain D] [--names list.json] [--context "A,B"] [--whole]
  *                  [--no-trunk] [--words] [--json] [--threads N] [--diarization auto|slots|fused|voice]
+ *                  [--lm file.arclm [--lm-weight W] [--lm-topk K]]
  * --names: a list as examples/example_names.json (strings or {"name", "kind", "group", "aliases"}); names are linked
  * to it and the decoder is biased towards it, as Arc.predict(names=...). --context: names for the decoder's context
- * prompt (and bias) only. Part of arc_transcriber (Whissle Inc.), CC BY-NC 4.0; see LICENSE. */
+ * prompt (and bias) only. --lm: shallow fusion with a token n-gram LM (arc_set_lm; weight default 0.3). --json
+ * also gives each utterance's n-best (alts, with their share of the beam).
+ * Part of arc_transcriber (Whissle Inc.), CC BY-NC 4.0; see LICENSE. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -23,7 +26,8 @@ static const char* base(const char* p) {
 int main(int argc, char** argv) {
   if (argc < 3) {
     fprintf(stderr, "usage: arc-transcribe MINI_DIR file.wav [file.wav ...] [--domain D] [--names list.json] "
-                    "[--context A,B] [--whole] [--no-trunk] [--words] [--json] [--threads N] [--diarization auto|slots|fused|voice]\n");
+                    "[--context A,B] [--whole] [--no-trunk] [--words] [--json] [--threads N] [--diarization auto|slots|fused|voice] "
+                    "[--lm file.arclm [--lm-weight W] [--lm-topk K]]\n");
     return 2;
   }
   const char* domain = "unknown";
@@ -33,6 +37,9 @@ int main(int argc, char** argv) {
   const char* diar = NULL;
   const char* files[4096];
   int nf = 0;
+  const char* lm_path = NULL;
+  float lm_w = 0.3f;
+  int lm_k = 0;
   for (int i = 2; i < argc; ++i) {
     if (!strcmp(argv[i], "--domain") && i + 1 < argc) domain = argv[++i];
     else if (!strcmp(argv[i], "--names") && i + 1 < argc) names_path = argv[++i];
@@ -43,6 +50,9 @@ int main(int argc, char** argv) {
     else if (!strcmp(argv[i], "--json")) json = 1;
     else if (!strcmp(argv[i], "--threads") && i + 1 < argc) threads = atoi(argv[++i]);
     else if (!strcmp(argv[i], "--diarization") && i + 1 < argc) diar = argv[++i];
+    else if (!strcmp(argv[i], "--lm") && i + 1 < argc) lm_path = argv[++i];
+    else if (!strcmp(argv[i], "--lm-weight") && i + 1 < argc) lm_w = (float)atof(argv[++i]);
+    else if (!strcmp(argv[i], "--lm-topk") && i + 1 < argc) lm_k = atoi(argv[++i]);
     else if (nf < 4096) files[nf++] = argv[i];
   }
   double t0 = arc_time_ms();
@@ -50,6 +60,7 @@ int main(int argc, char** argv) {
   arc_engine* e = arc_create(argv[1], threads, err, sizeof err);
   if (!e) { fprintf(stderr, "arc: %s\n", err); return 1; }
   double t_load = arc_time_ms() - t0;
+  if (lm_path && arc_set_lm(e, lm_path, lm_w, lm_k)) { fprintf(stderr, "arc: %s\n", arc_last_error()); return 1; }
   if (diar && arc_set_diarization(e, diar)) { fprintf(stderr, "arc: %s\n", arc_last_error()); return 1; }
   const char* nm[256];
   int nn = 0;
@@ -84,6 +95,13 @@ int main(int argc, char** argv) {
         const arc_utt* u = &r->utts[i];
         printf("%s{\"start\": %.1f, \"end\": %.1f, \"text\": ", i ? ", " : "", u->start, u->end);
         jstr(u->text);
+        printf(", \"alts\": [");   /* the decoder's n-best (beam), best first, with their share of the beam */
+        for (int k = 0; k < u->n_alts; ++k) {
+          printf("%s{\"text\": ", k ? ", " : "");
+          jstr(u->alts[k]);
+          printf(", \"p\": %.4f}", u->alt_scores ? u->alt_scores[k] : 0.0f);
+        }
+        printf("]");
         printf(", \"words\": [");
         for (int k = 0; k < u->n_words; ++k) {
           printf("%s{\"text\": ", k ? ", " : "");

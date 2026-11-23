@@ -637,7 +637,7 @@ static void bias_row(const arc_moon_bias* b, float* row, const int* seq, int n) 
 }
 
 /* Arc's processors on one row of scores (seq: the row's tokens so far, start: where the repeat guard looks from):
- * tag offsets, name bias, suppressed ids, repeat guard, in that order (transcribe.py _gen). */
+ * tag offsets, name bias, suppressed ids, n-gram LM, repeat guard, in that order (transcribe.py _gen). */
 static void process(const arc_moon_procs* p, float* row, const int* seq, int n, int start, int eos, int renorm_offsets) {
   (void)renorm_offsets;
   if (!p) return;
@@ -647,6 +647,7 @@ static void process(const arc_moon_procs* p, float* row, const int* seq, int n, 
   }
   if (p->bias) bias_row(p->bias, row, seq, n);
   for (int i = 0; i < p->n_suppress; ++i) row[p->suppress[i]] = -INFINITY;
+  if (p->lm && p->lm_weight > 0) arc_lm_fuse(p->lm, p->lm_weight, p->lm_topk, row, V, seq + start - 1, n - start + 1, eos);
   if (p->repeat_guard && n - start > 0 && looping(seq + start, n - start, p)) {
     for (int i = 0; i < V; ++i) row[i] = -INFINITY;
     row[eos] = 0.0f;

@@ -30,7 +30,7 @@ extern "C" {
  * counts); new functions alone do not change it. A binding generated from this header should compare it with
  * arc_abi_version() of the library it loads. ARC_VERSION is for people (logs). */
 #define ARC_ABI_VERSION 2
-#define ARC_VERSION "1.4.1"
+#define ARC_VERSION "1.5.0"
 int arc_abi_version(void);
 const char* arc_version(void);
 
@@ -209,6 +209,19 @@ int arc_set_bias(arc_engine* e, const char* const* phrases, int n);
  * 1.5 for the next token of a phrase in progress, on log-softmaxed scores). A short list picked for this utterance
  * (live context) can take a stronger pull than a long standing one. Kept until changed; applies to later decodes. */
 int arc_set_bias_strength(arc_engine* e, float start_bonus, float cont_bonus);
+
+/* Shallow fusion with a token n-gram LM over the decoder's own ids (an "ARCLM1" file; format: docs/LIBARC.md#n-gram-lm).
+ * A relative re-ranker: among the candidates the audio already finds plausible, each text piece is charged
+ * weight * (its LM log-probability - the LM's favourite's), capped; tags and the end of the utterance are left to the
+ * audio. It helps text worded like the LM's training text and can hurt other wording (the decoder already has its own
+ * LM): measure on your audio. weight: 0.2-0.5 typical, 0 = loaded but off (output identical to no LM). topk:
+ * candidates per step (0 = 16, at most 64). path NULL removes the LM. Applies to finals and stream partials decoded
+ * after the call; the file is memory-mapped, so engines loading the same file share it. Returns 0, or -1 with
+ * arc_last_error() (unreadable or malformed file, another tokenizer's vocabulary); the old LM then stays. */
+int arc_set_lm(arc_engine* e, const char* path, float weight, int topk);
+/* Change the weight of the loaded LM (0 = off); -1 if weight > 0 and no LM is loaded. Cheap: per request is fine. */
+int arc_set_lm_weight(arc_engine* e, float weight);
+float arc_lm_weight(const arc_engine* e);   /* the current weight; 0 when no LM is loaded */
 
 typedef struct {
   const char* domain;   /* one of Arc's domains ("assistant", "meeting", ... "unknown"); NULL = "unknown" */
