@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Arc Transcriber (Arc Mini, libarc) as a service: arc-serve, one static-ish C binary on a distroless base.
-# CPU only: libarc has no GPU path (see deploy/README.md), so there is no CUDA variant.
+# CPU only: libarc has no GPU code. For an NVIDIA GPU (Arc Transcriber full, PyTorch) see deploy/Dockerfile.cuda.
 #
 #   # bring-your-own weights (SageMaker / Hugging Face mount them at /opt/ml/model or /repository)
 #   docker buildx build --platform linux/amd64,linux/arm64 -f deploy/Dockerfile --target runtime -t arc-transcriber:0.1.0 .

@@ -1,20 +1,19 @@
 # NVIDIA NIM
 
-**Status: blocked, CPU-only.** A NIM is a GPU-accelerated container. libarc has AVX2 / NEON kernels and no GPU code,
-and Arc Transcriber Space's optional backend uses ONNX Runtime's CPU provider only. A NIM of today's image would not
-use the GPU.
+**Status: GPU path available via the Python package; NIM packaging not yet validated.**
 
-Already NIM-shaped: `GET /v1/health/live`, `/v1/health/ready`, `/v1/models`, an OpenAI-compatible transcription
-route, environment configuration, one port, non-root, no network at run time.
+Arc Transcriber (full, Parakeet-TDT 0.6B v2 encoder) runs on NVIDIA GPUs through PyTorch CUDA.
+[`Dockerfile.cuda`](../../Dockerfile.cuda) serves it with `python -m arc_transcriber.serve`: NIM-style health routes
+(`/v1/health/live`, `/v1/health/ready`), `/v1/models`, the OpenAI-compatible transcription route, one port, non-root,
+environment configuration, and no network at run time when the weights are bundled. How to build it:
+[deploy/README.md](../../README.md#gpu-image-nvidia-cuda). The image is **untested on a GPU**.
 
-A listing would need:
+Only the C library (libarc) and its `arc-serve` image are CPU-only. Arc Mini also runs on CPU on-device and on a GPU
+through the Python package, but it is small enough that a GPU rarely pays off.
 
-1. **A GPU path** for one Arc model. Shortest first:
-   - Arc Transcriber Space: its encoder and RNNT already run through ONNX Runtime behind `c/src/arc_nft2_be.h`;
-     switch that backend to the CUDA or TensorRT execution provider.
-   - Arc Transcriber (full): the Parakeet encoder port described in [docs/LIBARC.md](../../../docs/LIBARC.md#not-ported-yet),
-     with a CUDA encoder.
+A listing still needs:
+
+1. A run on an NVIDIA GPU (for example AWS g6 / L4 or g5 / A10G): readiness, a transcript matching the CPU run on
+   `examples/example_synth.wav`, latency and memory.
 2. NVIDIA base images, NGC distribution, NVIDIA's scanning and partner process.
 3. Whissle's commercial terms (Arc is CC BY-NC 4.0 today).
-
-Arc Mini is too small for a GPU to pay off (RTF about 0.05 on 4 CPU threads); the NIM case is the full model.

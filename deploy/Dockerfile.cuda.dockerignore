@@ -1,0 +1,9 @@
+# build context = the repository root; only the Python package (BuildKit reads <Dockerfile>.dockerignore)
+*
+!pyproject.toml
+!README.md
+!LICENSE
+!NOTICE
+!arc_audio
+!arc_transcriber
+**/__pycache__

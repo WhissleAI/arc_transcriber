@@ -16,7 +16,7 @@ Inference Endpoints run a custom image with the model repository downloaded to `
    |---|---|
    | model repository | `WhissleAI/arc-v1.1` (gated: the endpoint's owner must accept its terms) |
    | container | custom, `<registry>/arc-transcriber:0.1.0`, port `8080`, health route `/v1/health/ready` |
-   | hardware | CPU, 2-4 vCPU per replica (Arc Mini has no GPU path) |
+   | hardware | CPU, 2-4 vCPU per replica (this image is libarc, CPU-only; for a GPU endpoint use `Dockerfile.cuda`) |
    | environment | `ARC_WORKERS=2`; optional `ARC_THREADS`, `ARC_DOMAIN`, `ARC_MODEL_ID` |
 
 3. Call it:

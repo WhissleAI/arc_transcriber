@@ -1,6 +1,7 @@
 # Platforms and marketplace listings
 
-One image, one contract ([`../openapi.yaml`](../openapi.yaml)). Platforms differ only in where the weights come from,
+One contract ([`../openapi.yaml`](../openapi.yaml)): the CPU image (libarc, Arc Mini) for every platform below except
+NIM, which uses the CUDA image (Python, Arc Transcriber full). Platforms differ only in where the weights come from,
 which health route they probe, and how requests reach the container. The server never reaches the network, so every
 platform's network isolation works as is.
 
@@ -13,7 +14,7 @@ This page is the single place for marketplace status and listing checklists. Eac
 | Hugging Face Inference Endpoints | [huggingface/](huggingface/README.md) | model repo mounted at `/repository` | `/v1/health/ready` | ready to try |
 | Amazon SageMaker / AWS Marketplace | [sagemaker/](sagemaker/README.md), [combined](sagemaker/combined/README.md) | `model.tar.gz` or bundled | `/ping` | packages for Arc Mini and Mini + Tagger, [sample notebook](sagemaker/sample_notebook.ipynb); not yet validated in an AWS account; not listed |
 | Snowflake (SPCS, Native App) | [snowflake/](snowflake/README.md), [native_app](snowflake/native_app/README.md) | bundled | `/v1/health/ready` | service ready to try (amd64); Native App package not yet run in an account; not listed |
-| NVIDIA NIM | [nim/](nim/README.md) | | | **blocked: CPU-only** (no GPU path) |
+| NVIDIA NIM | [nim/](nim/README.md) | Hugging Face cache or bundled | `/v1/health/ready` | GPU path available via the Python package ([CUDA image](../README.md#gpu-image-nvidia-cuda), untested on a GPU); NIM packaging not yet validated |
 
 ## Checklist for every paid listing
 
@@ -55,7 +56,9 @@ Steps in [snowflake/native_app/](snowflake/native_app/README.md#provider-steps).
 
 ## NVIDIA NIM
 
-Blocked. A NIM is a GPU container and libarc is CPU-only. See [nim/](nim/README.md) for the shortest GPU paths.
+- [ ] Run the [CUDA image](../README.md#gpu-image-nvidia-cuda) on an NVIDIA GPU (L4 or A10G): readiness, a
+      transcript matching the CPU run, latency and memory.
+- [ ] Then the NIM steps in [nim/](nim/README.md).
 
 ## Listing copy (model card)
 
