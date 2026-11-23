@@ -1,8 +1,8 @@
-# Deploying Arc outside PyTorch
+# Porting Arc to other runtimes
 
-This note is for engineers porting Arc inference to other runtimes (MLX / Core ML on Mac, ONNX Runtime Mobile or ExecuTorch on
-Android, CUDA / ORT CUDA / TensorRT in the cloud). The Python package `arc_audio` is the reference implementation; every port should be
-checked against the golden outputs in `tests/golden/` with `scripts/check_parity.py`.
+For engineers running Arc outside PyTorch: MLX or Core ML on Mac, ONNX Runtime Mobile or ExecuTorch on Android, CUDA or
+TensorRT in the cloud. `arc_audio` is the reference; check every port against `tests/golden/` with
+`scripts/check_parity.py`. For the ready-made C port, see [c/](../c/README.md); for a hosted server, [deploy/](../deploy/README.md).
 
 ## Backbones and targets
 
@@ -16,12 +16,12 @@ Golden reference outputs: `tests/golden/mini.json` (Arc Mini) and `tests/golden/
 weight files; check every port against them.
 
 Budgets for Arc Mini on device: **download <= 50 MB**, **resident RAM < 200 MB**, real time on 2 mobile big cores.
-Today (PyTorch reference, weights unpacked to float32): download 71 MB, RAM about 1.0 GB (files) / 1.6 GB (live). The gap is closed by
-the items in "Reducing RAM" below; none of them needs new weights.
+The PyTorch reference (weights unpacked to float32) downloads 71 MB and uses about 1.0 GB RAM for files, 1.6 GB live.
+libarc (`c/`) applies most of "Reducing RAM" below and peaks near 180 MB on a 30 s clip; none of it needs new weights.
 
 ## Weight files
 
-See `docs/WEIGHTS_FORMAT.md` for the exact byte layout. Summary: safetensors; each 4-bit matrix `W` is stored as `W.q` (uint8, two codes
+See [WEIGHTS_FORMAT.md](WEIGHTS_FORMAT.md) for the exact byte layout. Summary: safetensors; each 4-bit matrix `W` is stored as `W.q` (uint8, two codes
 per byte, low nibble first), `W.s` (float32 scale per group of 32) and `W.z` (uint8, two 4-bit zero points per byte), with the layout in
 the header (`int4_layout`). Dequantised value = `(code - zero) * scale` in float32 (bit exact).
 
