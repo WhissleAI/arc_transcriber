@@ -10,7 +10,8 @@ Snowflake rows route. One model, one request at a time (a GPU serialises the wor
 
 Environment (flags win): HOST, PORT (8080), ARC_MODEL or ARC_MODEL_DIR (Hugging Face repo or local folder), ARC_REVISION,
 ARC_BACKBONE (full), ARC_DEVICE (auto), ARC_THREADS, ARC_MODEL_ID, ARC_DOMAIN (unknown), ARC_MAX_BODY_MB (100),
-ARC_QUEUE_TIMEOUT_S (120), ARC_ACCESS_LOG (1). Options the C server honours but this one does not: one_utterance, beams
+ARC_QUEUE_TIMEOUT_S (120), ARC_ACCESS_LOG (1), ARC_LM / ARC_LM_WEIGHT (0.3) / ARC_LM_TOPK (an n-gram LM for decoder
+fusion; requests may set lm_weight). Options the C server honours but this one does not: one_utterance, beams
 (accepted, ignored); words / trunk / link_names / numbers = false drop those fields but do not save time.
 --fetch-only downloads the weights (both Arc and, for full, the Parakeet encoder) into the Hugging Face cache and exits.
 Part of arc_transcriber (Whissle Inc.), CC BY-NC 4.0 with the Whissle terms; see LICENSE.
@@ -41,6 +42,21 @@ def _bool(v, default):
     if isinstance(v, bool):
         return v
     return str(v).strip().lower() not in ("0", "false", "no", "off")
+
+
+def lm_weight_opt(v, arc):
+    """the request's lm_weight (None: the server's): 0-4, and > 0 only with a server-side LM (ARC_LM)"""
+    if v is None or v == "":
+        return None
+    try:
+        w = float(v)
+    except (TypeError, ValueError):
+        raise ApiError(400, "lm_weight: a number 0-4")
+    if not 0 <= w <= 4:
+        raise ApiError(400, "lm_weight: a number 0-4")
+    if w > 0 and getattr(arc, "lm", None) is None:
+        raise ApiError(400, "lm_weight: this server has no n-gram LM (ARC_LM)")
+    return w
 
 
 def _list(v):
@@ -252,12 +268,13 @@ class Service:
         trunk = _bool(opts.get("trunk"), True)
         if self.arc is None:
             raise ApiError(503, "the model is still loading" if not self.error else "the model failed to load", "server_busy")
+        lmw = lm_weight_opt(opts.get("lm_weight"), self.arc)
         if not self.lock.acquire(timeout=self.queue_timeout):
             raise ApiError(503, "the transcription worker is busy; retry", "server_busy")
         try:
             t0 = time.perf_counter()
             out = self.arc.predict(wav, domain=domain, names=names, diarization=diar, context=ctx, return_frames=False,
-                                   events="default" if _bool(opts.get("events"), trunk) else None)
+                                   events="default" if _bool(opts.get("events"), trunk) else None, lm_weight=lmw)
             wall = (time.perf_counter() - t0) * 1000
         except ApiError:
             raise
@@ -472,6 +489,9 @@ def main(argv=None):
     ap.add_argument("--domain", default=env("ARC_DOMAIN", "unknown"))
     ap.add_argument("--max-mb", type=float, default=float(env("ARC_MAX_BODY_MB", "100")))
     ap.add_argument("--queue-timeout", type=float, default=float(env("ARC_QUEUE_TIMEOUT_S", "120")))
+    ap.add_argument("--lm", default=env("ARC_LM"), help="token n-gram LM (ARCLM1 file) for decoder fusion")
+    ap.add_argument("--lm-weight", type=float, default=float(env("ARC_LM_WEIGHT", "0.3")))
+    ap.add_argument("--lm-topk", type=int, default=int(env("ARC_LM_TOPK", "0")))
     ap.add_argument("--fetch-only", action="store_true", help="download the weights and exit")
     a = ap.parse_args(argv)
     rev = None if os.path.isdir(a.model) else a.revision
@@ -480,7 +500,13 @@ def main(argv=None):
     model_id = a.model_id or ("arc-transcriber" if a.backbone in ("full", "parakeet", "server") else "arc-mini")
     svc = Service(model_id, a.domain, a.max_mb, a.queue_timeout, a.backbone)
     from . import load
-    threading.Thread(target=svc.load, args=(lambda: load(a.model, rev, a.device, a.threads, a.backbone),), daemon=True).start()
+    def loader():
+        arc = load(a.model, rev, a.device, a.threads, a.backbone)
+        if a.lm:
+            arc.set_lm(a.lm, a.lm_weight, a.lm_topk)
+        return arc
+
+    threading.Thread(target=svc.load, args=(loader,), daemon=True).start()
     httpd = ThreadingHTTPServer((a.host, a.port), make_handler(svc, _bool(env("ARC_ACCESS_LOG"), True)))
     print(f"arc-serve-py {__version__}: {model_id} ({a.backbone}, {a.device}) on http://{a.host}:{a.port}; loading the model",
           file=sys.stderr, flush=True)

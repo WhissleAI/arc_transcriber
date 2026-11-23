@@ -5,6 +5,7 @@ list, numbers with values, speakers, tags, sound events and device-directed spee
     arc-transcribe clip.wav --backbone full --device cuda                         # Arc Transcriber (full, more accurate)
     arc-transcribe clip.wav --context terms.txt --topic meeting                   # context: names / terms / topic for the decoder
     arc-transcribe clip.wav --written                                             # written form: "2:30 p.m.", "$45", "March 3"
+    arc-transcribe clip.wav --lm car.arclm --lm-weight 0.3                        # n-gram LM fusion (docs/USAGE.md#n-gram-lm)
     arc-transcribe clip.wav --device auto                                         # cuda > mps (Apple GPU) > cpu
     arc-transcribe clip.wav --asr deepgram --format srt -o clip.srt               # Deepgram words (DEEPGRAM_API_KEY)
     arc-transcribe clip.wav --asr verbit --live                                   # Verbit live order (VERBIT_WS_URL, VERBIT_API_KEY)
@@ -57,6 +58,8 @@ def load_arc(a):
                              "while logged in, then run `hf auth login` (or set HF_TOKEN)")
         raise
     log(f"arc-transcribe {__version__}: model {a.model}{'@' + rev if rev else ''} ({a.backbone}) on {arc.dev} ({time.time() - t:.1f} s)")
+    if a.lm:
+        arc.set_lm(a.lm, a.lm_weight, a.lm_topk)
     if a.context or a.topic or a.auto_context:
         arc.set_context(terms=load_terms(a.context), topic=a.topic, auto_prev=a.auto_context)
     return arc
@@ -226,6 +229,9 @@ def main(argv=None):
     ap.add_argument("--context", help="names / terms / phrases the decoder should expect: .txt (one per line), .json list, or 'a,b,c'")
     ap.add_argument("--topic", help="short topic / domain hint for the decoder context (e.g. 'meeting', 'nba', 'customer support')")
     ap.add_argument("--auto-context", action="store_true", help="feed the text of earlier utterances back as decoder context (memory)")
+    ap.add_argument("--lm", help="token n-gram LM (an ARCLM1 file) for shallow fusion in the decoder (docs/USAGE.md#n-gram-lm)")
+    ap.add_argument("--lm-weight", type=float, default=0.3, help="--lm: fusion weight (0.2-0.5 typical; 0 = off)")
+    ap.add_argument("--lm-topk", type=int, default=0, help="--lm: candidates scored per step (0 = 16)")
     ap.add_argument("--events", choices=["default", "all", "none"], default="default",
                     help="sound / channel events: default = stable + beta labels, all = include experimental labels, none = off")
     ap.add_argument("--no-snap", action="store_true", help="turn off the name-list snap post-pass (fuzzy / phonetic match to --names)")

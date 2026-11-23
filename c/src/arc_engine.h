@@ -106,6 +106,7 @@ struct arc_engine {
   float off_val[64];
   int n_sup, sup[200];
   arc_moon_procs procs;
+  arc_lm* lm;            /* arc_set_lm: owned, freed by arc_destroy; procs.lm points to it */
   /* the encoder states of the last decoded segment, for arc_score on the same samples */
   float* enc_H;
   int enc_T;

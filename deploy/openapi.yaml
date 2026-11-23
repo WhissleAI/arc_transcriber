@@ -90,6 +90,7 @@ paths:
         - {name: events, in: query, schema: {type: boolean, default: true}}
         - {name: frames, in: query, schema: {type: boolean, default: false}}
         - {name: beams, in: query, schema: {type: integer, default: 4}}
+        - {name: lm_weight, in: query, schema: {type: number, minimum: 0, maximum: 4}, description: n-gram LM fusion weight for this session (server started with ARC_LM; 0 = off)}
         - {name: delay_ms, in: query, schema: {type: integer, enum: [0, 100, 200, 300, 500, 800]}}
         - {name: names, in: query, schema: {type: string}, description: JSON array or comma-separated names to bias toward}
         - {name: tags, in: query, schema: {type: boolean, default: true}, description: combined image only}
@@ -225,6 +226,7 @@ components:
         diarization: {$ref: '#/components/schemas/Diarization'}
         one_utterance: {type: boolean, default: false, description: Decode the whole clip as one utterance (a held-key command)}
         beams: {type: integer, default: 4, minimum: 1, maximum: 16}
+        lm_weight: {type: number, minimum: 0, maximum: 4, description: 'n-gram LM fusion weight for this request (server started with ARC_LM; default ARC_LM_WEIGHT; 0 = off)'}
         tags: {type: boolean, default: true, description: (combined) add arc_tags}
         tagger_domain: {type: string, description: (combined) Arc Tagger profile}
         tagger: {type: object, description: '(combined) per-request Arc Tagger options: domain, asr, emit, tags, redact, thresholds, guard'}

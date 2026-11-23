@@ -48,6 +48,9 @@ static struct {
   int workers, threads;
   double max_audio_s;
   int queue_timeout_s;
+  char lm_path[1200];   /* ARC_LM: the n-gram LM every engine fuses ("" = none) */
+  float lm_weight;      /* ARC_LM_WEIGHT; a request's lm_weight replaces it for that request */
+  int lm_topk;
   arc_engine** e;
   int* busy;
   pthread_mutex_t mu;
@@ -88,6 +91,7 @@ static void release_engine(int i) {
   arc_set_context(e, NULL, NULL, 0, NULL, 0, NULL, NULL, 0);
   arc_memory(e, 0);
   arc_memory_reset(e);
+  if (S.lm_path[0]) arc_set_lm_weight(e, S.lm_weight);
   pthread_mutex_lock(&S.mu);
   S.busy[i] = 0;
   pthread_cond_signal(&S.cv);
@@ -146,6 +150,24 @@ static int opt_int(const cJSON* o, const char* k, int def) {
   return def;
 }
 
+/* a request's lm_weight: 0 if absent (the server's weight), 1 and *w if valid, -1 and a message if not */
+static int opt_lm_weight(const cJSON* o, float* w, char* err, size_t n) {
+  const cJSON* v = cJSON_GetObjectItemCaseSensitive(o, "lm_weight");
+  if (!v || (cJSON_IsString(v) && !*v->valuestring)) return 0;
+  char* end = NULL;
+  double x = cJSON_IsNumber(v) ? v->valuedouble : cJSON_IsString(v) ? strtod(v->valuestring, &end) : -1;
+  if ((end && *end) || !(x >= 0 && x <= 4)) {
+    snprintf(err, n, "lm_weight: a number 0-4");
+    return -1;
+  }
+  if (x > 0 && !S.lm_path[0]) {
+    snprintf(err, n, "lm_weight: this server has no n-gram LM (ARC_LM)");
+    return -1;
+  }
+  *w = (float)x;
+  return 1;
+}
+
 static void opt_set_str(cJSON* o, const char* k, const char* v) {
   if (cJSON_GetObjectItemCaseSensitive(o, k)) return;   /* the first source wins */
   cJSON_AddStringToObject(o, k, v);
@@ -154,7 +176,7 @@ static void opt_set_str(cJSON* o, const char* k, const char* v) {
 static void add_query_opts(const http_req* r, cJSON* o) {
   static const char* K[] = {"model", "prompt", "names", "response_format", "language", "domain", "events", "words", "trunk",
                             "numbers", "link_names", "one_utterance", "beams", "terms", "topic", "tags", "tagger_domain",
-                            "sample_rate", "channels", "partials", "frames", "delay_ms", NULL};
+                            "sample_rate", "channels", "partials", "frames", "delay_ms", "lm_weight", NULL};
   char v[4096];
   for (int i = 0; K[i]; ++i)
     if (http_query(r, K[i], v, sizeof v)) opt_set_str(o, K[i], v);
@@ -720,6 +742,15 @@ static char* transcribe(const float* pcm, size_t n, const cJSON* opts, const cha
                    .names = opt_bool(opts, "link_names", trunk),
                    .numbers = opt_bool(opts, "numbers", trunk)};
   if (o.beams < 0 || o.beams > 16) o.beams = 0;
+  float lmw = 0;
+  int has_lmw = opt_lm_weight(opts, &lmw, err, sizeof err);
+  if (has_lmw < 0) {
+    names_free(&nl);
+    free(terms);
+    cJSON_Delete(terms_keep);
+    fail(oc, 400, "invalid_request_error", err);
+    return NULL;
+  }
   int wi = acquire_engine(S.queue_timeout_s);
   if (wi < 0) {
     names_free(&nl);
@@ -730,6 +761,7 @@ static char* transcribe(const float* pcm, size_t n, const cJSON* opts, const cha
   }
   arc_engine* e = S.e[wi];
   int rc = arc_set_diarization(e, diar && *diar ? diar : NULL);   /* per request (the engine is shared) */
+  if (!rc && has_lmw) rc = arc_set_lm_weight(e, lmw);
   if (!rc && nl.n) rc = arc_set_names(e, nl.e, nl.n);
   if (!rc && (prompt || topic || n_terms)) rc = arc_set_context(e, NULL, NULL, 0, terms, n_terms, topic, prompt, 0);
   if (!rc && n_terms && !nl.n) rc = arc_set_bias(e, terms, n_terms);
@@ -1280,6 +1312,15 @@ static void handle_realtime(http_req* r) {
                           .bias_names = 1,
                           .delay_ms = opt_int(q, "delay_ms", 0)};
   char err[512] = "";
+  float lmw = 0;
+  int has_lmw = opt_lm_weight(q, &lmw, err, sizeof err);
+  if (has_lmw < 0 || (has_lmw && arc_set_lm_weight(e, lmw))) {
+    if (has_lmw > 0) snprintf(err, sizeof err, "%s", arc_last_error());
+    release_engine(wi);
+    cJSON_Delete(q);
+    http_respond_error(r, 400, "invalid_request_error", "%s", err);
+    return;
+  }
   const char* diar = opt_str(q, "diarization");
   if (arc_set_diarization(e, diar && *diar ? diar : NULL)) {
     snprintf(err, sizeof err, "%s", arc_last_error());
@@ -1559,15 +1600,19 @@ int main(int argc, char** argv) {
   const char* port_s = env_or("PORT", env_or("SAGEMAKER_BIND_TO_PORT", "8080"));
   const char* host = env_or("HOST", "0.0.0.0");
   const char* model = NULL;
+  const char* lm = env_or("ARC_LM", NULL);
+  const char* lm_w = env_or("ARC_LM_WEIGHT", "0.3");
   for (int i = 1; i < argc; ++i) {
     if (!strcmp(argv[i], "serve")) continue;   /* SageMaker runs the image as `docker run IMAGE serve` */
     else if (!strcmp(argv[i], "--port") && i + 1 < argc) port_s = argv[++i];
     else if (!strcmp(argv[i], "--host") && i + 1 < argc) host = argv[++i];
     else if (!strcmp(argv[i], "--model") && i + 1 < argc) model = argv[++i];
+    else if (!strcmp(argv[i], "--lm") && i + 1 < argc) lm = argv[++i];
+    else if (!strcmp(argv[i], "--lm-weight") && i + 1 < argc) lm_w = argv[++i];
     else if (!strcmp(argv[i], "--healthcheck")) return http_healthcheck(atoi(port_s), "/v1/health/ready");
     else if (!strcmp(argv[i], "--version")) { printf("arc-serve %s (libarc %s)\n", ARC_DEPLOY_VERSION, arc_version()); return 0; }
     else {
-      fprintf(stderr, "usage: %s [serve] [--port N] [--host ADDR] [--model DIR]\n", argv[0]);
+      fprintf(stderr, "usage: %s [serve] [--port N] [--host ADDR] [--model DIR] [--lm FILE.arclm] [--lm-weight W]\n", argv[0]);
       return 2;
     }
   }
@@ -1591,6 +1636,15 @@ int main(int argc, char** argv) {
   if (S.threads <= 0) S.threads = (int)(ncpu / S.workers) > 0 ? (int)(ncpu / S.workers) : 1;
   S.max_audio_s = atof(env_or("ARC_MAX_AUDIO_S", "900"));
   S.queue_timeout_s = atoi(env_or("ARC_QUEUE_TIMEOUT_S", "60"));
+  if (lm) {
+    snprintf(S.lm_path, sizeof S.lm_path, "%s", lm);
+    S.lm_weight = (float)atof(lm_w);
+    S.lm_topk = atoi(env_or("ARC_LM_TOPK", "0"));
+    if (!(S.lm_weight >= 0 && S.lm_weight <= 4)) {
+      fprintf(stderr, "arc-serve: ARC_LM_WEIGHT must be 0-4\n");
+      return 1;
+    }
+  }
   S.started = time(NULL);
   double t0 = http_now_ms();
   S.e = calloc((size_t)S.workers, sizeof *S.e);
@@ -1602,7 +1656,12 @@ int main(int argc, char** argv) {
       fprintf(stderr, "arc-serve: %s: %s\n", S.model_dir, err);
       return 1;
     }
+    if (S.lm_path[0] && arc_set_lm(S.e[i], S.lm_path, S.lm_weight, S.lm_topk)) {
+      fprintf(stderr, "arc-serve: %s\n", arc_last_error());
+      return 1;
+    }
   }
+  if (S.lm_path[0]) fprintf(stderr, "arc-serve: n-gram LM %s, weight %.2f\n", S.lm_path, S.lm_weight);
 #ifdef ARC_SERVE_TAGGER
   {
     char td[1200] = "", err[1024];

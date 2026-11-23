@@ -96,7 +96,7 @@ def _mps_ok():
 
 class Arc:
 
-    def __init__(self, path, device=None, threads=None, load_decoder=True, encoder=None, onnx_dir=None, arc_onnx_dir=None):
+    def __init__(self, path, device=None, threads=None, load_decoder=True, encoder=None, onnx_dir=None, arc_onnx_dir=None, lm=None, lm_weight=0.3, lm_topk=0):
         device = resolve_device(device or os.environ.get('ARC_DEVICE', 'cpu'))
         if threads:
             torch.set_num_threads(int(threads))
@@ -159,6 +159,34 @@ class Arc:
             from .wordch import Pieces
             self.pieces = Pieces(os.path.join(mp, 'tokenizer.json'))
         self.domains = list(FINE_DOMAINS)
+        self.lm, self.lm_weight, self.lm_topk = (None, 0.0, 0)
+        if lm:
+            self.set_lm(lm, lm_weight, lm_topk)
+
+    def set_lm(self, path=None, weight=0.3, topk=0):
+        """shallow fusion with a token n-gram LM (an ARCLM1 file; libarc's arc_set_lm): a relative re-ranker of the
+        decoder's candidates. weight 0.2-0.5 typical (0 = loaded but off), topk candidates per step (0 = 16, at most 64),
+        path None removes it. Applies to transcripts decoded afterwards (Arc Mini and Arc Transcriber (full); not Space).
+        It helps text worded like the LM's training text and can hurt other wording: measure on your audio."""
+        if not weight >= 0 or not 0 <= int(topk) <= 64:
+            raise ValueError('set_lm: weight >= 0, topk 0-64')
+        if path is None:
+            self.lm, self.lm_weight, self.lm_topk = (None, 0.0, 0)
+            return None
+        from .lm import ArcLM
+        lm = ArcLM(path)
+        V = int(self.moon.config.vocab_size)
+        if lm.vocab != V:
+            raise ValueError(f'lm {path}: vocabulary {lm.vocab}, the decoder\'s is {V} (built for another tokenizer)')
+        self.lm, self.lm_weight, self.lm_topk = (lm, float(weight), int(topk))
+        return lm
+
+    def set_lm_weight(self, weight):
+        """change the loaded LM's weight (0 = off)"""
+        if not weight >= 0 or (weight > 0 and self.lm is None):
+            raise ValueError('set_lm_weight: weight >= 0, and an LM loaded (set_lm) for weight > 0')
+        self.lm_weight = float(weight)
+
     def _load_aux(self, sd):
         if not sd:
             return
@@ -332,7 +360,7 @@ class Arc:
     TRANSCRIPT_CFG = {'builtin': dict(final_beams=4, loopfix=True, loop_guard=True), 'moonshine_release': dict(final_beams=1, loopfix=False)}
     DECODER_CFG = {'tagged': dict(tagged=True, len_mult=1.3), 'v1e': dict(tagged=False, len_mult=1.0)}
 
-    def _transcriber(self, cfg=None, mode='builtin', decoder=None):
+    def _transcriber(self, cfg=None, mode='builtin', decoder=None, lm_weight=None):
         from .transcribe import Transcriber
         c = dict(self.cfg.get('transcription', {}), **self.TRANSCRIPT_CFG.get(mode, {}))
         if mode == 'builtin':
@@ -341,7 +369,10 @@ class Arc:
         else:
             c.update(tagged=False, len_mult=1.0)
         c.update(cfg or {})
-        return Transcriber(self.moon_for(mode, decoder), self.tok, self.dev, torch.float32, c)
+        tr = Transcriber(self.moon_for(mode, decoder), self.tok, self.dev, torch.float32, c)
+        if mode == 'builtin' and self.lm is not None and self.backbone != 'nft2':
+            tr.lm, tr.lm_weight, tr.lm_topk = (self.lm, self.lm_weight if lm_weight is None else float(lm_weight), self.lm_topk)
+        return tr
 
     def name_source(self, name_source=None, transcript='builtin', decoder=None, spans=None):
         if name_source in ('head', 'decoder', 'word'):
@@ -369,12 +400,12 @@ class Arc:
     def hop_s(self):
         return 0.08 if self.backbone in ('parakeet', 'nft2') else None
 
-    def transcribe(self, wav, names=None, bias_names=False, cfg=None, mode='builtin', decoder=None, context=None, auto_prev=False, written=False, domain='unknown'):
+    def transcribe(self, wav, names=None, bias_names=False, cfg=None, mode='builtin', decoder=None, context=None, auto_prev=False, written=False, domain='unknown', lm_weight=None):
         """utterances [{start, end, text, words, tag_spans, ...}]. written=True adds text_written / words_written: numbers in written
         form from Arc's number tags ('two thirty p.m.' -> '2:30 p.m.'; see arc_audio.written)."""
         from .transcribe import UttSegmenter
         wav = load_audio(wav) if not isinstance(wav, np.ndarray) else wav
-        tr = self._transcriber(cfg, mode, decoder)
+        tr = self._transcriber(cfg, mode, decoder, lm_weight=lm_weight)
         self._set_bias(tr, names, bias_names)
         if context is not None or getattr(self, '_ctx', None):
             c = context if context is not None else self._ctx
@@ -486,8 +517,8 @@ class Arc:
             if b - a >= 800:
                 u['room'] = self.room(wav[a:b], None if reference is None else np.asarray(reference, np.float32).reshape(-1)[a:b], frames=False, t0=a / SR)
 
-    def predict(self, audio, domain='unknown', delay_s=0.3, names=None, transcript='builtin', words=None, include_experimental=False, calibrated=True, diarization='auto', rescore=True, bias_names=None, return_frames=True, chunk_frames=3000, name_text=None, decoder=None, spans=None, name_source=None, word_channel=True, word_arrival='rule', word_source=None, fallback='auto', strict=False, text_layer=None, events='default', context=None, auto_prev=False, kb_snap=True, name_candidates=5, alias_link=True, command_complete_hold_s=0.0, masks='default', segmenter=None, almost=None, nbest=None, guard=None, room=None, reference=None):
-        """the whole-file result. room (nft2 packages with room read-outs; default on): each transcript utterance gets 'room'
+    def predict(self, audio, domain='unknown', delay_s=0.3, names=None, transcript='builtin', words=None, include_experimental=False, calibrated=True, diarization='auto', rescore=True, bias_names=None, return_frames=True, chunk_frames=3000, name_text=None, decoder=None, spans=None, name_source=None, word_channel=True, word_arrival='rule', word_source=None, fallback='auto', strict=False, text_layer=None, events='default', context=None, auto_prev=False, kb_snap=True, name_candidates=5, alias_link=True, command_complete_hold_s=0.0, masks='default', segmenter=None, almost=None, nbest=None, guard=None, room=None, reference=None, lm_weight=None):
+        """the whole-file result. lm_weight: this call's n-gram LM weight (set_lm; None = the loaded weight, 0 = off). room (nft2 packages with room read-outs; default on): each transcript utterance gets 'room'
         (see Arc.room; addressee and safety are BETA). reference: the device's playback audio, aligned with audio. almost (transcript='nft2'): also report heard words that SOUND like a list entry but were not
         linked, as name records with state 'almost' (candidate, candidate_p; entity stays None), and turn an abstain /
         not_in_list record that sounds like an entry into one (default: config transcription.nft2.almost, off). nbest (nft2): an
@@ -504,7 +535,7 @@ class Arc:
         utts = []
         nsrc = self.name_source(name_source, transcript, decoder, spans)
         if transcript in ('builtin', 'moonshine_release'):
-            utts = self.transcribe(wav, names, default_bias(bias_names, transcript), cfg=segmenter, mode=transcript, decoder=decoder, context=context, auto_prev=auto_prev)
+            utts = self.transcribe(wav, names, default_bias(bias_names, transcript), cfg=segmenter, mode=transcript, decoder=decoder, context=context, auto_prev=auto_prev, lm_weight=lm_weight)
             for u in utts:
                 ws.add(u['words'], 'moonshine')
         elif transcript == 'parakeet':
@@ -626,7 +657,7 @@ class Arc:
         """a live stream (feed 100 ms chunks of float32 16 kHz mono). switch_interval_s: None (default) leaves the interpreter's
         sys.setswitchinterval alone; a float (or True for the model config's value) lowers it while the background transcript worker
         runs, restored on flush() / close(). segmenter: overrides of the utterance segmenter (pause_s, min_s, short_pause_s, max_s).
-        Other options (name_candidates, alias_link, live_hold, command_complete_hold_s, masks): see predict()."""
+        Other options (name_candidates, alias_link, live_hold, command_complete_hold_s, masks, lm_weight): see predict()."""
         return Stream(self, domain, delay_s, names, transcript, include_experimental, calibrated, diarization, rescore, bias_names, partials, word_wait_s, partial_every_s=partial_every_s, partial_window_s=partial_window_s, background=background, worker_threads=worker_threads, live=live, name_text=name_text, decoder=decoder, name_source=name_source, early_commit=early_commit, interim_source=interim_source, word_channel=word_channel, fallback=fallback, strict=strict, text_layer=text_layer, events=events, context=context, auto_prev=auto_prev, kb_snap=kb_snap, switch_interval_s=switch_interval_s, segmenter=segmenter, **opts)
 
     def early_policy(self, domain='unknown', transcript='builtin', early_commit=None, interim_source=None):
@@ -973,6 +1004,7 @@ class Stream:
         self.domain = domain
         self.d = arc.delay_frames(delay_s)
         self.early = arc.early_policy(domain, transcript, early_commit, interim_source)
+        lm_weight = opts.pop('lm_weight', None)
         bad = set(opts) - set(Arc.ENGINE_OPTS) - {'masks'}
         if bad:
             raise TypeError(f'unknown stream option(s): {sorted(bad)}')
@@ -1040,7 +1072,7 @@ class Stream:
         if transcript in ('builtin', 'moonshine_release', 'parakeet', 'nft2'):
             from .transcribe import UttSegmenter
             tm = 'moonshine_release' if transcript == 'moonshine_release' else 'builtin'
-            self.tr = arc._transcriber(cfg=dict(segmenter or {}), mode=tm, decoder=decoder if tm == 'builtin' else None)
+            self.tr = arc._transcriber(cfg=dict(segmenter or {}), mode=tm, decoder=decoder if tm == 'builtin' else None, lm_weight=lm_weight)
             arc._set_bias(self.tr, names, default_bias(bias_names, transcript) if transcript != 'nft2' else False)
             if transcript == 'nft2':
                 c = context if context is not None else getattr(arc, '_ctx', None)

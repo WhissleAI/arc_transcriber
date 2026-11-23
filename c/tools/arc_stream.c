@@ -4,7 +4,9 @@
  *   arc-stream MINI_DIR file.wav [more.wav ...] [--mode full|heads|external] [--threads N] [--chunk-ms 100]
  *              [--partial-ms 400] [--beams N] [--domain D] [--events] [--no-decoder] [--tail-s 1.5]
  *              [--words-dir DIR] [--delay-ms 300] [--records] [--realtime] [--quiet]
+ *              [--lm file.arclm [--lm-weight 0.3] [--lm-topk K]]
  *
+ * --lm: shallow fusion with a token n-gram LM (arc_set_lm), for partials and finals.
  * --delay-ms: the read-out delay (0, 100, 200, 300 = default, 500, 800: the ones Arc was trained with).
  * Every file is its own stream, followed by --tail-s of silence (so utterances close on Arc's pause rule as they do
  * live) and arc_stream_finish. Records are printed as text, or with --records as JSON lines; a JSON summary line per
@@ -244,7 +246,7 @@ int main(int argc, char** argv) {
     fprintf(stderr,
             "usage: arc-stream MINI_DIR file.wav [...] [--mode full|heads|external] [--threads N] [--chunk-ms 100]\n"
             "       [--partial-ms 400] [--beams N] [--domain D] [--events] [--no-decoder] [--tail-s 1.5]\n"
-            "       [--words-dir DIR] [--records] [--realtime] [--quiet]\n");
+            "       [--words-dir DIR] [--records] [--realtime] [--quiet] [--lm file.arclm [--lm-weight W] [--lm-topk K]]\n");
     return 2;
   }
   const char* files[4096];
@@ -252,7 +254,9 @@ int main(int argc, char** argv) {
   int nf = 0, threads = 4, chunk_ms = 100, partial_ms = 0, beams = 0, events = 0, no_dec = 0, records = 0,
       realtime = 0, quiet = 0;
   float tail_s = 1.5f;
-  const char *domain = "unknown", *words_dir = NULL;
+  const char *domain = "unknown", *words_dir = NULL, *lm_path = NULL;
+  float lm_w = 0.3f;
+  int lm_k = 0;
   arc_stream_mode mode = ARC_STREAM_FULL;
   for (int i = 2; i < argc; ++i) {
     if (!strcmp(argv[i], "--mode") && i + 1 < argc) {
@@ -274,6 +278,9 @@ int main(int argc, char** argv) {
     else if (!strcmp(argv[i], "--records")) records = 1;
     else if (!strcmp(argv[i], "--realtime")) realtime = 1;
     else if (!strcmp(argv[i], "--quiet")) quiet = 1;
+    else if (!strcmp(argv[i], "--lm") && i + 1 < argc) lm_path = argv[++i];
+    else if (!strcmp(argv[i], "--lm-weight") && i + 1 < argc) lm_w = (float)atof(argv[++i]);
+    else if (!strcmp(argv[i], "--lm-topk") && i + 1 < argc) lm_k = atoi(argv[++i]);
     else if (nf < 4096) files[nf++] = argv[i];
   }
   if (mode != ARC_STREAM_FULL) no_dec = 1;   /* heads / external never need the decoder */
@@ -285,6 +292,10 @@ int main(int argc, char** argv) {
     return 1;
   }
   double load_ms = now_ms() - t0;
+  if (lm_path && arc_set_lm(e, lm_path, lm_w, lm_k)) {
+    fprintf(stderr, "arc: %s\n", arc_last_error());
+    return 1;
+  }
   struct rusage ru0;
   getrusage(RUSAGE_SELF, &ru0);
   double audio_all = 0, wall_all = 0;

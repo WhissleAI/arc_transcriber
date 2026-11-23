@@ -29,7 +29,7 @@ int main(int argc, char** argv) {
   int sup[200], ns = 0;
   sup[ns++] = 32630; sup[ns++] = 32631;
   for (int i = 32636; i < 32768; ++i) sup[ns++] = i;
-  arc_moon_procs pr = {8, off_id, off_val, ns, sup, 1, 8, 4, 6, NULL};
+  arc_moon_procs pr = {8, off_id, off_val, ns, sup, 1, 8, 4, 6, NULL, NULL, 0.0f, 0};
   char path[2048];
   snprintf(path, sizeof path, "%s/cases.tsv", argv[2]);
   FILE* f = fopen(path, "r");

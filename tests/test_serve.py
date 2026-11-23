@@ -183,3 +183,20 @@ def test_options_reach_predict(server):
     kw = svc.arc.calls[-1]
     assert kw["events"] is None and kw["diarization"] == "voice" and kw["context"]["kb"] == ["Hawks", "Harbor City"]
     assert kw["context"]["dom"] == "basketball" and j["names"] == [] and j["numbers"] == []
+
+
+def test_lm_weight(server):
+    url, svc = server
+    assert svc.arc.calls and call(url, "/v1/audio/transcriptions", wav_bytes(), "audio/wav")[0] == 200
+    assert svc.arc.calls[-1]["lm_weight"] is None                         # no option: the server's weight
+    assert call(url, "/v1/audio/transcriptions?lm_weight=0", wav_bytes(), "audio/wav")[0] == 200
+    assert svc.arc.calls[-1]["lm_weight"] == 0.0
+    st, _, out = call(url, "/v1/audio/transcriptions?lm_weight=0.4", wav_bytes(), "audio/wav")
+    assert st == 400 and "no n-gram LM" in out                             # FakeArc has no LM
+    assert call(url, "/v1/audio/transcriptions?lm_weight=9", wav_bytes(), "audio/wav")[0] == 400
+    svc.arc.lm = object()
+    try:
+        assert call(url, "/v1/audio/transcriptions?lm_weight=0.4", wav_bytes(), "audio/wav")[0] == 200
+        assert svc.arc.calls[-1]["lm_weight"] == 0.4
+    finally:
+        del svc.arc.lm

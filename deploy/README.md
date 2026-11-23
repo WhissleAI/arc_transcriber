@@ -46,6 +46,7 @@ Form fields, query parameters, JSON keys (with base64 `audio`), or SageMaker cus
 | `diarization` | `auto` | `auto` (by domain), `slots`, `fused`, `voice` |
 | `one_utterance` | `false` | decode the clip as one utterance |
 | `beams` | 4 | beam width (1 = greedy) |
+| `lm_weight` | `ARC_LM_WEIGHT` | n-gram LM weight for this request, 0-4 (0 = off); needs `ARC_LM` |
 
 Errors use OpenAI's envelope `{"error": {"message", "type", "code"}}`.
 
@@ -74,6 +75,7 @@ linked in streams: use the file route for that.
 | `ARC_MAX_BODY_MB`, `ARC_QUEUE_TIMEOUT_S` | 100, 60 | |
 | `ARC_FILE_ROOT` | | Snowflake: a mounted stage for file-path rows |
 | `ARC_MAX_CONNECTIONS`, `ARC_ACCESS_LOG` | 64, 1 | |
+| `ARC_LM`, `ARC_LM_WEIGHT`, `ARC_LM_TOPK` | none, 0.3, 16 | an n-gram LM every engine fuses ([N-gram LM](../docs/USAGE.md#n-gram-lm)); flags `--lm`, `--lm-weight`. One copy in memory however many workers |
 
 ## Images
 
@@ -117,7 +119,8 @@ docker buildx build --platform linux/amd64 -f deploy/Dockerfile.cuda --target bu
 ```
 
 - Base `nvidia/cuda:12.8.1-runtime-ubuntu24.04`, torch 2.11.0 (CUDA 12.8 wheels), uid 10001, `HEALTHCHECK` on readiness.
-- `ARC_BACKBONE=mini` serves Arc Mini instead. Also `ARC_DEVICE`, `ARC_MODEL` (repo or folder), `ARC_DOMAIN`, `ARC_MODEL_ID`.
+- `ARC_BACKBONE=mini` serves Arc Mini instead. Also `ARC_DEVICE`, `ARC_MODEL` (repo or folder), `ARC_DOMAIN`, `ARC_MODEL_ID`,
+  `ARC_LM` / `ARC_LM_WEIGHT` / `ARC_LM_TOPK` (and the `lm_weight` request option).
 - Without Docker: `pip install .` then `python -m arc_transcriber.serve --backbone full --device cuda`.
 - **Untested on a GPU.** The server's unit tests (`tests/test_serve.py`) and an Arc Mini run on CPU (matches the golden
   transcript and names) pass; the image has not been built or run on an NVIDIA host yet.
